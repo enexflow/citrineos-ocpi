@@ -25,6 +25,7 @@ export type Scalars = {
   jsonb: { input: any; output: any; }
   numeric: { input: any; output: any; }
   timestamptz: { input: any; output: any; }
+  citext: { input: string; output: string; }
 };
 export type Authorizations_Set_Input = {
   additionalInfo?: InputMaybe<Scalars['jsonb']['input']>;
@@ -54,6 +55,12 @@ export type Transactions_Bool_Exp = {
 };
 export type Authorizations_Bool_Exp = {
   TenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+};
+export type Authorizations_Paginated_Bool_Exp = {
+  updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
+  TenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+  Tenant?: InputMaybe<Tenants_Bool_Exp>;
+  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type Timestamptz_Comparison_Exp = {
   _gte?: InputMaybe<Scalars['timestamptz']['input']>;
@@ -700,7 +707,7 @@ export type GetTenantByIdQueryResult = {
 };
 
 export type ReadAuthorizationsQueryVariables = Exact<{
-  idToken?: InputMaybe<Scalars['String']['input']>;
+  idToken?: InputMaybe<Scalars['citext']['input']>;
   type?: InputMaybe<Scalars['String']['input']>;
   countryCode?: InputMaybe<Scalars['String']['input']>;
   partyId?: InputMaybe<Scalars['String']['input']>;
@@ -732,7 +739,7 @@ export type ReadAuthorizationsQueryResult = {
 };
 
 export type UpdateAuthorizationMutationVariables = Exact<{
-  idToken: Scalars['String']['input'];
+  idToken: Scalars['citext']['input'];
   type: Scalars['String']['input'];
   tenantPartnerId: Scalars['Int']['input'];
   set?: InputMaybe<Authorizations_Set_Input>;
@@ -766,7 +773,7 @@ export type UpdateAuthorizationMutationResult = {
 };
 
 export type GetAuthorizationByTokenQueryVariables = Exact<{
-  idToken: Scalars['String']['input'];
+  idToken: Scalars['citext']['input'];
   idTokenType: Scalars['String']['input'];
   tenantPartnerId: Scalars['Int']['input'];
 }>;
@@ -828,7 +835,7 @@ export type GetAuthorizationByIdQueryResult = {
 export type CreateAuthorizationMutationVariables = Exact<{
   tenantId: Scalars['Int']['input'];
   tenantPartnerId: Scalars['Int']['input'];
-  idToken: Scalars['String']['input'];
+  idToken: Scalars['citext']['input'];
   idTokenType: Scalars['String']['input'];
   additionalInfo?: InputMaybe<Scalars['jsonb']['input']>;
   status: Scalars['String']['input'];
@@ -865,7 +872,7 @@ export type CreateAuthorizationMutationResult = {
 };
 
 export type GetGroupAuthorizationQueryVariables = Exact<{
-  groupId: Scalars['String']['input'];
+  groupId: Scalars['citext']['input'];
   tenantPartnerId: Scalars['Int']['input'];
 }>;
 
@@ -875,6 +882,40 @@ export type GetGroupAuthorizationQueryResult = {
     id: number,
     idToken: string,
     idTokenType?: string | null
+  }>
+};
+
+export type GetAuthorizationsPaginatedQueryVariables = Exact<{
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  where: Authorizations_Paginated_Bool_Exp;
+}>;
+
+export type GetAuthorizationsPaginatedQueryResult = {
+  Authorizations: Array<{
+    id: number,
+    createdAt: any,
+    updatedAt: any,
+    tenantId: number,
+    idToken: string,
+    idTokenType?: string | null,
+    additionalInfo?: any | null,
+    status: string,
+    realTimeAuth: string,
+    language1?: string | null,
+    groupAuthorizationId?: number | null,
+    tenantPartner?: {
+      id: number,
+      countryCode: string,
+      partyId: string
+    } | null,
+    tenant?: {
+      countryCode: string,
+      partyId: string
+    } | null,
+    groupAuthorization?: {
+      idToken: string
+    } | null
   }>
 };
 
