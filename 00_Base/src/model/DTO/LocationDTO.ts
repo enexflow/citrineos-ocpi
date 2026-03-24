@@ -58,3 +58,7 @@ export type LocationResponse = z.infer<typeof LocationResponseSchema>;
 export type PaginatedLocationResponse = z.infer<
   typeof PaginatedLocationResponseSchema
 >;
+
+export const LocationDTOSchemaName = 'LocationDTOSchema';
+
+export type LocationEvseDTO = z.infer<typeof EvseDTOSchema>;

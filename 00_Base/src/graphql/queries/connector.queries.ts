@@ -1,0 +1,73 @@
+import { gql } from 'graphql-request';
+
+export const UPSERT_CONNECTOR_MUTATION = gql`
+  mutation UpsertConnector($object: Connectors_insert_input!) {
+    insert_Connectors_one(
+      object: $object,
+      on_conflict: {
+        constraint: connectors_ocpi_id_evse_unique,
+        update_columns: [
+          type,
+          format,
+          powerType,
+          maximumVoltage,
+          maximumAmperage,
+          maximumPowerWatts,
+          termsAndConditionsUrl,
+          updatedAt
+        ]
+      }
+    ) {
+      id
+    }
+  }
+`;
+
+export const GET_CONNECTOR_OWNERSHIP_BY_ID = gql`
+  query GetConnectorOwnershipById($id: Int!) {
+    Connectors_by_pk(id: $id) {
+      id
+      ocpiId
+      stationId
+      chargingStation: ChargingStation {
+        location: Location {
+          ownerTenantPartnerId
+        }
+      }
+    }
+  }
+`;
+
+export const GET_PARTNER_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID = gql`
+query GetPartnerConnectorByOcpiIdAndEvseId(
+  $partnerId: Int!,
+  $locationId: String!,
+  $evseUid: String!,
+  $connectorId: String!
+) {
+  Locations(where: {
+    ocpiId: { _eq: $locationId }
+    ownerTenantPartnerId: { _eq: $partnerId }
+  }) {
+    id
+    chargingPool: ChargingStations {
+      id
+      evses: Evses(where: { ocpiUid: { _eq: $evseUid } }) {
+        id
+        connectors: Connectors(where: { ocpiId: { _eq: $connectorId } }) {
+          id
+        }
+      }
+    }
+  }
+}
+`;
+
+export const UPDATE_CONNECTOR_PATCH_MUTATION = gql`
+  mutation UpdateConnectorPatch($id: Int!, $changes: Connectors_set_input!) {
+    update_Connectors_by_pk(pk_columns: { id: $id }, _set: $changes) {
+      id
+      updatedAt
+    }
+  }
+`;

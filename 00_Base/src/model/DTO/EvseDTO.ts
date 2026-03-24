@@ -51,6 +51,7 @@ export const EvseDTOSchema = z.object({
 export const EvseResponseSchema = OcpiResponseSchema(EvseDTOSchema);
 export const EvseResponseSchemaName = 'EvseResponseSchema';
 export const EvseListResponseSchema = OcpiResponseSchema(EvseDTOSchema);
+export const EvseDTOSchemaName = 'EvseDTOSchema';
 
 export type EvseDTO = z.infer<typeof EvseDTOSchema>;
 export type EvseResponse = z.infer<typeof EvseResponseSchema>;

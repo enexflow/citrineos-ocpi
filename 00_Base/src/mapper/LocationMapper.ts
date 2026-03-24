@@ -237,9 +237,9 @@ export class EvseMapper {
             ),
           )
         : EvseStatus.UNKNOWN,
-      capabilities: station.capabilities
-        ?.map((c) => EvseMapper.mapEvseCapabilities(c))
-        .filter((c) => c !== null),
+      capabilities: ((evse as EvseDto & { capabilities?: ChargingStationCapabilityEnumType[] }).capabilities ?? station.capabilities)
+        ?.map((c: ChargingStationCapabilityEnumType) => EvseMapper.mapEvseCapabilities(c))
+        .filter((c: Capability | null): c is Capability => c !== null),
       physical_reference: evse.physicalReference,
       coordinates: station.coordinates
         ? {
@@ -273,9 +273,9 @@ export class EvseMapper {
             connectors.some((con) => con!.id === c.id!.toString()),
           ),
         ),
-      capabilities: station.capabilities
-        ?.map((c) => EvseMapper.mapEvseCapabilities(c))
-        .filter((c) => c !== null),
+      capabilities: ((evse as EvseDto & { capabilities?: ChargingStationCapabilityEnumType[] }).capabilities ?? station.capabilities)
+        ?.map((c: ChargingStationCapabilityEnumType) => EvseMapper.mapEvseCapabilities(c))
+        .filter((c: Capability | null): c is Capability => c !== null),
       physical_reference: evse.physicalReference,
       coordinates: station.coordinates
         ? {
