@@ -12,7 +12,7 @@ export default {
       CREATE OR REPLACE FUNCTION "TariffNotify"()
       RETURNS trigger AS $$
       DECLARE
-        requiredFields text[] := ARRAY['id', 'tenantId', 'updatedAt'];
+        requiredFields text[] := ARRAY['id', 'tenantId', 'tenantPartnerId', 'updatedAt'];
         requiredData jsonb;
         changedData jsonb;
         notificationData jsonb;

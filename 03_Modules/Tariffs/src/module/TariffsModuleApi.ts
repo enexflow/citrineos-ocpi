@@ -116,6 +116,7 @@ export class TariffsModuleApi
       countryCode,
       partyId,
       tariffId,
+      true,
     );
 
     if (!tariff) {
@@ -145,6 +146,7 @@ export class TariffsModuleApi
     @Ctx() ctx?: any,
   ) {
     const tenantId: number | undefined = ctx?.state?.tenantPartner?.tenant?.id;
+    const tenantPartnerId: number | undefined = ctx?.state?.tenantPartner?.id;
     const tariffRequest: PutTariffRequest = {
       ...tariffBody,
       id: tariffId,
@@ -154,6 +156,7 @@ export class TariffsModuleApi
     const result = await this.tariffService.createOrUpdateTariff(
       tariffRequest,
       tenantId,
+      tenantPartnerId,
     );
 
     return buildOcpiResponse<TariffDTO>(
@@ -173,7 +176,7 @@ export class TariffsModuleApi
     @Param('party_id') partyId: string,
     @Param('tariff_id') tariffId: string,
   ): Promise<OcpiEmptyResponse> {
-    await this.tariffService.deleteTariff(countryCode, partyId, tariffId);
+    await this.tariffService.deleteTariff(countryCode, partyId, tariffId, true);
     return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
   }
 }

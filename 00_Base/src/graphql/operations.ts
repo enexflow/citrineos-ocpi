@@ -41,6 +41,11 @@ export type Locations_Bool_Exp = {
 export type Tariffs_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
+  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+};
+export type Int_Comparison_Exp = {
+  _eq?: InputMaybe<Scalars['Int']['input']>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
 };
 export type Transactions_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
@@ -418,6 +423,7 @@ export type GetTariffByKeyQueryResult = {
     stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
+    tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
       countryCode: string,
@@ -446,6 +452,7 @@ export type GetTariffsQueryResult = {
     stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
+    tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
       countryCode: string,
@@ -471,6 +478,7 @@ export type CreateOrUpdateTariffMutationResult = {
     stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
+    tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
       countryCode: string,
@@ -508,6 +516,45 @@ export type GetTariffByOcpiIdQueryResult = {
     stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
+    tenantPartnerId?: number | null,
+    updatedAt: any,
+    tenant: {
+      countryCode: string,
+      partyId: string
+    }
+  }>
+};
+
+export type GetTenantPartnerIdByCountryPartyQueryVariables = Exact<{
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+}>;
+
+export type GetTenantPartnerIdByCountryPartyQueryResult = {
+  TenantPartners: Array<{
+    id: number;
+  }>;
+};
+
+export type GetTariffByPartnerQueryVariables = Exact<{
+  tariffId: Scalars['Int']['input'];
+  tenantPartnerId: Scalars['Int']['input'];
+}>;
+
+export type GetTariffByPartnerQueryResult = {
+  Tariffs: Array<{
+    authorizationAmount?: any | null,
+    createdAt: any,
+    currency: any,
+    id: number,
+    paymentFee?: any | null,
+    pricePerKwh: any,
+    pricePerMin?: any | null,
+    pricePerSession?: any | null,
+    stationId?: string | null,
+    taxRate?: any | null,
+    tariffAltText?: string | null,
+    tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
       countryCode: string,

@@ -55,7 +55,8 @@
     "fi": "npm run fresh && npm run install-all",
     "generate": "graphql-codegen",
     "migrate:build": "tsc --project migrations/tsconfig.json",
-    "migrate": "npm run migrate:build && npx sequelize-cli db:migrate && echo migration completed successfully"
+    "migrate": "npm run migrate:build && npx sequelize-cli db:migrate && echo migration completed successfully",
+    "hasura:reload-metadata": "bash scripts/hasura-reload-metadata.sh"
   },
   "workspaces": [
     "./00_Base",

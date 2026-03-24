@@ -17,6 +17,10 @@ import { Logger } from 'tslog';
 import { Inject, Service } from 'typedi';
 import { TariffsModuleApi } from './module/TariffsModuleApi.js';
 import type { TariffDto } from '@citrineos/base';
+import {
+  getTenantPartnerId,
+  isPartnerReceivedTariff,
+} from './tariffPartnerNotification.js';
 
 export { TariffsModuleApi } from './module/TariffsModuleApi.js';
 export type { ITariffsModuleApi } from './module/ITariffsModuleApi.js';
@@ -54,6 +58,14 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
   async handleTariffInsert(event: IDtoEvent<TariffDto>): Promise<void> {
     this._logger.debug(`Handling Tariff Insert: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
+
+    if (isPartnerReceivedTariff(tariffDto)) {
+      this._logger.info(
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${getTenantPartnerId(tariffDto)}), skipping broadcast.`,
+      );
+      return;
+    }
+
     const tenant = tariffDto.tenant;
     if (!tenant) {
       this._logger.error(
@@ -75,6 +87,14 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
   ): Promise<void> {
     this._logger.debug(`Handling Tariff Update: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
+
+    if (isPartnerReceivedTariff(tariffDto)) {
+      this._logger.info(
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${getTenantPartnerId(tariffDto)}), skipping broadcast.`,
+      );
+      return;
+    }
+
     const tenant = tariffDto.tenant;
     if (!tenant) {
       this._logger.error(
@@ -94,6 +114,14 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
   async handleTariffDelete(event: IDtoEvent<TariffDto>): Promise<void> {
     this._logger.debug(`Handling Tariff Delete: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
+
+    if (isPartnerReceivedTariff(tariffDto)) {
+      this._logger.info(
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${getTenantPartnerId(tariffDto)}), skipping broadcast.`,
+      );
+      return;
+    }
+
     const tenant = tariffDto.tenant;
     if (!tenant) {
       this._logger.error(

@@ -5,8 +5,26 @@
 
 # Tariffs module OCPI 2.2.1 - test curl commands
 #
+# This script tests both the Receiver interface (eMSP receiving tariffs from a CPO)
+# and the Sender interface (CPO exposing its own tariffs).
+#
+# Per OCPI 2.2.1, Receiver endpoints use the CPO's country_code/party_id in the URL:
+#   {tariffs_endpoint_url}/{country_code}/{party_id}/{tariff_id}
+#   where country_code/party_id identify the CPO that owns the tariff.
+#
+# In this test:
+#   - Our platform acts as eMSP: FR/ZTA (the Tenant)
+#   - Partner CPO: FR/TMS (the TenantPartner)
+#
 # Prerequisites:
 #   1. Server running on localhost:8085
+#   2. DB migration applied: Tariffs.tenantPartnerId (see migrations/20250730123508_*.ts)
+#   3. Hasura metadata reloaded so GraphQL exposes tenantPartnerId and TenantPartner
+#      on Tariffs (otherwise you get HTTP 500 / validation-failed on tenantPartnerId).
+#      From repo root:
+#        npm run hasura:reload-metadata
+#      Or: ./scripts/hasura-reload-metadata.sh
+#      Set HASURA_ENDPOINT / HASURA_ADMIN_SECRET if not defaults (see script).
 #
 # Usage:
 #   chmod +x tariffs-test-curls.sh
@@ -18,7 +36,7 @@ BASE_URL="http://localhost:8085/ocpi/2.2.1/tariffs"
 
 AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
 
-# OCPI headers (partner FR/TMS -> tenant FR/ZTA)
+# OCPI headers: CPO partner FR/TMS -> our eMSP FR/ZTA
 OCPI_HEADERS=(
   -H "Authorization: $AUTH_TOKEN"
   -H "X-Request-ID: $(uuidgen 2>/dev/null || echo test-req-001)"
@@ -86,17 +104,20 @@ run_curl() {
 
 # ===========================================================================
 # PHASE 1 — CREATE (Receiver PUT)
+# The CPO (FR/TMS) pushes tariffs to our eMSP (FR/ZTA).
+# URL uses CPO's country_code/party_id per OCPI 2.2.1 spec.
+# The tariff is stored with a tenantPartnerId linking it to FR/TMS.
 # ===========================================================================
 
-separator "1. PUT /tariffs/FR/ZTA/1 — Creer tarif 1 (ENERGY + FLAT)"
+separator "1. PUT /tariffs/FR/TMS/1 — Create tariff 1 (ENERGY + FLAT) from CPO FR/TMS"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/ZTA/1" \
+  -X PUT "$BASE_URL/FR/TMS/1" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
     "id": "1",
     "country_code": "FR",
-    "party_id": "ZTA",
+    "party_id": "TMS",
     "currency": "EUR",
     "type": "REGULAR",
     "elements": [
@@ -119,15 +140,15 @@ run_curl 200 \
     ]
   }'
 
-separator "2. PUT /tariffs/FR/ZTA/2 — Creer tarif 2 (EUR avec tariffAltText)"
+separator "2. PUT /tariffs/FR/TMS/2 — Create tariff 2 (with tariffAltText) from CPO FR/TMS"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/ZTA/2" \
+  -X PUT "$BASE_URL/FR/TMS/2" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
     "id": "2",
     "country_code": "FR",
-    "party_id": "ZTA",
+    "party_id": "TMS",
     "currency": "EUR",
     "tariff_alt_text": [
       { "language": "fr", "text": "Tarif heures creuses" },
@@ -149,24 +170,27 @@ run_curl 200 \
 
 # ===========================================================================
 # PHASE 2 — READ (Receiver GET + Sender GET)
+# Receiver GET uses CPO's country_code/party_id (FR/TMS) to look up
+# via TenantPartner relationship.
+# Sender GET returns only our own tariffs (tenantPartnerId IS NULL).
 # ===========================================================================
 
-separator "3. GET /tariffs/FR/ZTA/1 — Recuperer tarif 1"
+separator "3. GET /tariffs/FR/TMS/1 — Retrieve tariff 1 from CPO FR/TMS"
 run_curl 200 \
-  "$BASE_URL/FR/ZTA/1" \
+  "$BASE_URL/FR/TMS/1" \
   "${OCPI_HEADERS[@]}"
 
-separator "4. GET /tariffs/FR/ZTA/2 — Recuperer tarif 2"
+separator "4. GET /tariffs/FR/TMS/2 — Retrieve tariff 2 from CPO FR/TMS"
 run_curl 200 \
-  "$BASE_URL/FR/ZTA/2" \
+  "$BASE_URL/FR/TMS/2" \
   "${OCPI_HEADERS[@]}"
 
-separator "5. GET /tariffs/FR/ZTA/999 — Tarif inexistant (attend 404)"
+separator "5. GET /tariffs/FR/TMS/999 — Non-existent tariff (expect 404)"
 run_curl 404 \
-  "$BASE_URL/FR/ZTA/999" \
+  "$BASE_URL/FR/TMS/999" \
   "${OCPI_HEADERS[@]}"
 
-separator "6. GET /tariffs — Liste paginee (Sender Interface)"
+separator "6. GET /tariffs — Sender paginated list (our own tariffs only, partner tariffs excluded)"
 run_curl 200 \
   "$BASE_URL" \
   "${OCPI_HEADERS[@]}"
@@ -182,18 +206,18 @@ run_curl 200 \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
-# PHASE 3 — UPDATE (Receiver PUT sur tarif existant)
+# PHASE 3 — UPDATE (Receiver PUT on existing tariff)
 # ===========================================================================
 
-separator "9. PUT /tariffs/FR/ZTA/1 — Mettre a jour tarif 1 (ajout TIME)"
+separator "9. PUT /tariffs/FR/TMS/1 — Update tariff 1 (add TIME component)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/ZTA/1" \
+  -X PUT "$BASE_URL/FR/TMS/1" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
     "id": "1",
     "country_code": "FR",
-    "party_id": "ZTA",
+    "party_id": "TMS",
     "currency": "EUR",
     "type": "REGULAR",
     "tariff_alt_text": [
@@ -225,37 +249,37 @@ run_curl 200 \
     ]
   }'
 
-separator "10. GET /tariffs/FR/ZTA/1 — Verifier la mise a jour"
+separator "10. GET /tariffs/FR/TMS/1 — Verify the update"
 run_curl 200 \
-  "$BASE_URL/FR/ZTA/1" \
+  "$BASE_URL/FR/TMS/1" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
 # PHASE 4 — DELETE (Receiver DELETE)
 # ===========================================================================
 
-separator "11. DELETE /tariffs/FR/ZTA/2 — Supprimer tarif 2"
+separator "11. DELETE /tariffs/FR/TMS/2 — Delete tariff 2"
 run_curl 200 \
-  -X DELETE "$BASE_URL/FR/ZTA/2" \
+  -X DELETE "$BASE_URL/FR/TMS/2" \
   "${OCPI_HEADERS[@]}"
 
-separator "12. GET /tariffs/FR/ZTA/2 — Verifier suppression (attend 404)"
+separator "12. GET /tariffs/FR/TMS/2 — Verify deletion (expect 404)"
 run_curl 404 \
-  "$BASE_URL/FR/ZTA/2" \
+  "$BASE_URL/FR/TMS/2" \
   "${OCPI_HEADERS[@]}"
 
-separator "13. DELETE /tariffs/FR/ZTA/999 — Supprimer tarif inexistant (attend erreur)"
+separator "13. DELETE /tariffs/FR/TMS/999 — Delete non-existent tariff (expect error)"
 run_curl 404 \
-  -X DELETE "$BASE_URL/FR/ZTA/999" \
+  -X DELETE "$BASE_URL/FR/TMS/999" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
 # PHASE 5 — CLEANUP
 # ===========================================================================
 
-separator "14. DELETE /tariffs/FR/ZTA/1 — Nettoyage tarif 1"
+separator "14. DELETE /tariffs/FR/TMS/1 — Cleanup tariff 1"
 run_curl 200 \
-  -X DELETE "$BASE_URL/FR/ZTA/1" \
+  -X DELETE "$BASE_URL/FR/TMS/1" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================

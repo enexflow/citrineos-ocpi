@@ -28,6 +28,21 @@ export const GET_TENANT_PARTNER_BY_SERVER_TOKEN = gql`
   }
 `;
 
+/** Resolve a TenantPartner row by OCPI country_code + party_id (e.g. Receiver URL segment). */
+export const GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY = gql`
+  query GetTenantPartnerIdByCountryParty(
+    $countryCode: String!
+    $partyId: String!
+  ) {
+    TenantPartners(
+      where: { countryCode: { _eq: $countryCode }, partyId: { _eq: $partyId } }
+      limit: 1
+    ) {
+      id
+    }
+  }
+`;
+
 export const GET_TENANT_PARTNER_BY_ID = gql`
   query GetTenantPartnerById($id: Int!) {
     TenantPartners_by_pk(id: $id) {

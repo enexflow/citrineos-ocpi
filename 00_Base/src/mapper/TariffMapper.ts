@@ -111,6 +111,7 @@ export class TariffMapper {
   public static mapFromOcpi(
     tariff: PutTariffRequest,
     tenantId?: number,
+    tenantPartnerId?: number,
   ): Partial<TariffDto> {
     const coreFields = TariffMapper.mapElementsToCoreTariff(tariff.elements);
     const now = new Date().toISOString();
@@ -123,6 +124,7 @@ export class TariffMapper {
       createdAt: now,
       updatedAt: now,
       ...(tenantId !== undefined && { tenantId }),
+      ...(tenantPartnerId !== undefined && { tenantPartnerId }),
       ...coreFields,
     } as Partial<TariffDto>;
   }
