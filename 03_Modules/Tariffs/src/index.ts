@@ -17,6 +17,10 @@ import { Logger } from 'tslog';
 import { Inject, Service } from 'typedi';
 import { TariffsModuleApi } from './module/TariffsModuleApi.js';
 import type { TariffDto } from '@citrineos/base';
+import {
+  getTenantPartnerId,
+  isPartnerReceivedTariff,
+} from './tariffPartnerNotification.js';
 
 export { TariffsModuleApi } from './module/TariffsModuleApi.js';
 export type { ITariffsModuleApi } from './module/ITariffsModuleApi.js';
@@ -55,9 +59,9 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     this._logger.debug(`Handling Tariff Insert: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
 
-    if ((tariffDto as any).tenantPartnerId != null) {
+    if (isPartnerReceivedTariff(tariffDto)) {
       this._logger.info(
-        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${(tariffDto as any).tenantPartnerId}), skipping broadcast.`,
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${getTenantPartnerId(tariffDto)}), skipping broadcast.`,
       );
       return;
     }
@@ -84,9 +88,9 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     this._logger.debug(`Handling Tariff Update: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
 
-    if ((tariffDto as any).tenantPartnerId != null) {
+    if (isPartnerReceivedTariff(tariffDto)) {
       this._logger.info(
-        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${(tariffDto as any).tenantPartnerId}), skipping broadcast.`,
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${getTenantPartnerId(tariffDto)}), skipping broadcast.`,
       );
       return;
     }
@@ -111,9 +115,9 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     this._logger.debug(`Handling Tariff Delete: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
 
-    if ((tariffDto as any).tenantPartnerId != null) {
+    if (isPartnerReceivedTariff(tariffDto)) {
       this._logger.info(
-        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${(tariffDto as any).tenantPartnerId}), skipping broadcast.`,
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${getTenantPartnerId(tariffDto)}), skipping broadcast.`,
       );
       return;
     }
