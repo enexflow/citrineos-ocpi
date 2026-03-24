@@ -77,6 +77,40 @@ export class LocationMapper {
     };
   }
 
+  static fromGraphqlReceiver(location: LocationDto): LocationDTO {
+    return {
+      id: location.ocpiId! ,
+      country_code: location.tenant!.countryCode!,
+      party_id: location.tenant!.partyId!,
+      publish: location.publishUpstream,
+      name: location.name,
+      address: location.address,
+      city: location.city,
+      postal_code: location.postalCode,
+      state: location.state,
+      country: location.country,
+      coordinates: {
+        longitude: location.coordinates.coordinates[0].toString(),
+        latitude: location.coordinates.coordinates[1].toString(),
+      },
+      time_zone: location.timeZone,
+      evses: location.chargingPool
+        ?.map((station) =>
+          station.evses?.map((evse) => EvseMapper.fromGraphqlReceiver(station, evse)),
+        )
+        ?.flat()
+        ?.filter((evse) => evse !== undefined),
+      parking_type: LocationMapper.mapLocationParkingType(location.parkingType),
+      facilities: location.facilities
+        ?.map(LocationMapper.mapLocationFacility)
+        .filter((f) => f !== null),
+      opening_times: location.openingHours
+        ? LocationMapper.mapLocationHours(location.openingHours)
+        : undefined,
+      last_updated: location.updatedAt!,
+    };
+  }
+
   static fromPartialGraphql(
     location: Partial<LocationDto>,
   ): Partial<LocationDTO> {
@@ -256,6 +290,54 @@ export class EvseMapper {
     };
   }
 
+  static fromGraphqlReceiver(
+    station: ChargingStationDto,
+    evse: EvseDto,
+  ): EvseDTO | undefined {
+    let connectors = evse.connectors
+      ?.map(ConnectorMapper.fromGraphqlReceiver)
+      ?.filter((c) => c !== undefined);
+    if (!connectors || connectors.length === 0) {
+      const logger = Container.get(Logger);
+      logger.warn('EVSE has no valid connectors', {
+        stationId: station.id,
+        evseId: evse.id,
+      });
+      connectors = undefined;
+      // return;
+      // TODO: solve this case
+    }
+
+    return {
+      uid: evse.ocpiUid! ?? UID_FORMAT(station.id, evse.id!), // TODO: add proper type
+      evse_id: evse.evseId,
+      status: connectors
+        ? EvseMapper.mapEvseStatusFromConnectors(
+            evse.connectors!.filter((c) =>
+              connectors.some((con) => con!.id === c.id!.toString()),
+            ),
+          )
+        : EvseStatus.UNKNOWN,
+      capabilities: ((evse as EvseDto & { capabilities?: ChargingStationCapabilityEnumType[] }).capabilities ?? station.capabilities)
+        ?.map((c: ChargingStationCapabilityEnumType) => EvseMapper.mapEvseCapabilities(c))
+        .filter((c: Capability | null): c is Capability => c !== null),
+      physical_reference: evse.physicalReference,
+      coordinates: station.coordinates
+        ? {
+            longitude: station.coordinates.coordinates[0].toString(),
+            latitude: station.coordinates.coordinates[1].toString(),
+          }
+        : undefined,
+      parking_restrictions: station.parkingRestrictions
+        ?.map((r) => EvseMapper.mapEvseParkingRestrictions(r))
+        .filter((r) => r !== null),
+      connectors: connectors || [],
+      floor_level: station.floorLevel,
+      last_updated: evse.updatedAt!,
+    };
+  }
+
+
   static fromPartialGraphql(
     station: Partial<ChargingStationDto>,
     evse: Partial<EvseDto>,
@@ -410,6 +492,23 @@ export class ConnectorMapper {
       return partialConnector as ConnectorDTO;
     }
     logger.warn(`Invalid connector: ${JSON.stringify(partialConnector)}`);
+  }
+
+  static fromGraphqlReceiver(connector: any): ConnectorDTO | undefined {
+    const partial: Partial<ConnectorDTO> = {
+      id: connector.ocpiId ?? connector.id?.toString(),
+      standard: connector.type as ConnectorType, // stored as OCPI literal
+      format: connector.format as ConnectorFormat,
+      power_type: connector.powerType as PowerType,
+      max_voltage: connector.maximumVoltage || undefined,
+      max_amperage: connector.maximumAmperage || undefined,
+      max_electric_power: connector.maximumPowerWatts || undefined,
+      terms_and_conditions: connector.termsAndConditionsUrl,
+      last_updated: connector.updatedAt,
+    }
+    if (ConnectorMapper.validatePartialConnector(partial)) {
+      return partial as ConnectorDTO
+    }
   }
 
   static fromPartialGraphql(

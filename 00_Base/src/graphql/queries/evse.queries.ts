@@ -68,3 +68,55 @@ export const UPDATE_EVSE_PATCH_MUTATION = gql`
     }
   }
 `;
+
+
+export const GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
+query GetEvseByOcpiIdAndPartnerId($partnerId: Int!, $locationId: String!, $evseUid: String!) {
+  Evses(where: { 
+    ocpiUid: { _eq: $evseUid },
+    ChargingStation: { 
+      Location: { 
+        ocpiId: { _eq: $locationId },
+        ownerTenantPartnerId: { _eq: $partnerId }
+      }
+    }
+  }) {
+    id
+    stationId
+    evseTypeId
+    evseId
+    ocpiUid
+    physicalReference
+    removed
+    createdAt
+    updatedAt
+    ChargingStation {
+      id
+      location: Location {
+        id
+        ocpiId
+        ownerTenantPartnerId
+        updatedAt
+      }
+    }
+    connectors: Connectors {
+      id
+      ocpiId
+      stationId
+      connectorId
+      format
+      maximumAmperage
+      maximumPowerWatts
+      maximumVoltage
+      powerType
+      termsAndConditionsUrl
+      type
+      status
+      errorCode
+      timestamp
+      createdAt
+      updatedAt
+    }
+  }
+}
+`;

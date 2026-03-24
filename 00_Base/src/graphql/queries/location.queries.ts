@@ -285,7 +285,7 @@ export const GET_LOCATION_BY_TENANT_PARTNER_AND_ID_QUERY = gql`
   }
 `;
 
-export const GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID = gql`
+export const GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
   query GetLocationByIdAndPartnerId($id: String!, $partnerId: Int!) {
     Locations(where: { ocpiId: { _eq: $id }, ownerTenantPartnerId: { _eq: $partnerId } }) {
       id

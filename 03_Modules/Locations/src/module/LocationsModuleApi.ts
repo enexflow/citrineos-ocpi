@@ -196,7 +196,7 @@ export class LocationsModuleApi
    * Receiver Interface: GET /locations/:country_code/:party_id/:location_id
   */
 
-  @Get('/:country_code/:party_id/:location_id')
+  @Get('/receiver/:country_code/:party_id/:location_id')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,
@@ -207,41 +207,46 @@ export class LocationsModuleApi
     @Param('country_code') countryCode: string,
     @Param('party_id') partyId: string,
     @Param('location_id') locationId: string,
+    @Ctx() ctx: any,
   ): Promise<LocationResponse> {
     return this.locationsReceiverService.getLocationByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
+      ctx,
     );
   }
 
   /**
    * Receiver Interface: GET /locations/:country_code/:party_id/:location_id/:evse_uid
   */
-
-  @Get('/:country_code/:party_id/:location_id/:evse_uid')
+  @Get('/receiver/:country_code/:party_id/:location_id/:evse_uid')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,
-    description: 'CPO validates location stored in eMSP system',
+    description: 'CPO validates EVSE stored in eMSP system',
   })
   async getEvseByCountryParty(
     @VersionNumberParam() version: VersionNumber,
     @Param('country_code') countryCode: string,
     @Param('party_id') partyId: string,
     @Param('location_id') locationId: string,
+    @Param('evse_uid') evseUid: string,
+    @Ctx() ctx: any,
   ): Promise<LocationResponse> {
-    return this.locationsReceiverService.getLocationByCountryPartyAndId(
+    return this.locationsReceiverService.getEvseByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
+      evseUid,
+      ctx,
     );
   }
 
   /**
    * Receiver Interface: GET /locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id
   */
-  @Get('/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
+  @Get('/receiver/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,
@@ -252,18 +257,24 @@ export class LocationsModuleApi
     @Param('country_code') countryCode: string,
     @Param('party_id') partyId: string,
     @Param('location_id') locationId: string,
+    @Param('evse_uid') evseUid: string,
+    @Param('connector_id') connectorId: string,
+    @Ctx() ctx: any,
   ): Promise<LocationResponse> {
-    return this.locationsReceiverService.getLocationByCountryPartyAndId(
+    return this.locationsReceiverService.getConnectorByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
+      evseUid,
+      connectorId,
+      ctx,
     );
   }
 
   /**
    * Receiver Interface: PUT /locations/:country_code/:party_id/:location_id
   */
-  @Put('/:country_code/:party_id/:location_id')
+  @Put('/receiver/:country_code/:party_id/:location_id')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,
@@ -295,7 +306,7 @@ export class LocationsModuleApi
   /**
    * Receiver Interface: PUT /locations/:country_code/:party_id/:location_id/:evse_uid
   */
-  @Put('/:country_code/:party_id/:location_id/:evse_uid')
+  @Put('/receiver/:country_code/:party_id/:location_id/:evse_uid')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,
@@ -335,7 +346,7 @@ export class LocationsModuleApi
   /**
    * Receiver Interface: PUT /locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id
   */
-  @Put('/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
+  @Put('/receiver/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,
@@ -355,7 +366,7 @@ export class LocationsModuleApi
     this.logger.info(
       `PUT receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(connector)}`
     );
-    await this.locationsReceiverService.putConnectorByCountryPartyAndId(
+    const response = await this.locationsReceiverService.putConnectorByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
@@ -364,14 +375,15 @@ export class LocationsModuleApi
       connector,
       ctx,
     );
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    console.log('response PUT connector by country party', response);
+    return response as OcpiEmptyResponse;
 
   }
 
   /**
    * Receiver Interface: PATCH /locations/:country_code/:party_id/:location_id
   */
-  @Patch('/:country_code/:party_id/:location_id')
+  @Patch('/receiver/:country_code/:party_id/:location_id')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,
@@ -407,7 +419,7 @@ export class LocationsModuleApi
   /**
    * Receiver Interface: PATCH /locations/:country_code/:party_id/:location_id/:evse_uid
   */
-  @Patch('/:country_code/:party_id/:location_id/:evse_uid')
+  @Patch('/receiver/:country_code/:party_id/:location_id/:evse_uid')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,
@@ -449,7 +461,7 @@ export class LocationsModuleApi
   /**
    * Receiver Interface: PATCH /locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id
   */
-  @Patch('/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
+  @Patch('/receiver/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
     statusCode: HttpStatus.OK,

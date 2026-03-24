@@ -39,7 +39,7 @@ import type {
 } from '../graphql/index.js';
 import {
   OcpiGraphqlClient,
-  GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID,
+  GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY,
   GET_EVSE_BY_LOCATION_ID_AND_OWNER_PARTNER_ID,
   UPSERT_EVSE_MUTATION,
   UPSERT_CONNECTOR_MUTATION,
@@ -51,8 +51,10 @@ import {
   UPDATE_EVSE_PATCH_MUTATION,
   GET_PARTNER_EVSE_BY_OCPI_ID,
   GET_PARTNER_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID,
+  GET_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID,
   UPDATE_CONNECTOR_PATCH_MUTATION,
-  GET_LOCATION_BY_COUNTRY_PARTY_AND_ID_QUERY
+  GET_LOCATION_BY_COUNTRY_PARTY_AND_ID_QUERY,
+  GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY
 } from '../graphql/index.js';
 import {
   ConnectorMapper,
@@ -80,15 +82,21 @@ export class LocationReceiverService {
     countryCode: string,
     partyId: string,
     locationId: string,
+    ctx: any,
   ): Promise<LocationResponse> {
     this.logger.debug(`Getting location ${locationId} by country ${countryCode} and party ${partyId}`);
     try {
-      const variables = { countryCode, partyId, locationId };
+      if(!ctx.state.tenantPartner) {
+        throw new UnauthorizedException('Credentials not found for given token');
+      }
+      const variables = { id: locationId, partnerId: ctx.state.tenantPartner.id };
+      console.log('variables GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY ', variables)
       const response = await this.ocpiGraphqlClient.request<
         any,
         any // TODO: add proper types
-      >(GET_LOCATION_BY_COUNTRY_PARTY_AND_OCPI_ID_QUERY, variables);
-      const location = LocationMapper.fromGraphql(
+      >(GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
+      console.log('response GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY Graphql receiver', response)
+      const location = LocationMapper.fromGraphqlReceiver(
         response.Locations[0] as LocationDto, // TODO: add proper types
       );
       return buildOcpiResponse(
@@ -107,6 +115,79 @@ export class LocationReceiverService {
     }
 
   }
+
+
+  async getEvseByCountryPartyAndId(
+    countryCode: string,
+    partyId: string,
+    locationId: string,
+    evseUid: string,
+    ctx: any,
+  ): Promise<LocationResponse> {
+    this.logger.debug(`Getting location ${locationId} by country ${countryCode} and party ${partyId}`);
+    try {
+      if(!ctx.state.tenantPartner) {
+        throw new UnauthorizedException('Credentials not found for given token');
+      }
+      const variables = { locationId: locationId, partnerId: ctx.state.tenantPartner.id, evseUid: evseUid };
+      console.log('variables GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY ', variables)
+      const response = await this.ocpiGraphqlClient.request<
+        any,
+        any // TODO: add proper types
+      >(GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
+      console.log('response GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY Graphql receiver', response)
+      const evse = EvseMapper.fromGraphqlReceiver(
+        response.Evses[0] as ChargingStationDto,
+        response.Evses[0] as EvseDto,
+      );
+      return buildOcpiResponse(
+        OcpiResponseStatusCode.GenericSuccessCode,
+        evse,
+      ) as LocationResponse;
+    } catch (e) {
+      const statusCode =
+        e instanceof NotFoundException
+          ? OcpiResponseStatusCode.ClientUnknownLocation
+          : OcpiResponseStatusCode.ClientGenericError;
+      return buildOcpiErrorResponse(
+        statusCode,
+        (e as Error).message,
+      ) as LocationResponse;
+    }
+
+  }
+
+  async getConnectorByCountryPartyAndId(
+    countryCode: string,
+    partyId: string,
+    locationId: string,
+    evseUid: string,
+    connectorId: string,
+    ctx: any,
+  ): Promise<LocationResponse> {
+    this.logger.debug(`Getting location ${locationId} by country ${countryCode} and party ${partyId}`);
+    try {
+      if(!ctx.state.tenantPartner) {
+        throw new UnauthorizedException('Credentials not found for given token');
+      }
+      const variables = { locationId: locationId, partnerId: ctx.state.tenantPartner.id, evseUid: evseUid, connectorId: connectorId };
+      console.log('variables GET_CONNECTOR_BY_OCPI_ID_AND_PARTNER_ID_QUERY ', variables)
+      const response = await this.ocpiGraphqlClient.request<
+        any,
+        any // TODO: add proper types
+      >(GET_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID, variables);
+      console.log('response GET_CONNECTOR_BY_OCPI_ID_AND_PARTNER_ID_QUERY Graphql receiver', response)
+      const connector = ConnectorMapper.fromGraphqlReceiver(
+        response.Connectors[0] as ConnectorDto,
+      );
+      return buildOcpiResponse(OcpiResponseStatusCode.GenericSuccessCode, connector) as LocationResponse;
+    } catch (e) {
+      const statusCode = e instanceof NotFoundException ? OcpiResponseStatusCode.ClientUnknownLocation : OcpiResponseStatusCode.ClientGenericError;
+      return buildOcpiErrorResponse(statusCode, (e as Error).message) as LocationResponse;
+    }
+
+  }
+  
 
 async upsertLocationForPartnerAndCountryParty(
     countryCode: string,
@@ -192,10 +273,10 @@ async upsertLocationForPartnerAndCountryParty(
     const variables = { id: locationId, partnerId: ctx.state.tenantPartner.id };
     console.log('variables ', variables)
     const response = await this.ocpiGraphqlClient.request<any, any>(
-      GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID,
+      GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY,
       variables,
     );
-    console.log('response GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID ', response)
+    console.log('response GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY ', response)
 
     
     this.upsertLocationForPartnerAndCountryParty(countryCode, partyId, location, locationId, ctx.state.tenantPartner);
@@ -327,7 +408,7 @@ async upsertLocationForPartnerAndCountryParty(
     const variables = { id: locationId, partnerId: ctx.state.tenantPartner.id };
     console.log('variables ', variables)
     const response = await this.ocpiGraphqlClient.request<any, any>(
-      GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID,
+      GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY,
       variables,
     );
     console.log('response ', response)
@@ -404,53 +485,53 @@ async upsertLocationForPartnerAndCountryParty(
       throw new UnauthorizedException('Credentials not found for given token');
     }
   
+    const variables = { locationId: locationId, partnerId: ctx.state.tenantPartner.id, evseUid: evseUid };
+    console.log('variables ', variables)
     const lookupResponse = await this.ocpiGraphqlClient.request<any, any>(
-      GET_PARTNER_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID,
-      {
-        partnerId: ctx.state.tenantPartner.id,
-        locationId,
-        evseUid,
-        connectorId,
-      },
+      GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY,
+      variables,
     );
+
+    console.log('lookupResponse CHANGED ', lookupResponse)
+    console.log('lookupResponse.Locations ', lookupResponse.Locations)
+    console.log('lookupResponse.ChargingStation ', lookupResponse.Evses[0].ChargingStation)
+
+    const chargingStation = lookupResponse.Evses[0].ChargingStation;
+    const evse = lookupResponse.Evses[0];
+    const location = chargingStation.location;
   
-    if (!lookupResponse.Locations || lookupResponse.Locations.length === 0) {
+    if (!location) {
       return buildOcpiErrorResponse(
         OcpiResponseStatusCode.ClientUnknownLocation,
         'Unknown location',
       ) as LocationResponse;
     }
   
-    const locationNode = lookupResponse.Locations[0];
-    const chargingPool = locationNode.chargingPool ?? [];
-    const evses = chargingPool[0]?.evses ?? [];
-    const connectors = evses[0]?.connectors ?? [];
+    // const connectors = evses[0]?.connectors ?? [];
   
-    if (evses.length === 0) {
+    if (!evse) {
       return buildOcpiErrorResponse(
         OcpiResponseStatusCode.ClientUnknownLocation,
         'Unknown EVSE',
       ) as LocationResponse;
     }
   
-    if (connectors.length === 0) {
-      return buildOcpiErrorResponse(
-        OcpiResponseStatusCode.ClientUnknownLocation,
-        'Unknown connector',
-      ) as LocationResponse;
-    }
+    // if (connectors.length === 0) {
+    //   return buildOcpiErrorResponse(
+    //     OcpiResponseStatusCode.ClientUnknownLocation,
+    //     'Unknown connector',
+    //   ) as LocationResponse;
+    // }
   
-    const dbLocationId = locationNode.id;
-    const dbEvseId = evses[0].id;
-    const dbConnectorId = connectors[0].id;
+    // const dbConnectorId = connectors[0].id;
   
     // 2) PUT semantics = replace full connector representation
     const ts = new Date(connector.last_updated as any);
   
     await this.ocpiGraphqlClient.request<any, any>(
-      UPDATE_CONNECTOR_PATCH_MUTATION,
+      UPSERT_CONNECTOR_MUTATION,
       {
-        id: dbConnectorId,
+        id: connectorId,
         changes: {
           ocpiId: connector.id,
           type: connector.standard,
@@ -460,7 +541,7 @@ async upsertLocationForPartnerAndCountryParty(
           maximumAmperage: connector.max_amperage ?? null,
           maximumPowerWatts: connector.max_electric_power ?? null,
           termsAndConditionsUrl: connector.terms_and_conditions ?? null,
-          Tariffs: connector.tariff_ids ?? null,
+          // Tariffs: connector.tariff_ids ?? null,
           timestamp: connector.last_updated,
           updatedAt: ts,
         },
@@ -470,12 +551,12 @@ async upsertLocationForPartnerAndCountryParty(
     // 3) cascade timestamps to parents
     await this.ocpiGraphqlClient.request<any, any>(
       UPDATE_EVSE_PATCH_MUTATION,
-      { id: dbEvseId, changes: { updatedAt: ts } },
+      { id: evse.id, changes: { updatedAt: ts } },
     );
   
     await this.ocpiGraphqlClient.request<any, any>(
       UPDATE_LOCATION_PATCH_MUTATION,
-      { id: dbLocationId, changes: { updatedAt: ts } },
+      { id: location.id, changes: { updatedAt: ts } },
     );
   
     return buildOcpiResponse(
