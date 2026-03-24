@@ -2,13 +2,20 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { Get, JsonController, Param } from 'routing-controllers';
+import { Get, JsonController, Param, Put, Patch, Ctx, Body } from 'routing-controllers';
+import { BodyWithSchema, LocationDTOSchema, LocationDTOSchemaName,buildOcpiEmptyResponse,   buildOcpiResponse, OcpiResponseStatusCode,   EvseDTOSchema,
+  EvseDTOSchemaName, } from '@citrineos/ocpi-base';
 import type { ILocationsModuleApi } from './ILocationsModuleApi.js';
 import type {
   ConnectorResponse,
   EvseResponse,
+  LocationEvseDTO,
+  LocationDTO,
   LocationResponse,
+  OcpiEmptyResponse,
   PaginatedLocationResponse,
+  EvseDTO,
+  ConnectorDTO,
 } from '@citrineos/ocpi-base';
 import {
   AsOcpiFunctionalEndpoint,
@@ -25,6 +32,7 @@ import {
   LocationResponseSchema,
   LocationResponseSchemaName,
   LocationsService,
+  LocationReceiverService,
   ModuleId,
   OcpiHeaders,
   Paginated,
@@ -74,11 +82,17 @@ export class LocationsModuleApi
    */
   constructor(
     readonly locationsService: LocationsService,
+    readonly locationsReceiverService : LocationReceiverService,
     // readonly adminLocationsService: AdminLocationsService,
   ) {
     super();
   }
 
+  //-- Sender Interface ------------------------------------------------------//
+
+  /**
+   * Sender Interface: GET /locations
+  */
   @Get()
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(
@@ -100,6 +114,9 @@ export class LocationsModuleApi
     return this.locationsService.getLocations(ocpiHeaders, paginatedParams);
   }
 
+  /**
+   * Sender Interface: GET /locations/:location_id
+  */
   @Get('/:location_id')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
@@ -116,6 +133,9 @@ export class LocationsModuleApi
     return this.locationsService.getLocationById(locationId);
   }
 
+  /**
+   * Sender Interface: GET /locations/:location_id/:evse_uid
+  */
   @Get('/:location_id/:evse_uid')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(EvseResponseSchema, EvseResponseSchemaName, {
@@ -140,6 +160,9 @@ export class LocationsModuleApi
     );
   }
 
+  /**
+   * Sender Interface: GET /locations/:location_id/:evse_uid/:connector_id
+  */
   @Get('/:location_id/:evse_uid/:connector_id')
   @AsOcpiFunctionalEndpoint()
   @ResponseSchema(ConnectorResponseSchema, ConnectorResponseSchemaName, {
@@ -166,23 +189,305 @@ export class LocationsModuleApi
     );
   }
 
-  /**
-   * Admin Endpoints
-   **/
+  //-- Receiver Interface ------------------------------------------------------//
 
-  // @Put('/admin')
-  // @AsAdminEndpoint()
-  // @ResponseSchema(OcpiEmptyResponse, {
-  //   statusCode: HttpStatus.OK,
-  //   description: 'Successful response',
-  // })
-  // async createLocation(
-  //   @QueryParam('broadcast') broadcast: boolean,
-  //   @Body() adminLocation: AdminLocationDTO,
-  // ): Promise<LocationDTO> {
-  //   return await this.adminLocationsService.createOrUpdateLocation(
-  //     adminLocation,
-  //     broadcast,
-  //   );
-  // }
+  
+  /**
+   * Receiver Interface: GET /locations/:country_code/:party_id/:location_id
+  */
+
+  @Get('/:country_code/:party_id/:location_id')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO validates location stored in eMSP system',
+  })
+  async getLocationByCountryPartyAndId(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+  ): Promise<LocationResponse> {
+    return this.locationsReceiverService.getLocationByCountryPartyAndId(
+      countryCode,
+      partyId,
+      locationId,
+    );
+  }
+
+  /**
+   * Receiver Interface: GET /locations/:country_code/:party_id/:location_id/:evse_uid
+  */
+
+  @Get('/:country_code/:party_id/:location_id/:evse_uid')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO validates location stored in eMSP system',
+  })
+  async getEvseByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+  ): Promise<LocationResponse> {
+    return this.locationsReceiverService.getLocationByCountryPartyAndId(
+      countryCode,
+      partyId,
+      locationId,
+    );
+  }
+
+  /**
+   * Receiver Interface: GET /locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id
+  */
+  @Get('/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO validates location stored in eMSP system',
+  })
+  async getConnectorByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+  ): Promise<LocationResponse> {
+    return this.locationsReceiverService.getLocationByCountryPartyAndId(
+      countryCode,
+      partyId,
+      locationId,
+    );
+  }
+
+  /**
+   * Receiver Interface: PUT /locations/:country_code/:party_id/:location_id
+  */
+  @Put('/:country_code/:party_id/:location_id')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO updates location stored in eMSP system',
+  })
+  async putLocationByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+    @BodyWithSchema(LocationDTOSchema, LocationDTOSchemaName)
+    location: LocationDTO,
+    @Ctx() ctx: any,
+  ): Promise<OcpiEmptyResponse> {
+    this.logger.info(
+      `PUT receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(location)}`
+    );
+    this.locationsReceiverService.putLocationByCountryPartyAndId(
+      countryCode,
+      partyId,
+      location,
+      locationId,
+      ctx,
+    );
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+
+  }
+
+  /**
+   * Receiver Interface: PUT /locations/:country_code/:party_id/:location_id/:evse_uid
+  */
+  @Put('/:country_code/:party_id/:location_id/:evse_uid')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO updates location stored in eMSP system',
+  })
+  async putEvseByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+    @Param('evse_uid') evseUid: string,
+    @BodyWithSchema(EvseDTOSchema, EvseDTOSchemaName)
+    evse: EvseDTO,
+    @Ctx() ctx: any,
+  ): Promise<OcpiEmptyResponse> {
+    this.logger.info(
+      `PUT receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(evse)}`
+    );
+    this.locationsReceiverService.putEvseByCountryPartyAndId(
+      countryCode,
+      partyId,
+      locationId,
+      evseUid,
+      evse,
+      ctx,
+    );
+    // return this.locationsService.putLocationByCountryPartyAndId(
+    //   countryCode,
+    //   partyId,
+    //   locationId,
+    //   location,
+    // );
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+
+  }
+
+  /**
+   * Receiver Interface: PUT /locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id
+  */
+  @Put('/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO updates location stored in eMSP system',
+  })
+  async putConnectorByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+    @Param('evse_uid') evseUid: string,
+    @Param('connector_id') connectorId: string,
+    // @BodyWithSchema(ConnectorDTOSchema, 'ConnectorDTOSchema')
+    @Body() connector: ConnectorDTO,
+    @Ctx() ctx: any,
+  ): Promise<OcpiEmptyResponse> {
+    this.logger.info(
+      `PUT receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(connector)}`
+    );
+    await this.locationsReceiverService.putConnectorByCountryPartyAndId(
+      countryCode,
+      partyId,
+      locationId,
+      evseUid,
+      connectorId,
+      connector,
+      ctx,
+    );
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+
+  }
+
+  /**
+   * Receiver Interface: PATCH /locations/:country_code/:party_id/:location_id
+  */
+  @Patch('/:country_code/:party_id/:location_id')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO updates location stored in eMSP system',
+  })
+  async patchLocationByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+    @BodyWithSchema(LocationDTOSchema, LocationDTOSchemaName)
+    location: Partial<LocationDTO>,
+    @Ctx() ctx: any,
+  ): Promise<OcpiEmptyResponse> {
+    this.logger.info(
+      `PATCH receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(location)}`
+    );
+    console.log('PATCH receiver location', countryCode, partyId, locationId, location);
+    console.log('PATCH receiver location body', JSON.stringify(location));
+    console.log('PATCH receiver location schema', LocationDTOSchema);
+    console.log('PATCH receiver location schema name', LocationDTOSchemaName);
+    this.locationsReceiverService.patchLocationByCountryPartyAndId(
+      countryCode,
+      partyId,
+      locationId,
+      location,
+      ctx,
+    );
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+
+  }
+
+  /**
+   * Receiver Interface: PATCH /locations/:country_code/:party_id/:location_id/:evse_uid
+  */
+  @Patch('/:country_code/:party_id/:location_id/:evse_uid')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO updates location stored in eMSP system',
+  })
+  async patchEvseByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+    @Param('evse_uid') evseUid: string,
+    @BodyWithSchema(LocationDTOSchema, LocationDTOSchemaName)
+    location: Partial<LocationDTO>,
+    @Ctx() ctx: any,
+  ): Promise<OcpiEmptyResponse> {
+    this.logger.info(
+      `PATCH receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(location)}`
+    );
+    console.log('PATCH receiver location', countryCode, partyId, locationId, location);
+    console.log('PATCH receiver location body', JSON.stringify(location));
+    console.log('PATCH receiver location schema', LocationDTOSchema);
+    console.log('PATCH receiver location schema name', LocationDTOSchemaName);
+    this.locationsReceiverService.patchEvseByCountryPartyAndId(
+      countryCode,
+      partyId,
+      locationId,
+      evseUid,
+      location,
+      ctx,
+    );
+    // return buildOcpiResponse(
+    //   OcpiResponseStatusCode.ServerGenericError,
+    //   'Method Not Allowed',
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+
+    // );
+  }
+
+  /**
+   * Receiver Interface: PATCH /locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id
+  */
+  @Patch('/:country_code/:party_id/:location_id/:evse_uid/:connector_id')
+  @AsOcpiFunctionalEndpoint()
+  @ResponseSchema(LocationResponseSchema, LocationResponseSchemaName, {
+    statusCode: HttpStatus.OK,
+    description: 'CPO updates location stored in eMSP system',
+  })
+  async patchConnectorByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Param('country_code') countryCode: string,
+    @Param('party_id') partyId: string,
+    @Param('location_id') locationId: string,
+    @Param('evse_uid') evseUid: string,
+    @Param('connector_id') connectorId: string,
+    @BodyWithSchema(LocationDTOSchema, LocationDTOSchemaName)
+    location: Partial<LocationEvseDTO>,
+    @Ctx() ctx: any,
+  ): Promise<OcpiEmptyResponse> {
+    this.logger.info(
+      `PATCH receiver connector ${countryCode}/${partyId}/${locationId}/${evseUid}/${connectorId} body=${JSON.stringify(location)}`
+    );
+    console.log('PATCH receiver location', countryCode, partyId, locationId, location);
+    console.log('PATCH receiver location body', JSON.stringify(location));
+    console.log('PATCH receiver location schema', LocationDTOSchema);
+    console.log('PATCH receiver location schema name', LocationDTOSchemaName);
+    // //return 405 Method Not Allowed
+    // return buildOcpiResponse(
+    //   OcpiResponseStatusCode.ServerGenericError,
+    //   null,
+    //   'Method Not Allowed',
+    // );
+    this.locationsReceiverService.patchConnectorByCountryPartyAndId(
+      countryCode,
+      partyId,
+      locationId,
+      evseUid,
+      connectorId,
+      location, // patch body from request
+      ctx,
+    );
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+  }
 }
