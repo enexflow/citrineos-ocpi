@@ -26,6 +26,7 @@ export const GET_TARIFF_BY_KEY_QUERY = gql`
       stationId
       taxRate
       tariffAltText
+      tenantPartnerId
       updatedAt
       tenant: Tenant {
         countryCode
@@ -54,6 +55,7 @@ export const GET_TARIFFS_QUERY = gql`
       stationId
       taxRate
       tariffAltText
+      tenantPartnerId
       updatedAt
       tenant: Tenant {
         countryCode
@@ -80,6 +82,7 @@ export const CREATE_OR_UPDATE_TARIFF_MUTATION = gql`
           stationId
           tariffAltText
           taxRate
+          tenantPartnerId
           updatedAt
         ]
       }
@@ -95,6 +98,7 @@ export const CREATE_OR_UPDATE_TARIFF_MUTATION = gql`
       stationId
       taxRate
       tariffAltText
+      tenantPartnerId
       updatedAt
       tenant: Tenant {
         countryCode
@@ -138,6 +142,37 @@ export const GET_TARIFF_BY_OCPI_ID_QUERY = gql`
       stationId
       taxRate
       tariffAltText
+      tenantPartnerId
+      updatedAt
+      tenant: Tenant {
+        countryCode
+        partyId
+      }
+    }
+  }
+`;
+
+/** Filter by tenantPartnerId so we do not rely on Tariffs_bool_exp.TenantPartner (not always exposed). */
+export const GET_TARIFF_BY_PARTNER_QUERY = gql`
+  query GetTariffByPartner($tariffId: Int!, $tenantPartnerId: Int!) {
+    Tariffs(
+      where: {
+        id: { _eq: $tariffId }
+        tenantPartnerId: { _eq: $tenantPartnerId }
+      }
+    ) {
+      authorizationAmount
+      createdAt
+      currency
+      id
+      paymentFee
+      pricePerKwh
+      pricePerMin
+      pricePerSession
+      stationId
+      taxRate
+      tariffAltText
+      tenantPartnerId
       updatedAt
       tenant: Tenant {
         countryCode

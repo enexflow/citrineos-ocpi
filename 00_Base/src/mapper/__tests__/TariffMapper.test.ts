@@ -200,9 +200,60 @@ describe('TariffMapper', () => {
 
       const result = TariffMapper.mapFromOcpi(ocpiTariff);
 
-      expect(result.tariffAltText).toEqual([
+      expect(JSON.parse(result.tariffAltText as unknown as string)).toEqual([
         { language: 'de', text: 'Standardtarif' },
       ]);
+    });
+
+    it('should include tenantId and tenantPartnerId when provided', () => {
+      const ocpiTariff: PutTariffRequest = {
+        id: '55',
+        country_code: 'FR',
+        party_id: 'HYX',
+        currency: 'EUR',
+        elements: [
+          {
+            price_components: [
+              {
+                type: TariffDimensionType.ENERGY,
+                price: 0.25,
+                step_size: 1,
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = TariffMapper.mapFromOcpi(ocpiTariff, 10, 42);
+
+      expect(result.id).toBe(55);
+      expect((result as any).tenantId).toBe(10);
+      expect((result as any).tenantPartnerId).toBe(42);
+    });
+
+    it('should not include tenantPartnerId when not provided', () => {
+      const ocpiTariff: PutTariffRequest = {
+        id: '56',
+        country_code: 'FR',
+        party_id: 'HYX',
+        currency: 'EUR',
+        elements: [
+          {
+            price_components: [
+              {
+                type: TariffDimensionType.ENERGY,
+                price: 0.25,
+                step_size: 1,
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = TariffMapper.mapFromOcpi(ocpiTariff, 10);
+
+      expect((result as any).tenantId).toBe(10);
+      expect((result as any).tenantPartnerId).toBeUndefined();
     });
   });
 

@@ -17,8 +17,12 @@ import type {
   GetTariffByKeyQueryVariables,
   GetTariffByOcpiIdQueryResult,
   GetTariffByOcpiIdQueryVariables,
+  GetTariffByPartnerQueryResult,
+  GetTariffByPartnerQueryVariables,
   GetTariffsQueryResult,
   GetTariffsQueryVariables,
+  GetTenantPartnerIdByCountryPartyQueryResult,
+  GetTenantPartnerIdByCountryPartyQueryVariables,
   Tariffs_Bool_Exp,
 } from '../graphql/index.js';
 import {
@@ -26,7 +30,9 @@ import {
   DELETE_TARIFF_MUTATION,
   GET_TARIFF_BY_KEY_QUERY,
   GET_TARIFF_BY_OCPI_ID_QUERY,
+  GET_TARIFF_BY_PARTNER_QUERY,
   GET_TARIFFS_QUERY,
+  GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
 import { TariffMapper } from '../mapper/index.js';
@@ -53,11 +59,40 @@ export class TariffsService {
     return undefined;
   }
 
+  /**
+   * Receiver GET: retrieve a tariff by its OCPI id.
+   * When the country_code/party_id identify a TenantPartner (CPO source),
+   * we filter via the TenantPartner relationship instead of Tenant.
+   */
   async getTariffByOcpiId(
     countryCode: string,
     partyId: string,
     tariffId: string,
+    isPartnerLookup = false,
   ): Promise<TariffDTO | undefined> {
+    if (isPartnerLookup) {
+      const tpResult = await this.ocpiGraphqlClient.request<
+        GetTenantPartnerIdByCountryPartyQueryResult,
+        GetTenantPartnerIdByCountryPartyQueryVariables
+      >(GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY, { countryCode, partyId });
+      const tenantPartnerId = tpResult.TenantPartners?.[0]?.id;
+      if (tenantPartnerId === undefined) {
+        return undefined;
+      }
+      const result = await this.ocpiGraphqlClient.request<
+        GetTariffByPartnerQueryResult,
+        GetTariffByPartnerQueryVariables
+      >(GET_TARIFF_BY_PARTNER_QUERY, {
+        tariffId: parseInt(tariffId, 10),
+        tenantPartnerId,
+      });
+      const tariff = result.Tariffs?.[0];
+      if (tariff) {
+        return TariffMapper.map(tariff as TariffDto);
+      }
+      return undefined;
+    }
+
     const result = await this.ocpiGraphqlClient.request<
       GetTariffByOcpiIdQueryResult,
       GetTariffByOcpiIdQueryVariables
@@ -73,6 +108,10 @@ export class TariffsService {
     return undefined;
   }
 
+  /**
+   * Sender GET: returns our own tariffs only (tenantPartnerId IS NULL).
+   * Tariffs received from partner CPOs are excluded from the Sender interface.
+   */
   async getTariffs(
     ocpiHeaders: OcpiHeaders,
     paginationParams?: PaginatedParams,
@@ -84,6 +123,7 @@ export class TariffsService {
         countryCode: { _eq: ocpiHeaders.toCountryCode },
         partyId: { _eq: ocpiHeaders.toPartyId },
       },
+      tenantPartnerId: { _is_null: true },
     };
     const dateFilters: any = {};
     if (paginationParams?.dateFrom)
@@ -115,8 +155,13 @@ export class TariffsService {
   async createOrUpdateTariff(
     tariffRequest: PutTariffRequest,
     tenantId?: number,
+    tenantPartnerId?: number,
   ): Promise<TariffDTO> {
-    const coreObject = TariffMapper.mapFromOcpi(tariffRequest, tenantId);
+    const coreObject = TariffMapper.mapFromOcpi(
+      tariffRequest,
+      tenantId,
+      tenantPartnerId,
+    );
     const result = await this.ocpiGraphqlClient.request<
       CreateOrUpdateTariffMutationResult,
       CreateOrUpdateTariffMutationVariables
@@ -131,8 +176,14 @@ export class TariffsService {
     countryCode: string,
     partyId: string,
     tariffId: string,
+    isPartnerLookup = false,
   ): Promise<void> {
-    const tariff = await this.getTariffByOcpiId(countryCode, partyId, tariffId);
+    const tariff = await this.getTariffByOcpiId(
+      countryCode,
+      partyId,
+      tariffId,
+      isPartnerLookup,
+    );
     if (!tariff) {
       throw new NotFoundException(
         `Tariff ${tariffId} not found for ${countryCode}/${partyId}`,

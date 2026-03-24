@@ -54,6 +54,14 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
   async handleTariffInsert(event: IDtoEvent<TariffDto>): Promise<void> {
     this._logger.debug(`Handling Tariff Insert: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
+
+    if ((tariffDto as any).tenantPartnerId != null) {
+      this._logger.info(
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${(tariffDto as any).tenantPartnerId}), skipping broadcast.`,
+      );
+      return;
+    }
+
     const tenant = tariffDto.tenant;
     if (!tenant) {
       this._logger.error(
@@ -75,6 +83,14 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
   ): Promise<void> {
     this._logger.debug(`Handling Tariff Update: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
+
+    if ((tariffDto as any).tenantPartnerId != null) {
+      this._logger.info(
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${(tariffDto as any).tenantPartnerId}), skipping broadcast.`,
+      );
+      return;
+    }
+
     const tenant = tariffDto.tenant;
     if (!tenant) {
       this._logger.error(
@@ -94,6 +110,14 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
   async handleTariffDelete(event: IDtoEvent<TariffDto>): Promise<void> {
     this._logger.debug(`Handling Tariff Delete: ${JSON.stringify(event)}`);
     const tariffDto = event._payload;
+
+    if ((tariffDto as any).tenantPartnerId != null) {
+      this._logger.info(
+        `Tariff ${tariffDto.id} received from partner (tenantPartnerId=${(tariffDto as any).tenantPartnerId}), skipping broadcast.`,
+      );
+      return;
+    }
+
     const tenant = tariffDto.tenant;
     if (!tenant) {
       this._logger.error(
