@@ -375,6 +375,7 @@ query GetEvseByLocationAndOwnerPartner(
     ocpiId: { _eq: $locationId },
     ownerTenantPartnerId: { _eq: $partnerId }
   }) {
+    id
     chargingPool: ChargingStations {
       id
       evses: Evses(where: { evseId: { _eq: $evseId } }) {

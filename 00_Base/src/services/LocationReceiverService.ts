@@ -137,7 +137,7 @@ export class LocationReceiverService {
       >(GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
       console.log('response GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY Graphql receiver', response)
       const evse = EvseMapper.fromGraphqlReceiver(
-        response.Evses[0] as ChargingStationDto,
+        response.Evses[0].ChargingStation as ChargingStationDto, 
         response.Evses[0] as EvseDto,
       );
       return buildOcpiResponse(
@@ -227,7 +227,7 @@ async upsertLocationForPartnerAndCountryParty(
           relatedLocations: location.related_locations ?? null,
           publishUpstream: false,
           createdAt: new Date(),
-          updatedAt: new Date(),
+          updatedAt: location.last_updated ?? new Date(),
         },
       });
 
@@ -279,7 +279,7 @@ async upsertLocationForPartnerAndCountryParty(
     console.log('response GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY ', response)
 
     
-    this.upsertLocationForPartnerAndCountryParty(countryCode, partyId, location, locationId, ctx.state.tenantPartner);
+    await this.upsertLocationForPartnerAndCountryParty(countryCode, partyId, location, locationId, ctx.state.tenantPartner);
 
     return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
@@ -333,7 +333,7 @@ async upsertLocationForPartnerAndCountryParty(
         timestamp: connector.last_updated ?? new Date().toISOString(), // ← ADD
         status: status,
         createdAt: new Date(),
-        updatedAt: new Date(),
+        updatedAt: connector.last_updated ?? new Date(),
       }
     });
     console.log('response ', response)
@@ -367,7 +367,7 @@ async upsertLocationForPartnerAndCountryParty(
         directions: evse.directions ?? null,
         tenantId: tenantPartner.tenantId,
         createdAt: new Date(),
-        updatedAt: new Date(),
+        updatedAt: evse.last_updated ?? new Date(), 
       }
     });
     
@@ -375,7 +375,7 @@ async upsertLocationForPartnerAndCountryParty(
     console.log('insertedEvseId ', insertedEvseId)
     if (insertedEvseId != null && evse.connectors?.length) {
       for (const connector of evse.connectors) {
-        this.upsertConnectorForPartnerAndEvse(
+        await this.upsertConnectorForPartnerAndEvse(
           locationId,
           tenantPartner,
           connector,
@@ -426,6 +426,8 @@ async upsertLocationForPartnerAndCountryParty(
       GET_EVSE_BY_LOCATION_ID_AND_OWNER_PARTNER_ID,
       evseVariables,
     );
+    const location_id = evseResponse.Locations[0].id;
+    console.log('location_id ', location_id)
     console.log('evseResponse ', evseResponse)
 
     console.log('evseResponse.Locations[0].chargingPool ', evseResponse.Locations[0].chargingPool.length)
@@ -436,32 +438,23 @@ async upsertLocationForPartnerAndCountryParty(
     // no charging station
     if(evseResponse.Locations[0].chargingPool.length === 0) {
       console.log('creating virtual charging station for partner ', ctx.state.tenantPartner.id, ' and location ', locationId)
-      this.createVirtualChargingStationForPartnerAndLocation(locationId, ctx.state.tenantPartner)
+      await this.createVirtualChargingStationForPartnerAndLocation(locationId, ctx.state.tenantPartner)
     }
     else if(evseResponse.Locations[0].chargingPool.length >= 1 && evseResponse.Locations[0].chargingPool[0].evses.length === 0) {
       console.log('inserting evse for partner ', ctx.state.tenantPartner.id, ' and location ', locationId, ' and evse uid ', evseUid)
       console.log('charging station ', evseResponse.Locations[0].chargingPool[0])
-      this.upsertEvseForPartnerAndLocation(locationId, ctx.state.tenantPartner, evseUid, evse, evseResponse.Locations[0].chargingPool[0].id)
+      await this.upsertEvseForPartnerAndLocation(locationId, ctx.state.tenantPartner, evseUid, evse, evseResponse.Locations[0].chargingPool[0].id)
     }
     else if(evseResponse.Locations[0].chargingPool.length > 1 && evseResponse.Locations[0].chargingPool[0].evses.length > 0) {
       console.log('updating evse for partner ', ctx.state.tenantPartner.id, ' and location ', locationId, ' and evse uid ', evseUid)
       console.log('multiple charging stations found, and evses found')
     }
-    // check if locations exist
-    // check if evse exist
-    //if evse exit remove it
-    // create new evse
-    // update location lastUpdated
-    // tenantPartner = await this.tenantPartnerService.getTenantPartnerByCountryCodeAndPartyId(countryCode, partyId);
-    // temporary minimum behavior
 
-    // check if locations exist
-    // check if evse exist
-    //if evse exit remove it
-    // create new evse
-    // update location lastUpdated
-    // tenantPartner = await this.tenantPartnerService.getTenantPartnerByCountryCodeAndPartyId(countryCode, partyId);
-    // temporary minimum behavior
+    await this.ocpiGraphqlClient.request<any, any>(
+      UPDATE_LOCATION_PATCH_MUTATION,
+      { id: location_id, changes: { updatedAt: evse.last_updated } },
+    );
+
     return buildOcpiResponse(
       OcpiResponseStatusCode.GenericSuccessCode,
       evse,
@@ -492,13 +485,13 @@ async upsertLocationForPartnerAndCountryParty(
       variables,
     );
 
-    console.log('lookupResponse CHANGED ', lookupResponse)
+    console.log('lookupResponse CHANGED again!!!', lookupResponse)
     console.log('lookupResponse.Locations ', lookupResponse.Locations)
-    console.log('lookupResponse.ChargingStation ', lookupResponse.Evses[0].ChargingStation)
+    console.log('lookupResponse.ChargingStation ', lookupResponse?.Evses[0]?.ChargingStation)
 
-    const chargingStation = lookupResponse.Evses[0].ChargingStation;
-    const evse = lookupResponse.Evses[0];
-    const location = chargingStation.location;
+    const chargingStation = lookupResponse?.Evses[0]?.ChargingStation;
+    const evse = lookupResponse?.Evses[0];
+    const location = chargingStation?.location;
   
     if (!location) {
       return buildOcpiErrorResponse(
@@ -516,38 +509,28 @@ async upsertLocationForPartnerAndCountryParty(
       ) as LocationResponse;
     }
   
-    // if (connectors.length === 0) {
-    //   return buildOcpiErrorResponse(
-    //     OcpiResponseStatusCode.ClientUnknownLocation,
-    //     'Unknown connector',
-    //   ) as LocationResponse;
-    // }
-  
-    // const dbConnectorId = connectors[0].id;
-  
-    // 2) PUT semantics = replace full connector representation
     const ts = new Date(connector.last_updated as any);
   
-    await this.ocpiGraphqlClient.request<any, any>(
-      UPSERT_CONNECTOR_MUTATION,
-      {
-        id: connectorId,
-        changes: {
-          ocpiId: connector.id,
-          type: connector.standard,
-          format: connector.format,
-          powerType: connector.power_type ?? null,
-          maximumVoltage: connector.max_voltage ?? null,
-          maximumAmperage: connector.max_amperage ?? null,
-          maximumPowerWatts: connector.max_electric_power ?? null,
-          termsAndConditionsUrl: connector.terms_and_conditions ?? null,
-          // Tariffs: connector.tariff_ids ?? null,
-          timestamp: connector.last_updated,
-          updatedAt: ts,
-        },
-      },
-    );
-  
+    await this.ocpiGraphqlClient.request(UPSERT_CONNECTOR_MUTATION, {
+      object: {
+        ocpiId: connector.id,
+        evseId: evse.id,               // DB integer id from Evses[0].id
+        stationId: chargingStation.id, // from Evses[0].ChargingStation.id
+        connectorId: evse.id * 1000 + (Number(connector.id) || 1),
+        type: connector.standard,      // ← still has enum mismatch issue
+        format: connector.format,
+        powerType: connector.power_type ?? null,
+        maximumVoltage: connector.max_voltage ?? null,
+        maximumAmperage: connector.max_amperage ?? null,
+        maximumPowerWatts: connector.max_electric_power ?? null,
+        termsAndConditionsUrl: connector.terms_and_conditions ?? null,
+        tenantId: ctx.state.tenantPartner.tenantId,
+        timestamp: connector.last_updated,
+        updatedAt: connector.last_updated ?? new Date(),
+        createdAt: new Date(),
+      }
+    })
+
     // 3) cascade timestamps to parents
     await this.ocpiGraphqlClient.request<any, any>(
       UPDATE_EVSE_PATCH_MUTATION,

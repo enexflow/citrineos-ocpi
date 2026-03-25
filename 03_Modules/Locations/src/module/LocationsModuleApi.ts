@@ -209,13 +209,15 @@ export class LocationsModuleApi
     @Param('location_id') locationId: string,
     @Ctx() ctx: any,
   ): Promise<LocationResponse> {
-    return this.locationsReceiverService.getLocationByCountryPartyAndId(
+    const response = await this.locationsReceiverService.getLocationByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
       ctx,
     );
-  }
+    console.log('response GET location by country party', response);
+    return response as LocationResponse;
+    }
 
   /**
    * Receiver Interface: GET /locations/:country_code/:party_id/:location_id/:evse_uid
@@ -234,13 +236,15 @@ export class LocationsModuleApi
     @Param('evse_uid') evseUid: string,
     @Ctx() ctx: any,
   ): Promise<LocationResponse> {
-    return this.locationsReceiverService.getEvseByCountryPartyAndId(
+    const response = await this.locationsReceiverService.getEvseByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
       evseUid,
       ctx,
     );
+    console.log('response GET evse by country party', response);
+    return response as LocationResponse;
   }
 
   /**
@@ -261,7 +265,7 @@ export class LocationsModuleApi
     @Param('connector_id') connectorId: string,
     @Ctx() ctx: any,
   ): Promise<LocationResponse> {
-    return this.locationsReceiverService.getConnectorByCountryPartyAndId(
+    const response = await this.locationsReceiverService.getConnectorByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
@@ -269,6 +273,8 @@ export class LocationsModuleApi
       connectorId,
       ctx,
     );
+    console.log('response GET connector by country party', response);
+    return response as LocationResponse;
   }
 
   /**
@@ -292,14 +298,15 @@ export class LocationsModuleApi
     this.logger.info(
       `PUT receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(location)}`
     );
-    this.locationsReceiverService.putLocationByCountryPartyAndId(
+    const response = await this.locationsReceiverService.putLocationByCountryPartyAndId(
       countryCode,
       partyId,
       location,
       locationId,
       ctx,
     );
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    console.log('response PUT location by country party', response);
+    return response as OcpiEmptyResponse;
 
   }
 
@@ -325,7 +332,7 @@ export class LocationsModuleApi
     this.logger.info(
       `PUT receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(evse)}`
     );
-    this.locationsReceiverService.putEvseByCountryPartyAndId(
+    const response = await this.locationsReceiverService.putEvseByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
@@ -333,13 +340,8 @@ export class LocationsModuleApi
       evse,
       ctx,
     );
-    // return this.locationsService.putLocationByCountryPartyAndId(
-    //   countryCode,
-    //   partyId,
-    //   locationId,
-    //   location,
-    // );
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    console.log('response PUT evse by country party', response);
+    return response as OcpiEmptyResponse;
 
   }
 
@@ -377,7 +379,6 @@ export class LocationsModuleApi
     );
     console.log('response PUT connector by country party', response);
     return response as OcpiEmptyResponse;
-
   }
 
   /**
@@ -401,18 +402,15 @@ export class LocationsModuleApi
     this.logger.info(
       `PATCH receiver location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(location)}`
     );
-    console.log('PATCH receiver location', countryCode, partyId, locationId, location);
-    console.log('PATCH receiver location body', JSON.stringify(location));
-    console.log('PATCH receiver location schema', LocationDTOSchema);
-    console.log('PATCH receiver location schema name', LocationDTOSchemaName);
-    this.locationsReceiverService.patchLocationByCountryPartyAndId(
+    const response = await this.locationsReceiverService.patchLocationByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
       location,
       ctx,
     );
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    console.log('response PATCH location by country party', response);
+    return response as OcpiEmptyResponse;
 
   }
 
@@ -442,7 +440,7 @@ export class LocationsModuleApi
     console.log('PATCH receiver location body', JSON.stringify(location));
     console.log('PATCH receiver location schema', LocationDTOSchema);
     console.log('PATCH receiver location schema name', LocationDTOSchemaName);
-    this.locationsReceiverService.patchEvseByCountryPartyAndId(
+    const response = await this.locationsReceiverService.patchEvseByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
@@ -450,12 +448,8 @@ export class LocationsModuleApi
       location,
       ctx,
     );
-    // return buildOcpiResponse(
-    //   OcpiResponseStatusCode.ServerGenericError,
-    //   'Method Not Allowed',
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
-
-    // );
+    console.log('response PATCH evse by country party', response);
+    return response as OcpiEmptyResponse;
   }
 
   /**
@@ -481,17 +475,7 @@ export class LocationsModuleApi
     this.logger.info(
       `PATCH receiver connector ${countryCode}/${partyId}/${locationId}/${evseUid}/${connectorId} body=${JSON.stringify(location)}`
     );
-    console.log('PATCH receiver location', countryCode, partyId, locationId, location);
-    console.log('PATCH receiver location body', JSON.stringify(location));
-    console.log('PATCH receiver location schema', LocationDTOSchema);
-    console.log('PATCH receiver location schema name', LocationDTOSchemaName);
-    // //return 405 Method Not Allowed
-    // return buildOcpiResponse(
-    //   OcpiResponseStatusCode.ServerGenericError,
-    //   null,
-    //   'Method Not Allowed',
-    // );
-    this.locationsReceiverService.patchConnectorByCountryPartyAndId(
+    const response = await this.locationsReceiverService.patchConnectorByCountryPartyAndId(
       countryCode,
       partyId,
       locationId,
@@ -500,6 +484,7 @@ export class LocationsModuleApi
       location, // patch body from request
       ctx,
     );
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    console.log('response PATCH connector by country party', response);
+    return response as OcpiEmptyResponse;
   }
 }
