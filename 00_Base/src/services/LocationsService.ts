@@ -43,7 +43,6 @@ import {
   GET_LOCATION_BY_ID_QUERY,
   GET_LOCATIONS_QUERY,
   OcpiGraphqlClient,
-  GET_LOCATION_BY_COUNTRY_PARTY_AND_ID_QUERY,
 } from '../graphql/index.js';
 import {
   ConnectorMapper,
@@ -125,7 +124,7 @@ export class LocationsService {
     this.logger.debug(`Getting location ${locationId}`);
 
     try {
-      const variables = { id: locationId };
+      const variables = { id: locationId.toString() };
       const response = await this.ocpiGraphqlClient.request<
         GetLocationByIdQueryResult,
         GetLocationByIdQueryVariables
@@ -165,7 +164,7 @@ export class LocationsService {
     );
 
     try {
-      const variables = { locationId, stationId, evseId };
+      const variables = { locationId: locationId.toString(), stationId, evseId };
       const response = await this.ocpiGraphqlClient.request<
         GetEvseByIdQueryResult,
         GetEvseByIdQueryVariables
@@ -198,7 +197,7 @@ export class LocationsService {
     );
 
     try {
-      const variables = { locationId, stationId, evseId, connectorId };
+      const variables = { locationId: locationId.toString(), stationId, evseId, connectorId };
       const response = await this.ocpiGraphqlClient.request<
         GetConnectorByIdQueryResult,
         GetConnectorByIdQueryVariables

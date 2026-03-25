@@ -10,6 +10,7 @@ import { EvseStatus } from '../model/EvseStatus.js';
 import { ConnectorType } from '../model/ConnectorType.js';
 import { ConnectorFormat } from '../model/ConnectorFormat.js';
 import { PowerType } from '../model/PowerType.js';
+import type { BusinessDetails } from '../model/BusinessDetails.js';
 import {
   type ChargingStationParkingRestrictionEnumType,
   type ChargingStationCapabilityEnumType,
@@ -22,6 +23,7 @@ import {
   type LocationDto,
   type LocationFacilityEnumType,
   type LocationParkingEnumType,
+  type AdditionalGeoLocation,
 } from '@citrineos/base';
 import {
   ChargingStationCapabilityEnum,
@@ -33,6 +35,7 @@ import {
   LocationFacilityEnum,
   LocationHours,
   LocationParkingEnum,
+  type DisplayText,
 } from '@citrineos/base';
 import { ParkingRestriction } from '../model/ParkingRestriction.js';
 import { Capability } from '../model/Capability.js';
@@ -41,8 +44,32 @@ import { Logger } from 'tslog';
 import { ParkingType } from '../model/ParkingType.js';
 import { Facilities } from '../model/Facilities.js';
 import type { Hours } from '../model/Hours.js';
+import { ImageType } from '../model/ImageType.js';
+import { ImageCategory } from '../model/ImageCategory.js';
+import type { ImageDTO } from '../model/DTO/ImageDTO.js';
 
 export class LocationMapper {
+
+  static mapBusinessDetails(
+    details: LocationDto['operator'],
+  ): BusinessDetails | null | undefined {
+    if (details == null) return details;
+    return {
+      name: details.name,
+      website: details.website ?? undefined,
+      logo: details.logo
+        ? {
+            url: details.logo.url,
+            type: details.logo.type,
+            category: details.logo.category as ImageCategory,
+            width: details.logo.width ?? undefined,
+            height: details.logo.height ?? undefined,
+            thumbnail: undefined,
+          }
+        : undefined,
+    };
+  }
+
   static fromGraphql(location: LocationDto): LocationDTO {
     return {
       id: location.id!.toString(),
@@ -78,6 +105,7 @@ export class LocationMapper {
   }
 
   static fromGraphqlReceiver(location: LocationDto): LocationDTO {
+    console.log('\n \n \n \n location I AM IN HERE IT IS UPDATED ', location);
     return {
       id: location.ocpiId! ,
       country_code: location.tenant!.countryCode!,
@@ -89,10 +117,14 @@ export class LocationMapper {
       postal_code: location.postalCode,
       state: location.state,
       country: location.country,
-      coordinates: {
+      parking_type: location.parkingType as ParkingType | null,
+      energy_mix: location.energyMix,
+      related_locations: (location as LocationDto & { relatedLocations?: AdditionalGeoLocation[] }).relatedLocations,
+      coordinates:{
         longitude: location.coordinates.coordinates[0].toString(),
         latitude: location.coordinates.coordinates[1].toString(),
       },
+      directions: location.directions ?? [],
       time_zone: location.timeZone,
       evses: location.chargingPool
         ?.map((station) =>
@@ -100,13 +132,13 @@ export class LocationMapper {
         )
         ?.flat()
         ?.filter((evse) => evse !== undefined),
-      parking_type: LocationMapper.mapLocationParkingType(location.parkingType),
-      facilities: location.facilities
-        ?.map(LocationMapper.mapLocationFacility)
-        .filter((f) => f !== null),
-      opening_times: location.openingHours
-        ? LocationMapper.mapLocationHours(location.openingHours)
-        : undefined,
+      facilities: location.facilities as Facilities[] | null,
+      images: location.images as ImageDTO[] | null,
+      opening_times: location.openingHours as Hours | null,
+      charging_when_closed: location.chargingWhenClosed as boolean | null,
+      operator: LocationMapper.mapBusinessDetails(location.operator),
+      suboperator: LocationMapper.mapBusinessDetails(location.suboperator),
+      owner: LocationMapper.mapBusinessDetails(location.owner),
       last_updated: location.updatedAt!,
     };
   }
@@ -294,6 +326,7 @@ export class EvseMapper {
     station: ChargingStationDto,
     evse: EvseDto,
   ): EvseDTO | undefined {
+    console.log('\n \n \n \n evse I AM IN HERE IT IS UPDATED   !!!!', evse);
     let connectors = evse.connectors
       ?.map(ConnectorMapper.fromGraphqlReceiver)
       ?.filter((c) => c !== undefined);
@@ -308,31 +341,34 @@ export class EvseMapper {
       // TODO: solve this case
     }
 
+    console.log('\n \n \n \n evse !! I AM IN HERE IT IS UPDATED   !!!!', evse);
+
     return {
       uid: evse.ocpiUid! ?? UID_FORMAT(station.id, evse.id!), // TODO: add proper type
       evse_id: evse.evseId,
-      status: connectors
-        ? EvseMapper.mapEvseStatusFromConnectors(
-            evse.connectors!.filter((c) =>
-              connectors.some((con) => con!.id === c.id!.toString()),
-            ),
-          )
-        : EvseStatus.UNKNOWN,
-      capabilities: ((evse as EvseDto & { capabilities?: ChargingStationCapabilityEnumType[] }).capabilities ?? station.capabilities)
-        ?.map((c: ChargingStationCapabilityEnumType) => EvseMapper.mapEvseCapabilities(c))
-        .filter((c: Capability | null): c is Capability => c !== null),
+      status: (evse as any).ocpiStatus as EvseStatus ?? EvseStatus.UNKNOWN,
       physical_reference: evse.physicalReference,
-      coordinates: station.coordinates
-        ? {
-            longitude: station.coordinates.coordinates[0].toString(),
-            latitude: station.coordinates.coordinates[1].toString(),
-          }
-        : undefined,
-      parking_restrictions: station.parkingRestrictions
-        ?.map((r) => EvseMapper.mapEvseParkingRestrictions(r))
-        .filter((r) => r !== null),
       connectors: connectors || [],
-      floor_level: station.floorLevel,
+      floor_level: evse.floorLevel,
+      status_schedule: evse.statusSchedule?.map((s) => ({
+        period_begin: s.period_begin,
+        period_end: s.period_end,
+        status: s.status as EvseStatus,
+      })),
+      images: evse.images?.map((i) => ({
+        url: i.url,
+        type: i.type as ImageType,
+        category: i.category as ImageCategory,
+        width: i.width ?? undefined,
+        height: i.height ?? undefined,
+      })) ?? [],
+      directions: evse.directions ?? [],
+      capabilities: (evse as any).capabilities as Capability[] | null | undefined,
+      parking_restrictions: ((evse as any).parkingRestrictions ?? station.parkingRestrictions) as ParkingRestriction[] | [] | undefined,
+      coordinates: evse.coordinates && evse.coordinates.coordinates.length === 2 ? {
+        longitude: evse.coordinates.coordinates[0].toString(),
+        latitude: evse.coordinates.coordinates[1].toString(),
+      } : null,
       last_updated: evse.updatedAt!,
     };
   }

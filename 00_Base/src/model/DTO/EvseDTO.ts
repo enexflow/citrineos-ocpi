@@ -11,6 +11,7 @@ import { GeoLocationSchema } from '../GeoLocation.js';
 import { DisplayTextSchema } from '../DisplayText.js';
 import { ParkingRestriction } from '../ParkingRestriction.js';
 import { OcpiResponseSchema } from '../OcpiResponse.js';
+import { ImageDTOSchema } from './ImageDTO.js';
 
 // TODO make dynamic
 export const uidDelimiter = '::';
@@ -44,7 +45,7 @@ export const EvseDTOSchema = z.object({
     .array(z.nativeEnum(ParkingRestriction))
     .nullable()
     .optional(),
-  images: z.null().optional(),
+  images: z.array(ImageDTOSchema).nullable().optional(),
   last_updated: z.coerce.date(),
 });
 

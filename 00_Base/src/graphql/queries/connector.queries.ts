@@ -98,6 +98,16 @@ query GetConnectorByOcpiIdAndEvseId(
     vendorErrorCode
     createdAt
     updatedAt
+    Evse: {
+    id
+    ocpiUid
+    ChargingStation {
+      id
+      Location {
+        id
+        ocpiId
+      }
+    }
   }
 }
 `;

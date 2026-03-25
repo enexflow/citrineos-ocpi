@@ -242,6 +242,8 @@ export {
   TEMPORARY_CONNECTOR_ID,
   ConnectorResponseSchema,
   ConnectorResponseSchemaName,
+  ConnectorDTOSchemaName,
+  ConnectorDTOSchema,
 } from './model/DTO/ConnectorDTO.js';
 export { LocationMapper } from './mapper/LocationMapper.js';
 export { TokensMapper } from './mapper/TokensMapper.js';

@@ -37,3 +37,6 @@ export const TEMPORARY_CONNECTOR_ID = (
   connectorId: number,
 ): string =>
   `${stationId}${uidDelimiter}${evseId}${uidDelimiter}${connectorId}`;
+
+
+export const ConnectorDTOSchemaName = 'ConnectorDTOSchema';

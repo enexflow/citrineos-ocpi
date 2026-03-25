@@ -16,6 +16,7 @@ export const UPSERT_EVSE_MUTATION = gql`
           statusSchedule,
           images,
           directions,
+          ocpiStatus,
           updatedAt
         ]
       }
@@ -86,6 +87,14 @@ query GetEvseByOcpiIdAndPartnerId($partnerId: Int!, $locationId: String!, $evseU
     evseTypeId
     evseId
     ocpiUid
+    ocpiStatus
+    coordinates
+    parkingRestrictions
+    statusSchedule
+    floorLevel
+    capabilities
+    images
+    directions
     physicalReference
     removed
     createdAt
