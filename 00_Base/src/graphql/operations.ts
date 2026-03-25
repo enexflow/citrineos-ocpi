@@ -44,6 +44,14 @@ export type Tariffs_Bool_Exp = {
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
   tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
+export type Sessions_Bool_Exp = {
+  countryCode?: InputMaybe<String_Comparison_Exp>;
+  partyId?: InputMaybe<String_Comparison_Exp>;
+  ocpiSessionId?: InputMaybe<String_Comparison_Exp>;
+  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
+  Tenant?: InputMaybe<Tenants_Bool_Exp>;
+};
 export type Int_Comparison_Exp = {
   _eq?: InputMaybe<Scalars['Int']['input']>;
   _is_null?: InputMaybe<Scalars['Boolean']['input']>;
@@ -1033,4 +1041,73 @@ export type GetTransactionByTransactionIdQueryResult = {
       sampledValue?: any | null
     }>
   }>
+};
+
+export type SessionDbRow = {
+  id: number,
+  ocpiSessionId: string,
+  countryCode: string,
+  partyId: string,
+  startDateTime: any,
+  endDateTime?: any | null,
+  kwh: any,
+  cdrToken: any,
+  authMethod: string,
+  authorizationReference?: string | null,
+  locationId: string,
+  evseUid: string,
+  connectorId: string,
+  meterId?: string | null,
+  currency: string,
+  chargingPeriods?: any | null,
+  totalCost?: any | null,
+  status: string,
+  lastUpdated: any,
+  tenantId: number,
+  tenantPartnerId: number,
+  createdAt: any,
+  updatedAt: any,
+};
+
+export type GetSessionByOcpiIdQueryVariables = Exact<{
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+  ocpiSessionId: Scalars['String']['input'];
+  tenantPartnerId: Scalars['Int']['input'];
+}>;
+
+export type GetSessionByOcpiIdQueryResult = {
+  Sessions: Array<SessionDbRow>
+};
+
+export type GetSessionsPaginatedQueryVariables = Exact<{
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  where: Sessions_Bool_Exp;
+}>;
+
+export type GetSessionsPaginatedQueryResult = {
+  Sessions: Array<SessionDbRow>
+};
+
+export type UpsertSessionMutationVariables = Exact<{
+  object: any;
+}>;
+
+export type UpsertSessionMutationResult = {
+  insert_Sessions_one?: SessionDbRow | null
+};
+
+export type UpdateSessionMutationVariables = Exact<{
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+  ocpiSessionId: Scalars['String']['input'];
+  tenantPartnerId: Scalars['Int']['input'];
+  set: any;
+}>;
+
+export type UpdateSessionMutationResult = {
+  update_Sessions?: {
+    returning: Array<SessionDbRow>
+  } | null
 };

@@ -2,10 +2,45 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Interface for the Sessions module API.
- * This interface can be extended to define specific method contracts
- * or augmented using TypeScript declaration merging.
- */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface ISessionsModuleApi {}
+import type {
+  ChargingPreferencesResponse,
+  OcpiEmptyResponse,
+  PaginatedSessionResponse,
+  SessionResponse,
+  VersionNumber,
+} from '@citrineos/ocpi-base';
+
+export interface ISessionsModuleApi {
+  getSessions(
+    version: VersionNumber,
+    ...args: any[]
+  ): Promise<PaginatedSessionResponse>;
+
+  getSessionById(
+    version: VersionNumber,
+    countryCode: string,
+    partyId: string,
+    sessionId: string,
+  ): Promise<SessionResponse>;
+
+  putSession(
+    version: VersionNumber,
+    countryCode: string,
+    partyId: string,
+    sessionId: string,
+    ...args: any[]
+  ): Promise<OcpiEmptyResponse>;
+
+  patchSession(
+    version: VersionNumber,
+    countryCode: string,
+    partyId: string,
+    sessionId: string,
+    ...args: any[]
+  ): Promise<OcpiEmptyResponse>;
+
+  updateChargingPreferences(
+    sessionId: string,
+    ...args: any[]
+  ): Promise<ChargingPreferencesResponse>;
+}
