@@ -1,3 +1,7 @@
+<!-- SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project -->
+<!--                                                                       -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Sessions Module (OCPI 2.2.1)
 
 Implementation of the [OCPI 2.2.1 Sessions module](https://github.com/ocpi/ocpi/blob/2.2.1/mod_sessions.asciidoc).
