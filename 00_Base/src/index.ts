@@ -73,10 +73,17 @@ export {
   ChargingPreferencesResponseSchema,
   ChargingPreferencesResponseSchemaName,
 } from './model/ChargingPreferencesResponse.js';
-export type { PaginatedSessionResponse, Session } from './model/Session.js';
+export type {
+  PaginatedSessionResponse,
+  Session,
+  SessionResponse,
+} from './model/Session.js';
 export {
   PaginatedSessionResponseSchema,
   PaginatedSessionResponseSchemaName,
+  SessionResponseSchema,
+  SessionSchema,
+  SessionSchemaName,
 } from './model/Session.js';
 export { Role } from './model/Role.js';
 export { ImageCategory } from './model/ImageCategory.js';
@@ -234,6 +241,7 @@ export {
 } from './model/DTO/ConnectorDTO.js';
 export { LocationMapper } from './mapper/LocationMapper.js';
 export { TokensMapper } from './mapper/TokensMapper.js';
+export { ReceivedSessionMapper } from './mapper/ReceivedSessionMapper.js';
 export { SessionMapper } from './mapper/SessionMapper.js';
 export { AsOcpiFunctionalEndpoint } from './util/decorators/AsOcpiFunctionalEndpoint.js';
 export { MultipleTypes } from './util/decorators/MultipleTypes.js';

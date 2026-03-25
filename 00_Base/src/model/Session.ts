@@ -32,6 +32,8 @@ export const SessionSchema = z.object({
   last_updated: z.coerce.date(),
 });
 
+export const SessionSchemaName = 'SessionSchema';
+
 export type Session = z.infer<typeof SessionSchema>;
 
 export const SessionResponseSchema = OcpiResponseSchema(SessionSchema);

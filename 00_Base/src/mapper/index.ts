@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './CdrMapper.js';
+export * from './ReceivedSessionMapper.js';
 export * from './SessionMapper.js';
 export * from './TariffMapper.js';
 export * from './LocationMapper.js';
