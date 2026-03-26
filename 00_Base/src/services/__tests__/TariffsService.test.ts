@@ -18,7 +18,8 @@ import {
   GET_TARIFF_BY_PARTNER_QUERY,
   GET_TARIFFS_QUERY,
   CREATE_OR_UPDATE_TARIFF_MUTATION,
-  DELETE_TARIFF_MUTATION,
+  CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION,
+  DELETE_TARIFF_BY_PARTNER_MUTATION,
 } from '../../graphql/queries/tariff.queries';
 import { GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY } from '../../graphql/queries/tenantPartner.queries';
 
@@ -26,6 +27,7 @@ jest.mock('../../graphql/OcpiGraphqlClient');
 
 const mockCoreTariff = {
   id: 1,
+  ocpiTariffId: null,
   currency: 'EUR',
   pricePerKwh: 0.25,
   pricePerMin: null,
@@ -46,7 +48,15 @@ const mockCoreTariff = {
 
 const mockPartnerTariff = {
   ...mockCoreTariff,
-  id: 2,
+  id: 99,
+  ocpiTariffId: 'tariff-abc-123',
+  tenantPartnerId: 42,
+};
+
+const mockPartnerTariffUuid = {
+  ...mockCoreTariff,
+  id: 100,
+  ocpiTariffId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
   tenantPartnerId: 42,
 };
 
@@ -100,27 +110,31 @@ describe('TariffsService', () => {
   });
 
   describe('getTariffByOcpiId', () => {
-    it('should use GET_TARIFF_BY_OCPI_ID_QUERY by default (tenant lookup)', async () => {
+    it('should use GET_TARIFF_BY_OCPI_ID_QUERY with string ocpiTariffId by default (tenant lookup)', async () => {
       mockGraphqlClient.request.mockResolvedValue({
         Tariffs: [mockCoreTariff],
       });
 
-      const result = await service.getTariffByOcpiId('FR', 'HYX', '1');
+      const result = await service.getTariffByOcpiId('FR', 'HYX', 'tariff-1');
 
       expect(mockGraphqlClient.request).toHaveBeenCalledWith(
         GET_TARIFF_BY_OCPI_ID_QUERY,
-        { tariffId: 1, countryCode: 'FR', partyId: 'HYX' },
+        { ocpiTariffId: 'tariff-1', countryCode: 'FR', partyId: 'HYX' },
       );
       expect(result).toBeDefined();
-      expect(result!.id).toBe('1');
     });
 
-    it('should resolve TenantPartner id then GET_TARIFF_BY_PARTNER_QUERY when isPartnerLookup is true', async () => {
+    it('should resolve TenantPartner id then GET_TARIFF_BY_PARTNER_QUERY with string ocpiTariffId when isPartnerLookup is true', async () => {
       mockGraphqlClient.request
         .mockResolvedValueOnce({ TenantPartners: [{ id: 42 }] })
         .mockResolvedValueOnce({ Tariffs: [mockPartnerTariff] });
 
-      const result = await service.getTariffByOcpiId('DE', 'CPO', '2', true);
+      const result = await service.getTariffByOcpiId(
+        'DE',
+        'CPO',
+        'tariff-abc-123',
+        true,
+      );
 
       expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
         1,
@@ -130,10 +144,34 @@ describe('TariffsService', () => {
       expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
         2,
         GET_TARIFF_BY_PARTNER_QUERY,
-        { tariffId: 2, tenantPartnerId: 42 },
+        { ocpiTariffId: 'tariff-abc-123', tenantPartnerId: 42 },
       );
       expect(result).toBeDefined();
-      expect(result!.id).toBe('2');
+      expect(result!.id).toBe('tariff-abc-123');
+    });
+
+    it('should work with UUID-format tariff IDs', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ TenantPartners: [{ id: 42 }] })
+        .mockResolvedValueOnce({ Tariffs: [mockPartnerTariffUuid] });
+
+      const result = await service.getTariffByOcpiId(
+        'DE',
+        'CPO',
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        true,
+      );
+
+      expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
+        2,
+        GET_TARIFF_BY_PARTNER_QUERY,
+        {
+          ocpiTariffId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          tenantPartnerId: 42,
+        },
+      );
+      expect(result).toBeDefined();
+      expect(result!.id).toBe('f47ac10b-58cc-4372-a567-0e02b2c3d479');
     });
 
     it('should return undefined when tariff is not found', async () => {
@@ -141,7 +179,11 @@ describe('TariffsService', () => {
         Tariffs: [],
       });
 
-      const result = await service.getTariffByOcpiId('FR', 'HYX', '999');
+      const result = await service.getTariffByOcpiId(
+        'FR',
+        'HYX',
+        'non-existent-tariff',
+      );
 
       expect(result).toBeUndefined();
     });
@@ -213,50 +255,14 @@ describe('TariffsService', () => {
   });
 
   describe('createOrUpdateTariff', () => {
-    it('should create or update a tariff and return the mapped result', async () => {
-      mockGraphqlClient.request.mockResolvedValue({
-        insert_Tariffs_one: mockCoreTariff,
-      });
-
-      const result = await service.createOrUpdateTariff({
-        id: '1',
-        country_code: 'FR',
-        party_id: 'HYX',
-        currency: 'EUR',
-        elements: [
-          {
-            price_components: [
-              {
-                type: TariffDimensionType.ENERGY,
-                price: 0.25,
-                step_size: 1,
-              },
-            ],
-          },
-        ],
-      });
-
-      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
-        CREATE_OR_UPDATE_TARIFF_MUTATION,
-        expect.objectContaining({
-          object: expect.objectContaining({
-            id: 1,
-            currency: 'EUR',
-          }),
-        }),
-      );
-      expect(result.id).toBe('1');
-      expect(result.currency).toBe('EUR');
-    });
-
-    it('should pass tenantPartnerId to the mutation when provided', async () => {
+    it('should use partner mutation when tenantPartnerId is provided', async () => {
       mockGraphqlClient.request.mockResolvedValue({
         insert_Tariffs_one: mockPartnerTariff,
       });
 
-      await service.createOrUpdateTariff(
+      const result = await service.createOrUpdateTariff(
         {
-          id: '2',
+          id: 'tariff-abc-123',
           country_code: 'DE',
           party_id: 'CPO',
           currency: 'EUR',
@@ -277,25 +283,26 @@ describe('TariffsService', () => {
       );
 
       expect(mockGraphqlClient.request).toHaveBeenCalledWith(
-        CREATE_OR_UPDATE_TARIFF_MUTATION,
+        CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION,
         expect.objectContaining({
           object: expect.objectContaining({
-            id: 2,
+            ocpiTariffId: 'tariff-abc-123',
             tenantId: 10,
             tenantPartnerId: 42,
           }),
         }),
       );
+      expect(result.id).toBe('tariff-abc-123');
     });
 
-    it('should not include tenantPartnerId when not provided', async () => {
+    it('should use standard mutation when tenantPartnerId is not provided', async () => {
       mockGraphqlClient.request.mockResolvedValue({
         insert_Tariffs_one: mockCoreTariff,
       });
 
       await service.createOrUpdateTariff(
         {
-          id: '1',
+          id: 'own-tariff-1',
           country_code: 'FR',
           party_id: 'HYX',
           currency: 'EUR',
@@ -314,21 +321,30 @@ describe('TariffsService', () => {
         10,
       );
 
+      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
+        CREATE_OR_UPDATE_TARIFF_MUTATION,
+        expect.objectContaining({
+          object: expect.objectContaining({
+            ocpiTariffId: 'own-tariff-1',
+            tenantId: 10,
+          }),
+        }),
+      );
       const callArgs = mockGraphqlClient.request.mock.calls[0][1] as any;
-      expect(callArgs.object.tenantId).toBe(10);
       expect(callArgs.object.tenantPartnerId).toBeUndefined();
+      expect(callArgs.object.id).toBeUndefined();
     });
 
-    it('should throw when mutation returns null', async () => {
+    it('should handle UUID-format tariff IDs', async () => {
       mockGraphqlClient.request.mockResolvedValue({
-        insert_Tariffs_one: null,
+        insert_Tariffs_one: mockPartnerTariffUuid,
       });
 
-      await expect(
-        service.createOrUpdateTariff({
-          id: '1',
-          country_code: 'FR',
-          party_id: 'HYX',
+      const result = await service.createOrUpdateTariff(
+        {
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          country_code: 'DE',
+          party_id: 'CPO',
           currency: 'EUR',
           elements: [
             {
@@ -341,36 +357,62 @@ describe('TariffsService', () => {
               ],
             },
           ],
+        },
+        10,
+        42,
+      );
+
+      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
+        CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION,
+        expect.objectContaining({
+          object: expect.objectContaining({
+            ocpiTariffId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          }),
         }),
-      ).rejects.toThrow('Failed to create or update tariff 1');
+      );
+      expect(result.id).toBe('f47ac10b-58cc-4372-a567-0e02b2c3d479');
+    });
+
+    it('should throw when mutation returns null', async () => {
+      mockGraphqlClient.request.mockResolvedValue({
+        insert_Tariffs_one: null,
+      });
+
+      await expect(
+        service.createOrUpdateTariff(
+          {
+            id: 'tariff-fail',
+            country_code: 'FR',
+            party_id: 'HYX',
+            currency: 'EUR',
+            elements: [
+              {
+                price_components: [
+                  {
+                    type: TariffDimensionType.ENERGY,
+                    price: 0.25,
+                    step_size: 1,
+                  },
+                ],
+              },
+            ],
+          },
+          10,
+          42,
+        ),
+      ).rejects.toThrow('Failed to create or update tariff tariff-fail');
     });
   });
 
   describe('deleteTariff', () => {
-    it('should look up the tariff via tenant and delete it', async () => {
-      mockGraphqlClient.request
-        .mockResolvedValueOnce({ Tariffs: [mockCoreTariff] })
-        .mockResolvedValueOnce({ delete_Tariffs_by_pk: { id: 1 } });
-
-      await service.deleteTariff('FR', 'HYX', '1');
-
-      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
-        GET_TARIFF_BY_OCPI_ID_QUERY,
-        { tariffId: 1, countryCode: 'FR', partyId: 'HYX' },
-      );
-      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
-        DELETE_TARIFF_MUTATION,
-        { id: 1 },
-      );
-    });
-
-    it('should look up the tariff via partner and delete it', async () => {
+    it('should use partner delete mutation with string ocpiTariffId', async () => {
       mockGraphqlClient.request
         .mockResolvedValueOnce({ TenantPartners: [{ id: 42 }] })
-        .mockResolvedValueOnce({ Tariffs: [mockPartnerTariff] })
-        .mockResolvedValueOnce({ delete_Tariffs_by_pk: { id: 2 } });
+        .mockResolvedValueOnce({
+          delete_Tariffs: { affected_rows: 1 },
+        });
 
-      await service.deleteTariff('DE', 'CPO', '2', true);
+      await service.deleteTariff('DE', 'CPO', 'tariff-abc-123', true);
 
       expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
         1,
@@ -379,22 +421,31 @@ describe('TariffsService', () => {
       );
       expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
         2,
-        GET_TARIFF_BY_PARTNER_QUERY,
-        { tariffId: 2, tenantPartnerId: 42 },
-      );
-      expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
-        3,
-        DELETE_TARIFF_MUTATION,
-        { id: 2 },
+        DELETE_TARIFF_BY_PARTNER_MUTATION,
+        { ocpiTariffId: 'tariff-abc-123', tenantPartnerId: 42 },
       );
     });
 
-    it('should throw when tariff is not found', async () => {
-      mockGraphqlClient.request.mockResolvedValue({ Tariffs: [] });
+    it('should throw when partner tariff is not found', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ TenantPartners: [{ id: 42 }] })
+        .mockResolvedValueOnce({
+          delete_Tariffs: { affected_rows: 0 },
+        });
 
-      await expect(service.deleteTariff('FR', 'HYX', '999')).rejects.toThrow(
-        'Tariff 999 not found for FR/HYX',
-      );
+      await expect(
+        service.deleteTariff('DE', 'CPO', 'non-existent-tariff', true),
+      ).rejects.toThrow('Tariff non-existent-tariff not found for DE/CPO');
+    });
+
+    it('should throw when tenant partner is not found', async () => {
+      mockGraphqlClient.request.mockResolvedValue({
+        TenantPartners: [],
+      });
+
+      await expect(
+        service.deleteTariff('XX', 'UNK', 'tariff-abc-123', true),
+      ).rejects.toThrow('Tariff tariff-abc-123 not found for XX/UNK');
     });
   });
 });

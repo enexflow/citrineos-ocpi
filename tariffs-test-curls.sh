@@ -8,6 +8,10 @@
 # This script tests both the Receiver interface (eMSP receiving tariffs from a CPO)
 # and the Sender interface (CPO exposing its own tariffs).
 #
+# Per OCPI 2.2.1, tariff_id is a CiString(36) -- an opaque string, NOT necessarily
+# a number. This script uses varied ID formats (alphanumeric, UUID, numeric) to
+# validate correct handling of string-based tariff identifiers.
+#
 # Per OCPI 2.2.1, Receiver endpoints use the CPO's country_code/party_id in the URL:
 #   {tariffs_endpoint_url}/{country_code}/{party_id}/{tariff_id}
 #   where country_code/party_id identify the CPO that owns the tariff.
@@ -18,9 +22,9 @@
 #
 # Prerequisites:
 #   1. Server running on localhost:8085
-#   2. DB migration applied: Tariffs.tenantPartnerId (see migrations/20250730123508_*.ts)
-#   3. Hasura metadata reloaded so GraphQL exposes tenantPartnerId and TenantPartner
-#      on Tariffs (otherwise you get HTTP 500 / validation-failed on tenantPartnerId).
+#   2. DB migration applied: Tariffs.ocpiTariffId + Tariffs.tenantPartnerId
+#   3. Hasura metadata reloaded so GraphQL exposes ocpiTariffId and TenantPartner
+#      on Tariffs (otherwise you get HTTP 500 / validation-failed).
 #      From repo root:
 #        npm run hasura:reload-metadata
 #      Or: ./scripts/hasura-reload-metadata.sh
@@ -107,15 +111,20 @@ run_curl() {
 # The CPO (FR/TMS) pushes tariffs to our eMSP (FR/ZTA).
 # URL uses CPO's country_code/party_id per OCPI 2.2.1 spec.
 # The tariff is stored with a tenantPartnerId linking it to FR/TMS.
+#
+# We use varied tariff_id formats to validate CiString(36) compliance:
+#   - tariff-std-001: alphanumeric with hyphens
+#   - f47ac10b-58cc-4372-a567-0e02b2c3d479: full UUID
+#   - 42: purely numeric (backward compat)
 # ===========================================================================
 
-separator "1. PUT /tariffs/FR/TMS/1 — Create tariff 1 (ENERGY + FLAT) from CPO FR/TMS"
+separator "1. PUT tariff-std-001 — Create tariff (ENERGY + FLAT) with alphanumeric ID"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/1" \
+  -X PUT "$BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
-    "id": "1",
+    "id": "tariff-std-001",
     "country_code": "FR",
     "party_id": "TMS",
     "currency": "EUR",
@@ -140,13 +149,13 @@ run_curl 200 \
     ]
   }'
 
-separator "2. PUT /tariffs/FR/TMS/2 — Create tariff 2 (with tariffAltText) from CPO FR/TMS"
+separator "2. PUT UUID tariff — Create tariff (with tariffAltText) using UUID format ID"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/2" \
+  -X PUT "$BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
-    "id": "2",
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
     "country_code": "FR",
     "party_id": "TMS",
     "currency": "EUR",
@@ -168,6 +177,37 @@ run_curl 200 \
     ]
   }'
 
+separator "3. PUT numeric tariff — Create tariff with purely numeric ID (backward compat)"
+run_curl 200 \
+  -X PUT "$BASE_URL/FR/TMS/42" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "42",
+    "country_code": "FR",
+    "party_id": "TMS",
+    "currency": "EUR",
+    "type": "AD_HOC_PAYMENT",
+    "elements": [
+      {
+        "price_components": [
+          {
+            "type": "ENERGY",
+            "price": 0.30,
+            "vat": 0.20,
+            "step_size": 1
+          },
+          {
+            "type": "TIME",
+            "price": 2.00,
+            "vat": 0.20,
+            "step_size": 60
+          }
+        ]
+      }
+    ]
+  }'
+
 # ===========================================================================
 # PHASE 2 — READ (Receiver GET + Sender GET)
 # Receiver GET uses CPO's country_code/party_id (FR/TMS) to look up
@@ -175,32 +215,37 @@ run_curl 200 \
 # Sender GET returns only our own tariffs (tenantPartnerId IS NULL).
 # ===========================================================================
 
-separator "3. GET /tariffs/FR/TMS/1 — Retrieve tariff 1 from CPO FR/TMS"
+separator "4. GET tariff-std-001 — Retrieve alphanumeric tariff"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/1" \
+  "$BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}"
 
-separator "4. GET /tariffs/FR/TMS/2 — Retrieve tariff 2 from CPO FR/TMS"
+separator "5. GET UUID tariff — Retrieve UUID-format tariff"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/2" \
+  "$BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   "${OCPI_HEADERS[@]}"
 
-separator "5. GET /tariffs/FR/TMS/999 — Non-existent tariff (expect 404)"
+separator "6. GET numeric tariff — Retrieve numeric tariff"
+run_curl 200 \
+  "$BASE_URL/FR/TMS/42" \
+  "${OCPI_HEADERS[@]}"
+
+separator "7. GET non-existent — Non-existent tariff with non-numeric ID (expect 404)"
 run_curl 404 \
-  "$BASE_URL/FR/TMS/999" \
+  "$BASE_URL/FR/TMS/non-existent-tariff-xyz" \
   "${OCPI_HEADERS[@]}"
 
-separator "6. GET /tariffs — Sender paginated list (our own tariffs only, partner tariffs excluded)"
+separator "8. GET /tariffs — Sender paginated list (our own tariffs only, partner tariffs excluded)"
 run_curl 200 \
   "$BASE_URL" \
   "${OCPI_HEADERS[@]}"
 
-separator "7. GET /tariffs?limit=1&offset=0 — Pagination (page 1)"
+separator "9. GET /tariffs?limit=1&offset=0 — Pagination (page 1)"
 run_curl 200 \
   "$BASE_URL?limit=1&offset=0" \
   "${OCPI_HEADERS[@]}"
 
-separator "8. GET /tariffs?limit=1&offset=1 — Pagination (page 2)"
+separator "10. GET /tariffs?limit=1&offset=1 — Pagination (page 2)"
 run_curl 200 \
   "$BASE_URL?limit=1&offset=1" \
   "${OCPI_HEADERS[@]}"
@@ -209,13 +254,13 @@ run_curl 200 \
 # PHASE 3 — UPDATE (Receiver PUT on existing tariff)
 # ===========================================================================
 
-separator "9. PUT /tariffs/FR/TMS/1 — Update tariff 1 (add TIME component)"
+separator "11. PUT tariff-std-001 — Update tariff (add TIME component)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/1" \
+  -X PUT "$BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
-    "id": "1",
+    "id": "tariff-std-001",
     "country_code": "FR",
     "party_id": "TMS",
     "currency": "EUR",
@@ -249,37 +294,42 @@ run_curl 200 \
     ]
   }'
 
-separator "10. GET /tariffs/FR/TMS/1 — Verify the update"
+separator "12. GET tariff-std-001 — Verify the update"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/1" \
+  "$BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
 # PHASE 4 — DELETE (Receiver DELETE)
 # ===========================================================================
 
-separator "11. DELETE /tariffs/FR/TMS/2 — Delete tariff 2"
+separator "13. DELETE UUID tariff"
 run_curl 200 \
-  -X DELETE "$BASE_URL/FR/TMS/2" \
+  -X DELETE "$BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   "${OCPI_HEADERS[@]}"
 
-separator "12. GET /tariffs/FR/TMS/2 — Verify deletion (expect 404)"
+separator "14. GET UUID tariff — Verify deletion (expect 404)"
 run_curl 404 \
-  "$BASE_URL/FR/TMS/2" \
+  "$BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   "${OCPI_HEADERS[@]}"
 
-separator "13. DELETE /tariffs/FR/TMS/999 — Delete non-existent tariff (expect error)"
+separator "15. DELETE non-existent — Delete non-existent tariff (expect error)"
 run_curl 404 \
-  -X DELETE "$BASE_URL/FR/TMS/999" \
+  -X DELETE "$BASE_URL/FR/TMS/non-existent-tariff-xyz" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
 # PHASE 5 — CLEANUP
 # ===========================================================================
 
-separator "14. DELETE /tariffs/FR/TMS/1 — Cleanup tariff 1"
+separator "16. DELETE tariff-std-001 — Cleanup alphanumeric tariff"
 run_curl 200 \
-  -X DELETE "$BASE_URL/FR/TMS/1" \
+  -X DELETE "$BASE_URL/FR/TMS/tariff-std-001" \
+  "${OCPI_HEADERS[@]}"
+
+separator "17. DELETE 42 — Cleanup numeric tariff"
+run_curl 200 \
+  -X DELETE "$BASE_URL/FR/TMS/42" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================

@@ -10,7 +10,47 @@ import type { PutTariffRequest } from '../../model/DTO/tariffs/PutTariffRequest'
 
 describe('TariffMapper', () => {
   describe('map (core -> OCPI)', () => {
-    it('should map a simple tariff with only energy pricing', () => {
+    it('should use ocpiTariffId when present (partner tariff)', () => {
+      const coreTariff = {
+        id: 42,
+        ocpiTariffId: 'tariff-abc-123',
+        currency: 'EUR',
+        pricePerKwh: 0.25,
+        taxRate: 0.2,
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
+        tenant: {
+          countryCode: 'FR',
+          partyId: 'HYX',
+        },
+      } as any;
+
+      const result = TariffMapper.map(coreTariff);
+
+      expect(result.id).toBe('tariff-abc-123');
+      expect(result.country_code).toBe('FR');
+      expect(result.party_id).toBe('HYX');
+    });
+
+    it('should use ocpiTariffId with UUID format', () => {
+      const coreTariff = {
+        id: 99,
+        ocpiTariffId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        currency: 'EUR',
+        pricePerKwh: 0.18,
+        taxRate: 0.2,
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
+        tenant: {
+          countryCode: 'DE',
+          partyId: 'CPO',
+        },
+      } as any;
+
+      const result = TariffMapper.map(coreTariff);
+
+      expect(result.id).toBe('f47ac10b-58cc-4372-a567-0e02b2c3d479');
+    });
+
+    it('should fall back to id.toString() when ocpiTariffId is absent (own tariff)', () => {
       const coreTariff: Partial<TariffDto> = {
         id: 1,
         currency: 'EUR',
@@ -149,9 +189,9 @@ describe('TariffMapper', () => {
   });
 
   describe('mapFromOcpi (OCPI -> core)', () => {
-    it('should convert an OCPI PutTariffRequest to core tariff fields', () => {
+    it('should store OCPI tariff id as ocpiTariffId string and NOT as numeric id', () => {
       const ocpiTariff: PutTariffRequest = {
-        id: '42',
+        id: 'tariff-abc-123',
         country_code: 'FR',
         party_id: 'HYX',
         currency: 'EUR',
@@ -172,15 +212,41 @@ describe('TariffMapper', () => {
 
       const result = TariffMapper.mapFromOcpi(ocpiTariff);
 
-      expect(result.id).toBe(42);
+      expect(result.ocpiTariffId).toBe('tariff-abc-123');
+      expect(result.id).toBeUndefined();
       expect(result.currency).toBe('EUR');
       expect(result.pricePerKwh).toBe(0.25);
       expect(result.taxRate).toBe(0.2);
     });
 
+    it('should handle UUID-format OCPI tariff ids', () => {
+      const ocpiTariff: PutTariffRequest = {
+        id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        country_code: 'DE',
+        party_id: 'XYZ',
+        currency: 'EUR',
+        elements: [
+          {
+            price_components: [
+              {
+                type: TariffDimensionType.ENERGY,
+                price: 0.3,
+                step_size: 1,
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = TariffMapper.mapFromOcpi(ocpiTariff);
+
+      expect(result.ocpiTariffId).toBe('f47ac10b-58cc-4372-a567-0e02b2c3d479');
+      expect(result.id).toBeUndefined();
+    });
+
     it('should include tariff_alt_text if present', () => {
       const ocpiTariff: PutTariffRequest = {
-        id: '99',
+        id: 'tariff-alt-text-test',
         country_code: 'DE',
         party_id: 'XYZ',
         currency: 'EUR',
@@ -207,7 +273,7 @@ describe('TariffMapper', () => {
 
     it('should include tenantId and tenantPartnerId when provided', () => {
       const ocpiTariff: PutTariffRequest = {
-        id: '55',
+        id: 'partner-tariff-55',
         country_code: 'FR',
         party_id: 'HYX',
         currency: 'EUR',
@@ -226,14 +292,15 @@ describe('TariffMapper', () => {
 
       const result = TariffMapper.mapFromOcpi(ocpiTariff, 10, 42);
 
-      expect(result.id).toBe(55);
+      expect(result.ocpiTariffId).toBe('partner-tariff-55');
+      expect(result.id).toBeUndefined();
       expect((result as any).tenantId).toBe(10);
       expect((result as any).tenantPartnerId).toBe(42);
     });
 
     it('should not include tenantPartnerId when not provided', () => {
       const ocpiTariff: PutTariffRequest = {
-        id: '56',
+        id: 'own-tariff-56',
         country_code: 'FR',
         party_id: 'HYX',
         currency: 'EUR',

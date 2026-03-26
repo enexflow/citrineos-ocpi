@@ -598,6 +598,7 @@ export type GetTariffByKeyQueryResult = {
     createdAt: any,
     currency: any,
     id: number,
+    ocpiTariffId?: string | null,
     paymentFee?: any | null,
     pricePerKwh: any,
     pricePerMin?: any | null,
@@ -627,6 +628,7 @@ export type GetTariffsQueryResult = {
     createdAt: any,
     currency: any,
     id: number,
+    ocpiTariffId?: string | null,
     paymentFee?: any | null,
     pricePerKwh: any,
     pricePerMin?: any | null,
@@ -651,6 +653,35 @@ export type CreateOrUpdateTariffMutationVariables = Exact<{
 export type CreateOrUpdateTariffMutationResult = {
   insert_Tariffs_one?: {
     id: number,
+    ocpiTariffId?: string | null,
+    authorizationAmount?: any | null,
+    createdAt: any,
+    currency: any,
+    paymentFee?: any | null,
+    pricePerKwh: any,
+    pricePerMin?: any | null,
+    pricePerSession?: any | null,
+    stationId?: string | null,
+    taxRate?: any | null,
+    tariffAltText?: string | null,
+    tenantPartnerId?: number | null,
+    updatedAt: any,
+    tenant: {
+      countryCode?: string | null,
+      partyId?: string | null
+    }
+  } | null
+};
+
+export type CreateOrUpdatePartnerTariffMutationVariables = Exact<{
+  object: Tariffs_Insert_Input;
+}>;
+
+
+export type CreateOrUpdatePartnerTariffMutationResult = {
+  insert_Tariffs_one?: {
+    id: number,
+    ocpiTariffId?: string | null,
     authorizationAmount?: any | null,
     createdAt: any,
     currency: any,
@@ -681,8 +712,20 @@ export type DeleteTariffMutationResult = {
   } | null
 };
 
+export type DeleteTariffByPartnerMutationVariables = Exact<{
+  ocpiTariffId: Scalars['String']['input'];
+  tenantPartnerId: Scalars['Int']['input'];
+}>;
+
+
+export type DeleteTariffByPartnerMutationResult = {
+  delete_Tariffs?: {
+    affected_rows: number
+  } | null
+};
+
 export type GetTariffByOcpiIdQueryVariables = Exact<{
-  tariffId: Scalars['Int']['input'];
+  ocpiTariffId: Scalars['String']['input'];
   countryCode: Scalars['String']['input'];
   partyId: Scalars['String']['input'];
 }>;
@@ -694,6 +737,7 @@ export type GetTariffByOcpiIdQueryResult = {
     createdAt: any,
     currency: any,
     id: number,
+    ocpiTariffId?: string | null,
     paymentFee?: any | null,
     pricePerKwh: any,
     pricePerMin?: any | null,
@@ -711,7 +755,7 @@ export type GetTariffByOcpiIdQueryResult = {
 };
 
 export type GetTariffByPartnerQueryVariables = Exact<{
-  tariffId: Scalars['Int']['input'];
+  ocpiTariffId: Scalars['String']['input'];
   tenantPartnerId: Scalars['Int']['input'];
 }>;
 
@@ -722,6 +766,7 @@ export type GetTariffByPartnerQueryResult = {
     createdAt: any,
     currency: any,
     id: number,
+    ocpiTariffId?: string | null,
     paymentFee?: any | null,
     pricePerKwh: any,
     pricePerMin?: any | null,
