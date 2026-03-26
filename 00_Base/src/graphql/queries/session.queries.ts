@@ -4,32 +4,6 @@
 
 import { gql } from 'graphql-request';
 
-const SESSION_FIELDS = `
-  id
-  ocpiSessionId
-  countryCode
-  partyId
-  startDateTime
-  endDateTime
-  kwh
-  cdrToken
-  authMethod
-  authorizationReference
-  locationId
-  evseUid
-  connectorId
-  meterId
-  currency
-  chargingPeriods
-  totalCost
-  status
-  lastUpdated
-  tenantId
-  tenantPartnerId
-  createdAt
-  updatedAt
-`;
-
 export const GET_SESSION_BY_OCPI_ID = gql`
   query GetSessionByOcpiId(
     $countryCode: String!
@@ -45,7 +19,29 @@ export const GET_SESSION_BY_OCPI_ID = gql`
         tenantPartnerId: { _eq: $tenantPartnerId }
       }
     ) {
-      ${SESSION_FIELDS}
+      id
+      ocpiSessionId
+      countryCode
+      partyId
+      startDateTime
+      endDateTime
+      kwh
+      cdrToken
+      authMethod
+      authorizationReference
+      locationId
+      evseUid
+      connectorId
+      meterId
+      currency
+      chargingPeriods
+      totalCost
+      status
+      lastUpdated
+      tenantId
+      tenantPartnerId
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -62,7 +58,29 @@ export const GET_SESSIONS_PAGINATED = gql`
       order_by: { lastUpdated: asc }
       where: $where
     ) {
-      ${SESSION_FIELDS}
+      id
+      ocpiSessionId
+      countryCode
+      partyId
+      startDateTime
+      endDateTime
+      kwh
+      cdrToken
+      authMethod
+      authorizationReference
+      locationId
+      evseUid
+      connectorId
+      meterId
+      currency
+      chargingPeriods
+      totalCost
+      status
+      lastUpdated
+      tenantId
+      tenantPartnerId
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -93,7 +111,29 @@ export const UPSERT_SESSION_MUTATION = gql`
         ]
       }
     ) {
-      ${SESSION_FIELDS}
+      id
+      ocpiSessionId
+      countryCode
+      partyId
+      startDateTime
+      endDateTime
+      kwh
+      cdrToken
+      authMethod
+      authorizationReference
+      locationId
+      evseUid
+      connectorId
+      meterId
+      currency
+      chargingPeriods
+      totalCost
+      status
+      lastUpdated
+      tenantId
+      tenantPartnerId
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -116,7 +156,29 @@ export const UPDATE_SESSION_MUTATION = gql`
       _set: $set
     ) {
       returning {
-        ${SESSION_FIELDS}
+        id
+        ocpiSessionId
+        countryCode
+        partyId
+        startDateTime
+        endDateTime
+        kwh
+        cdrToken
+        authMethod
+        authorizationReference
+        locationId
+        evseUid
+        connectorId
+        meterId
+        currency
+        chargingPeriods
+        totalCost
+        status
+        lastUpdated
+        tenantId
+        tenantPartnerId
+        createdAt
+        updatedAt
       }
     }
   }

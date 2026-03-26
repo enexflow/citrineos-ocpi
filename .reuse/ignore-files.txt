@@ -24,6 +24,7 @@ Server/src/assets/logo.png
 .github/workflows/test-build-server.yml
 00_Base/package.json
 00_Base/tsconfig.json
+00_Base/src/graphql/operations.ts
 03_Modules/Cdrs/package.json
 03_Modules/Cdrs/tsconfig.json
 03_Modules/ChargingProfiles/package.json
