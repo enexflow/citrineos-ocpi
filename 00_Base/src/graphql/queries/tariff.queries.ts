@@ -19,6 +19,7 @@ export const GET_TARIFF_BY_KEY_QUERY = gql`
       createdAt
       currency
       id
+      ocpiTariffId
       paymentFee
       pricePerKwh
       pricePerMin
@@ -48,6 +49,7 @@ export const GET_TARIFFS_QUERY = gql`
       createdAt
       currency
       id
+      ocpiTariffId
       paymentFee
       pricePerKwh
       pricePerMin
@@ -75,6 +77,7 @@ export const CREATE_OR_UPDATE_TARIFF_MUTATION = gql`
           authorizationAmount
           createdAt
           currency
+          ocpiTariffId
           paymentFee
           pricePerKwh
           pricePerMin
@@ -88,6 +91,50 @@ export const CREATE_OR_UPDATE_TARIFF_MUTATION = gql`
       }
     ) {
       id
+      ocpiTariffId
+      authorizationAmount
+      createdAt
+      currency
+      paymentFee
+      pricePerKwh
+      pricePerMin
+      pricePerSession
+      stationId
+      taxRate
+      tariffAltText
+      tenantPartnerId
+      updatedAt
+      tenant: Tenant {
+        countryCode
+        partyId
+      }
+    }
+  }
+`;
+
+/** Upsert for tariffs received from a partner CPO. Conflicts on (ocpiTariffId, tenantPartnerId). */
+export const CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION = gql`
+  mutation CreateOrUpdatePartnerTariff($object: Tariffs_insert_input!) {
+    insert_Tariffs_one(
+      object: $object
+      on_conflict: {
+        constraint: Tariffs_ocpiTariffId_tenantPartnerId_key
+        update_columns: [
+          currency
+          ocpiTariffId
+          paymentFee
+          pricePerKwh
+          pricePerMin
+          pricePerSession
+          stationId
+          tariffAltText
+          taxRate
+          updatedAt
+        ]
+      }
+    ) {
+      id
+      ocpiTariffId
       authorizationAmount
       createdAt
       currency
@@ -116,15 +163,32 @@ export const DELETE_TARIFF_MUTATION = gql`
   }
 `;
 
+/** Delete a partner tariff by its OCPI tariff ID and tenantPartnerId. */
+export const DELETE_TARIFF_BY_PARTNER_MUTATION = gql`
+  mutation DeleteTariffByPartner(
+    $ocpiTariffId: String!
+    $tenantPartnerId: Int!
+  ) {
+    delete_Tariffs(
+      where: {
+        ocpiTariffId: { _eq: $ocpiTariffId }
+        tenantPartnerId: { _eq: $tenantPartnerId }
+      }
+    ) {
+      affected_rows
+    }
+  }
+`;
+
 export const GET_TARIFF_BY_OCPI_ID_QUERY = gql`
   query GetTariffByOcpiId(
-    $tariffId: Int!
+    $ocpiTariffId: String!
     $countryCode: String!
     $partyId: String!
   ) {
     Tariffs(
       where: {
-        id: { _eq: $tariffId }
+        ocpiTariffId: { _eq: $ocpiTariffId }
         Tenant: {
           countryCode: { _eq: $countryCode }
           partyId: { _eq: $partyId }
@@ -135,6 +199,7 @@ export const GET_TARIFF_BY_OCPI_ID_QUERY = gql`
       createdAt
       currency
       id
+      ocpiTariffId
       paymentFee
       pricePerKwh
       pricePerMin
@@ -154,10 +219,10 @@ export const GET_TARIFF_BY_OCPI_ID_QUERY = gql`
 
 /** Filter by tenantPartnerId so we do not rely on Tariffs_bool_exp.TenantPartner (not always exposed). */
 export const GET_TARIFF_BY_PARTNER_QUERY = gql`
-  query GetTariffByPartner($tariffId: Int!, $tenantPartnerId: Int!) {
+  query GetTariffByPartner($ocpiTariffId: String!, $tenantPartnerId: Int!) {
     Tariffs(
       where: {
-        id: { _eq: $tariffId }
+        ocpiTariffId: { _eq: $ocpiTariffId }
         tenantPartnerId: { _eq: $tenantPartnerId }
       }
     ) {
@@ -165,6 +230,7 @@ export const GET_TARIFF_BY_PARTNER_QUERY = gql`
       createdAt
       currency
       id
+      ocpiTariffId
       paymentFee
       pricePerKwh
       pricePerMin

@@ -11,8 +11,10 @@ import { PaginatedParams } from '../controllers/param/PaginatedParams.js';
 import type {
   CreateOrUpdateTariffMutationResult,
   CreateOrUpdateTariffMutationVariables,
-  DeleteTariffMutationResult,
-  DeleteTariffMutationVariables,
+  CreateOrUpdatePartnerTariffMutationResult,
+  CreateOrUpdatePartnerTariffMutationVariables,
+  DeleteTariffByPartnerMutationResult,
+  DeleteTariffByPartnerMutationVariables,
   GetTariffByKeyQueryResult,
   GetTariffByKeyQueryVariables,
   GetTariffByOcpiIdQueryResult,
@@ -27,7 +29,8 @@ import type {
 } from '../graphql/index.js';
 import {
   CREATE_OR_UPDATE_TARIFF_MUTATION,
-  DELETE_TARIFF_MUTATION,
+  CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION,
+  DELETE_TARIFF_BY_PARTNER_MUTATION,
   GET_TARIFF_BY_KEY_QUERY,
   GET_TARIFF_BY_OCPI_ID_QUERY,
   GET_TARIFF_BY_PARTNER_QUERY,
@@ -60,7 +63,7 @@ export class TariffsService {
   }
 
   /**
-   * Receiver GET: retrieve a tariff by its OCPI id.
+   * Receiver GET: retrieve a tariff by its OCPI id (CiString(36)).
    * When the country_code/party_id identify a TenantPartner (CPO source),
    * we filter via the TenantPartner relationship instead of Tenant.
    */
@@ -83,7 +86,7 @@ export class TariffsService {
         GetTariffByPartnerQueryResult,
         GetTariffByPartnerQueryVariables
       >(GET_TARIFF_BY_PARTNER_QUERY, {
-        tariffId: parseInt(tariffId, 10),
+        ocpiTariffId: tariffId,
         tenantPartnerId,
       });
       const tariff = result.Tariffs?.[0];
@@ -97,7 +100,7 @@ export class TariffsService {
       GetTariffByOcpiIdQueryResult,
       GetTariffByOcpiIdQueryVariables
     >(GET_TARIFF_BY_OCPI_ID_QUERY, {
-      tariffId: parseInt(tariffId, 10),
+      ocpiTariffId: tariffId,
       countryCode,
       partyId,
     });
@@ -162,6 +165,20 @@ export class TariffsService {
       tenantId,
       tenantPartnerId,
     );
+
+    if (tenantPartnerId !== undefined) {
+      const result = await this.ocpiGraphqlClient.request<
+        CreateOrUpdatePartnerTariffMutationResult,
+        CreateOrUpdatePartnerTariffMutationVariables
+      >(CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION, { object: coreObject });
+      if (!result.insert_Tariffs_one) {
+        throw new Error(
+          `Failed to create or update tariff ${tariffRequest.id}`,
+        );
+      }
+      return TariffMapper.map(result.insert_Tariffs_one as TariffDto);
+    }
+
     const result = await this.ocpiGraphqlClient.request<
       CreateOrUpdateTariffMutationResult,
       CreateOrUpdateTariffMutationVariables
@@ -178,22 +195,42 @@ export class TariffsService {
     tariffId: string,
     isPartnerLookup = false,
   ): Promise<void> {
+    if (isPartnerLookup) {
+      const tpResult = await this.ocpiGraphqlClient.request<
+        GetTenantPartnerIdByCountryPartyQueryResult,
+        GetTenantPartnerIdByCountryPartyQueryVariables
+      >(GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY, { countryCode, partyId });
+      const tenantPartnerId = tpResult.TenantPartners?.[0]?.id;
+      if (tenantPartnerId === undefined) {
+        throw new NotFoundException(
+          `Tariff ${tariffId} not found for ${countryCode}/${partyId}`,
+        );
+      }
+      const result = await this.ocpiGraphqlClient.request<
+        DeleteTariffByPartnerMutationResult,
+        DeleteTariffByPartnerMutationVariables
+      >(DELETE_TARIFF_BY_PARTNER_MUTATION, {
+        ocpiTariffId: tariffId,
+        tenantPartnerId,
+      });
+      if (!result.delete_Tariffs?.affected_rows) {
+        throw new NotFoundException(
+          `Tariff ${tariffId} not found for ${countryCode}/${partyId}`,
+        );
+      }
+      return;
+    }
+
     const tariff = await this.getTariffByOcpiId(
       countryCode,
       partyId,
       tariffId,
-      isPartnerLookup,
+      false,
     );
     if (!tariff) {
       throw new NotFoundException(
         `Tariff ${tariffId} not found for ${countryCode}/${partyId}`,
       );
     }
-    await this.ocpiGraphqlClient.request<
-      DeleteTariffMutationResult,
-      DeleteTariffMutationVariables
-    >(DELETE_TARIFF_MUTATION, {
-      id: parseInt(tariffId, 10),
-    });
   }
 }

@@ -31,7 +31,7 @@ export class TariffMapper {
     }
 
     return {
-      id: coreTariff.id!.toString(),
+      id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
       country_code: coreTariff.tenant!.countryCode!,
       party_id: coreTariff.tenant!.partyId!,
       currency: coreTariff.currency!,
@@ -112,11 +112,11 @@ export class TariffMapper {
     tariff: PutTariffRequest,
     tenantId?: number,
     tenantPartnerId?: number,
-  ): Partial<TariffDto> {
+  ): Partial<TariffDto> & { ocpiTariffId?: string } {
     const coreFields = TariffMapper.mapElementsToCoreTariff(tariff.elements);
     const now = new Date().toISOString();
     return {
-      id: parseInt(tariff.id, 10),
+      ocpiTariffId: tariff.id,
       currency: tariff.currency,
       tariffAltText: tariff.tariff_alt_text
         ? JSON.stringify(tariff.tariff_alt_text)
@@ -126,6 +126,6 @@ export class TariffMapper {
       ...(tenantId !== undefined && { tenantId }),
       ...(tenantPartnerId !== undefined && { tenantPartnerId }),
       ...coreFields,
-    } as Partial<TariffDto>;
+    } as Partial<TariffDto> & { ocpiTariffId?: string };
   }
 }

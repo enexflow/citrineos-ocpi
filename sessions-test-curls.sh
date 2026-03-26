@@ -161,7 +161,7 @@ run_curl 200 \
           { "type": "ENERGY", "volume": 11.2 },
           { "type": "TIME", "volume": 0.5 }
         ],
-        "tariff_id": "1"
+        "tariff_id": "tariff-std-001"
       },
       {
         "start_date_time": "2024-06-14T14:30:00Z",
@@ -169,7 +169,7 @@ run_curl 200 \
           { "type": "ENERGY", "volume": 11.2 },
           { "type": "TIME", "volume": 0.5 }
         ],
-        "tariff_id": "1"
+        "tariff_id": "tariff-std-001"
       }
     ],
     "total_cost": {
@@ -217,7 +217,7 @@ run_curl 200 \
           { "type": "ENERGY", "volume": 12.8 },
           { "type": "TIME", "volume": 0.5 }
         ],
-        "tariff_id": "1"
+        "tariff_id": "tariff-std-001"
       }
     ],
     "last_updated": "2024-06-15T10:30:00Z"
@@ -259,7 +259,7 @@ run_curl 200 \
           { "type": "ENERGY", "volume": 25.0 },
           { "type": "TIME", "volume": 1.0 }
         ],
-        "tariff_id": "1"
+        "tariff_id": "tariff-std-001"
       }
     ],
     "total_cost": {
