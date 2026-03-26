@@ -63,6 +63,45 @@ query GetPartnerConnectorByOcpiIdAndEvseId(
 }
 `;
 
+export const GET_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID = gql`
+query GetConnectorByOcpiIdAndEvseId(
+  $partnerId: Int!, $locationId: String!, $evseUid: String!, $connectorId: String!
+) {
+  Connectors(where: {
+    ocpiId: { _eq: $connectorId },
+    Evse: {
+      ocpiUid: { _eq: $evseUid },
+      ChargingStation: {
+        Location: {
+          ocpiId: { _eq: $locationId },
+          ownerTenantPartnerId: { _eq: $partnerId }
+        }
+      }
+    }
+  }) {
+    id
+    ocpiId
+    stationId
+    connectorId
+    format
+    maximumAmperage
+    maximumPowerWatts
+    maximumVoltage
+    powerType
+    termsAndConditionsUrl
+    type
+    status
+    errorCode
+    timestamp
+    info
+    vendorId
+    vendorErrorCode
+    createdAt
+    updatedAt
+  }
+}
+`;
+
 export const UPDATE_CONNECTOR_PATCH_MUTATION = gql`
   mutation UpdateConnectorPatch($id: Int!, $changes: Connectors_set_input!) {
     update_Connectors_by_pk(pk_columns: { id: $id }, _set: $changes) {

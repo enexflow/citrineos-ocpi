@@ -135,6 +135,7 @@ export const GET_LOCATION_BY_ID_QUERY = gql`
           stationId
           evseTypeId
           evseId
+          ocpiUid
           physicalReference
           removed
           createdAt
@@ -168,7 +169,7 @@ export const GET_LOCATION_BY_ID_QUERY = gql`
 `;
 
 export const GET_EVSE_BY_ID_QUERY = gql`
-  query GetEvseById($locationId: String!, $stationId: String!, $evseId: String!) {
+  query GetEvseById($locationId: String!, $stationId: String!, $evseId: Int!) {
     Locations(where: { ocpiId: { _eq: $locationId } }) {
       chargingPool: ChargingStations(where: { id: { _eq: $stationId } }) {
         id
@@ -195,6 +196,7 @@ export const GET_EVSE_BY_ID_QUERY = gql`
           stationId
           evseTypeId
           evseId
+          ocpiUid
           physicalReference
           removed
           createdAt
@@ -209,7 +211,7 @@ export const GET_CONNECTOR_BY_ID_QUERY = gql`
   query GetConnectorById(
     $locationId: String!
     $stationId: String!
-    $evseId: String!
+    $evseId: Int!
     $connectorId: Int!
   ) {
     Locations(where: { ocpiId: { _eq: $locationId } }) {
@@ -245,49 +247,10 @@ export const GET_CONNECTOR_BY_ID_QUERY = gql`
   }
 `;
 
-export const GET_LOCATION_BY_COUNTRY_PARTY_AND_ID_QUERY = gql`
-  query GetLocationByCountryPartyAndId($countryCode: String!, $partyId: String!, $locationId: String!) {
-    Locations(where: { country: { _eq: $countryCode }, tenant: { partyId: { _eq: $partyId } }, id: { _eq: $locationId } }) {
-      id
-      name
-      address
-      city
-      coordinates
-      country
-      createdAt
-      facilities
-      openingHours
-      parkingType
-      postalCode
-      publishUpstream
-      state
-      timeZone
-      updatedAt
-      tenant: Tenant {
-        partyId
-        countryCode
-      }
-      chargingPool: ChargingStations {
-        id
-        isOnline
-        protocol
-        capabilities
-      }
-    }
-  }
-`;
-
-export const GET_LOCATION_BY_TENANT_PARTNER_AND_ID_QUERY = gql`
-  query GetLocationByTenantPartnerAndId($tenantPartnerId: Int!, $locationId: String!) {
-    Locations(where: { tenantPartner: { id: { _eq: $tenantPartnerId } }, id: { _eq: $locationId } }) {
-      id
-    }
-  }
-`;
-
-export const GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID = gql`
-  query GetLocationByIdAndPartnerId($id: String!, $partnerId: Int!) {
+export const GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
+  query GetLocationByOcpiIdAndPartnerId($id: String!, $partnerId: Int!) {
     Locations(where: { ocpiId: { _eq: $id }, ownerTenantPartnerId: { _eq: $partnerId } }) {
+      ocpiId
       id
       name
       address
@@ -307,6 +270,14 @@ export const GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID = gql`
         partyId
         countryCode
       }
+      operator
+      suboperator
+      owner
+      relatedLocations
+      energyMix
+      images
+      directions
+      chargingWhenClosed
       chargingPool: ChargingStations {
         id
         isOnline
@@ -324,7 +295,6 @@ export const GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID = gql`
         meterType
         meterSerialNumber
         parkingRestrictions
-        locationId
         createdAt
         updatedAt
         evses: Evses {
@@ -333,11 +303,21 @@ export const GET_LOCATION_BY_ID_QUERY_AND_PARTNER_ID = gql`
           evseTypeId
           evseId
           physicalReference
+          capabilities
+          directions
+          images
+          statusSchedule
+          ocpiStatus
+          ocpiUid
+          coordinates
+          floorLevel
+          parkingRestrictions
           removed
           createdAt
           updatedAt
           connectors: Connectors {
             id
+            ocpiId
             stationId
             evseId
             connectorId
@@ -375,6 +355,7 @@ query GetEvseByLocationAndOwnerPartner(
     ocpiId: { _eq: $locationId },
     ownerTenantPartnerId: { _eq: $partnerId }
   }) {
+    id
     chargingPool: ChargingStations {
       id
       evses: Evses(where: { evseId: { _eq: $evseId } }) {
@@ -407,6 +388,13 @@ export const UPSERT_LOCATION_MUTATION = gql`
         owner,
         chargingWhenClosed,
         relatedLocations,
+        publishUpstream,
+        publishAllowedTo,
+        energyMix,
+        openingHours,
+        facilities,
+        images,
+        directions,
         updatedAt
       ]
     }

@@ -21,6 +21,13 @@ import {
   OcpiModule,
   RabbitMqDtoReceiver,
 } from '@citrineos/ocpi-base';
+import type { 
+  GetEvseOwnershipByIdQueryResult,
+  GetEvseOwnershipByIdQueryVariables, 
+  GetConnectorOwnershipByIdQueryResult, 
+  GetConnectorOwnershipByIdQueryVariables 
+} from '../../../00_Base/src/graphql/index.js';
+
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { LocationsModuleApi } from './module/LocationsModuleApi.js';
@@ -175,7 +182,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     // sometime we won't get the full object so we neef to check if the evse is owned by a tenant partner by looking at the database
     const evseDbId = Number(evseDto.id);
     if (!Number.isInteger(evseDbId)) return;
-    const evseOwnership = await this.ocpiGraphqlClient.request<any, { id: number }>(
+    const evseOwnership = await this.ocpiGraphqlClient.request<GetEvseOwnershipByIdQueryResult, GetEvseOwnershipByIdQueryVariables>(
       GET_EVSE_OWNERSHIP_BY_ID,
       { id: evseDbId },
     );
@@ -267,7 +274,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const connectorDbId = Number(connectorDto.id);
     if (!Number.isInteger(connectorDbId)) return;
 
-    const connectorOwnership = await this.ocpiGraphqlClient.request<any, { id: number }>(
+    const connectorOwnership = await this.ocpiGraphqlClient.request<GetConnectorOwnershipByIdQueryResult, GetConnectorOwnershipByIdQueryVariables>(
       GET_CONNECTOR_OWNERSHIP_BY_ID,
       { id: connectorDbId },
     );

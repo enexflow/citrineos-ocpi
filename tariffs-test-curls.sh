@@ -38,9 +38,20 @@
 
 BASE_URL="http://localhost:8085/ocpi/2.2.1/tariffs"
 
-AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
+# AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
+AUTH_TOKEN="Token MGE0YTFjZjktMDlkNC00ZTViLTgzYzItYWMxNTlhZWEzODhk"
 
 # OCPI headers: CPO partner FR/TMS -> our eMSP FR/ZTA
+# OCPI_HEADERS=(
+#   -H "Authorization: $AUTH_TOKEN"
+#   -H "X-Request-ID: $(uuidgen 2>/dev/null || echo test-req-001)"
+#   -H "X-Correlation-ID: $(uuidgen 2>/dev/null || echo test-corr-001)"
+#   -H "OCPI-from-country-code: FR"
+#   -H "OCPI-from-party-id: TMS"
+#   -H "OCPI-to-country-code: FR"
+#   -H "OCPI-to-party-id: ZTA"
+# )
+
 OCPI_HEADERS=(
   -H "Authorization: $AUTH_TOKEN"
   -H "X-Request-ID: $(uuidgen 2>/dev/null || echo test-req-001)"

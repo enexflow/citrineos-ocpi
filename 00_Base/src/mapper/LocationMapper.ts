@@ -22,6 +22,7 @@ import {
   type LocationDto,
   type LocationFacilityEnumType,
   type LocationParkingEnumType,
+  type AdditionalGeoLocation,
 } from '@citrineos/base';
 import {
   ChargingStationCapabilityEnum,
@@ -34,6 +35,7 @@ import {
   LocationHours,
   LocationParkingEnum,
 } from '@citrineos/base';
+import type { BusinessDetails } from '../model/BusinessDetails.js';
 import { ParkingRestriction } from '../model/ParkingRestriction.js';
 import { Capability } from '../model/Capability.js';
 import { Container } from 'typedi';
@@ -41,8 +43,34 @@ import { Logger } from 'tslog';
 import { ParkingType } from '../model/ParkingType.js';
 import { Facilities } from '../model/Facilities.js';
 import type { Hours } from '../model/Hours.js';
+import { ImageType } from '../model/ImageType.js';
+import { ImageCategory } from '../model/ImageCategory.js';
+import type { ImageDTO } from '../model/DTO/ImageDTO.js';
+
 
 export class LocationMapper {
+
+
+  static mapBusinessDetails(
+    details: LocationDto['operator'],
+  ): BusinessDetails | null | undefined {
+    if (details == null) return details;
+    return {
+      name: details.name,
+      website: details.website ?? undefined,
+      logo: details.logo
+        ? {
+            url: details.logo.url,
+            type: details.logo.type as ImageType,
+            category: details.logo.category as ImageCategory,
+            width: details.logo.width ?? undefined,
+            height: details.logo.height ?? undefined,
+            thumbnail: undefined,
+          }
+        : undefined,
+    };
+  }
+
   static fromGraphql(location: LocationDto): LocationDTO {
     return {
       id: location.id!.toString(),
@@ -77,6 +105,44 @@ export class LocationMapper {
     };
   }
 
+  static fromGraphqlReceiver(location: LocationDto): LocationDTO {
+    return {
+      id: location.ocpiId! ,
+      country_code: location.tenant!.countryCode!,
+      party_id: location.tenant!.partyId!,
+      publish: location.publishUpstream,
+      name: location.name,
+      address: location.address,
+      city: location.city,
+      postal_code: location.postalCode,
+      state: location.state,
+      country: location.country,
+      parking_type: location.parkingType as ParkingType | null,
+      directions: location.directions ?? [],
+      coordinates: {
+        longitude: location.coordinates.coordinates[0].toString(),
+        latitude: location.coordinates.coordinates[1].toString(),
+      },
+      time_zone: location.timeZone,
+      energy_mix: location.energyMix,
+      related_locations: (location as LocationDto & { relatedLocations?: AdditionalGeoLocation[] }).relatedLocations,
+      evses: location.chargingPool
+        ?.map((station) =>
+          station.evses?.map((evse) => EvseMapper.fromGraphqlReceiver(station, evse)),
+        )
+        ?.flat()
+        ?.filter((evse) => evse !== undefined),
+      facilities: location.facilities as Facilities[] | null,
+      images: location.images as ImageDTO[] | null,
+      opening_times: location.openingHours as Hours | null,
+      charging_when_closed: location.chargingWhenClosed as boolean | null,
+      operator: LocationMapper.mapBusinessDetails(location.operator),
+      suboperator: LocationMapper.mapBusinessDetails(location.suboperator),
+      owner: LocationMapper.mapBusinessDetails(location.owner),
+      last_updated: location.updatedAt!,
+    };
+  }
+
   static fromPartialGraphql(
     location: Partial<LocationDto>,
   ): Partial<LocationDTO> {
@@ -88,6 +154,8 @@ export class LocationMapper {
       postal_code: location.postalCode,
       state: location.state,
       country: location.country,
+      parking_type: location.parkingType as ParkingType | null,
+      energy_mix: location.energyMix,
       coordinates: location.coordinates && {
         longitude: location.coordinates.coordinates[0].toString(),
         latitude: location.coordinates.coordinates[1].toString(),
@@ -101,13 +169,13 @@ export class LocationMapper {
           )
           .flat()
           .filter((evse) => evse !== undefined),
-      parking_type: LocationMapper.mapLocationParkingType(location.parkingType),
-      facilities: location.facilities
-        ?.map(LocationMapper.mapLocationFacility)
-        .filter((f) => f !== null),
-      opening_times: location.openingHours
-        ? LocationMapper.mapLocationHours(location.openingHours)
-        : undefined,
+      facilities: location.facilities as Facilities[] | null,
+      images: location.images as ImageDTO[] | null,
+      opening_times: location.openingHours as Hours | null,
+      charging_when_closed: location.chargingWhenClosed as boolean | null,
+      operator: LocationMapper.mapBusinessDetails(location.operator),
+      suboperator: LocationMapper.mapBusinessDetails(location.suboperator),
+      owner: LocationMapper.mapBusinessDetails(location.owner),
       last_updated: location.updatedAt!,
     };
   }
@@ -255,6 +323,57 @@ export class EvseMapper {
       last_updated: evse.updatedAt!,
     };
   }
+
+  static fromGraphqlReceiver(
+    station: ChargingStationDto,
+    evse: EvseDto,
+  ): EvseDTO | undefined {
+    let connectors = evse.connectors
+      ?.map(ConnectorMapper.fromGraphqlReceiver)
+      ?.filter((c) => c !== undefined);
+    if (!connectors || connectors.length === 0) {
+      const logger = Container.get(Logger);
+      logger.warn('EVSE has no valid connectors', {
+        stationId: station.id,
+        evseId: evse.id,
+      });
+      connectors = undefined;
+      // return;
+      // TODO: solve this case
+    }
+
+    console.log('evse COORDINATES !!!!!', evse.coordinates);
+
+    return {
+      uid: evse.ocpiUid! ?? UID_FORMAT(station.id, evse.id!), // TODO: add proper type
+      evse_id: evse.evseId,
+      physical_reference: evse.physicalReference,
+      connectors: connectors || [],
+      floor_level: evse.floorLevel,
+      status: (evse as any).ocpiStatus as EvseStatus ?? EvseStatus.UNKNOWN,
+      status_schedule: evse.statusSchedule?.map((s) => ({
+        period_begin: s.period_begin,
+        period_end: s.period_end,
+        status: s.status as EvseStatus,
+      })),
+      images: evse.images?.map((i) => ({
+        url: i.url,
+        type: i.type as ImageType,
+        category: i.category as ImageCategory,
+        width: i.width ?? undefined,
+        height: i.height ?? undefined,
+      })) ?? [],
+      directions: evse.directions ?? [],
+      capabilities: (evse as any).capabilities as Capability[] | null | undefined,
+      parking_restrictions: ((evse as any).parkingRestrictions ?? station.parkingRestrictions) as ParkingRestriction[] | [] | undefined,
+      coordinates: evse.coordinates && evse.coordinates.coordinates.length === 2 ? {
+        longitude: evse.coordinates.coordinates[0].toString(),
+        latitude: evse.coordinates.coordinates[1].toString(),
+      } : null,
+      last_updated: evse.updatedAt!,
+    };
+  }
+
 
   static fromPartialGraphql(
     station: Partial<ChargingStationDto>,
@@ -410,6 +529,23 @@ export class ConnectorMapper {
       return partialConnector as ConnectorDTO;
     }
     logger.warn(`Invalid connector: ${JSON.stringify(partialConnector)}`);
+  }
+
+  static fromGraphqlReceiver(connector: any): ConnectorDTO | undefined {
+    const partial: Partial<ConnectorDTO> = {
+      id: connector.ocpiId ?? connector.id?.toString(),
+      standard: connector.type as ConnectorType, // stored as OCPI literal
+      format: connector.format as ConnectorFormat,
+      power_type: connector.powerType as PowerType,
+      max_voltage: connector.maximumVoltage || undefined,
+      max_amperage: connector.maximumAmperage || undefined,
+      max_electric_power: connector.maximumPowerWatts || undefined,
+      terms_and_conditions: connector.termsAndConditionsUrl,
+      last_updated: connector.updatedAt,
+    }
+    if (ConnectorMapper.validatePartialConnector(partial)) {
+      return partial as ConnectorDTO
+    }
   }
 
   static fromPartialGraphql(
