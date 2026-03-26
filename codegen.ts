@@ -17,7 +17,9 @@ const config: CodegenConfig = {
       },
     },
   },
-  documents: ['./00_Base/src/graphql/queries/*.ts'],
+  // Documents must stay as static GraphQL strings (no `${...}` interpolation),
+  // otherwise the pluck step can miss operations and generated types.
+  documents: ['./00_Base/src/graphql/queries/**/*.ts'],
   generates: {
     './00_Base/src/graphql/operations.ts': {
       plugins: [
@@ -63,6 +65,19 @@ export type Locations_Bool_Exp = {
 export type Tariffs_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
+  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+};
+export type Sessions_Bool_Exp = {
+  countryCode?: InputMaybe<String_Comparison_Exp>;
+  partyId?: InputMaybe<String_Comparison_Exp>;
+  ocpiSessionId?: InputMaybe<String_Comparison_Exp>;
+  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
+  Tenant?: InputMaybe<Tenants_Bool_Exp>;
+};
+export type Int_Comparison_Exp = {
+  _eq?: InputMaybe<Scalars['Int']['input']>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
 };
 export type Transactions_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
@@ -71,6 +86,12 @@ export type Transactions_Bool_Exp = {
 };
 export type Authorizations_Bool_Exp = {
   TenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+};
+export type Authorizations_Paginated_Bool_Exp = {
+  updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
+  TenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+  Tenant?: InputMaybe<Tenants_Bool_Exp>;
+  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type Timestamptz_Comparison_Exp = {
   _gte?: InputMaybe<Scalars['timestamptz']['input']>;
@@ -86,6 +107,34 @@ export type TenantPartners_Bool_Exp = {
 };
 export type String_Comparison_Exp = {
   _eq?: InputMaybe<Scalars['String']['input']>;
+};
+export type Tariffs_Insert_Input = any;
+export type Sessions_Insert_Input = any;
+export type Sessions_Set_Input = any;
+export type SessionDbRow = {
+  id: number;
+  ocpiSessionId: string;
+  countryCode: string;
+  partyId: string;
+  startDateTime: any;
+  endDateTime?: any | null;
+  kwh: any;
+  cdrToken: any;
+  authMethod: string;
+  authorizationReference?: string | null;
+  locationId: string;
+  evseUid: string;
+  connectorId: string;
+  meterId?: string | null;
+  currency: string;
+  chargingPeriods?: any | null;
+  totalCost?: any | null;
+  status: string;
+  lastUpdated: any;
+  tenantId: number;
+  tenantPartnerId: number;
+  createdAt?: any;
+  updatedAt?: any;
 };`,
           },
         },

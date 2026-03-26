@@ -118,13 +118,13 @@ export class TariffsService {
   ): Promise<{ data: TariffDTO[]; count: number }> {
     const limit = paginationParams?.limit ?? DEFAULT_LIMIT;
     const offset = paginationParams?.offset ?? DEFAULT_OFFSET;
-    const where: Tariffs_Bool_Exp = {
+    const where = {
       Tenant: {
         countryCode: { _eq: ocpiHeaders.toCountryCode },
         partyId: { _eq: ocpiHeaders.toPartyId },
       },
       tenantPartnerId: { _is_null: true },
-    };
+    } as unknown as Tariffs_Bool_Exp;
     const dateFilters: any = {};
     if (paginationParams?.dateFrom)
       dateFilters._gte = paginationParams.dateFrom.toISOString();

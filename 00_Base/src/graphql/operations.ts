@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
-//
-// SPDX-License-Identifier: Apache-2.0
-
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
@@ -85,6 +81,34 @@ export type TenantPartners_Bool_Exp = {
 export type String_Comparison_Exp = {
   _eq?: InputMaybe<Scalars['String']['input']>;
 };
+export type Tariffs_Insert_Input = any;
+export type Sessions_Insert_Input = any;
+export type Sessions_Set_Input = any;
+export type SessionDbRow = {
+  id: number;
+  ocpiSessionId: string;
+  countryCode: string;
+  partyId: string;
+  startDateTime: any;
+  endDateTime?: any | null;
+  kwh: any;
+  cdrToken: any;
+  authMethod: string;
+  authorizationReference?: string | null;
+  locationId: string;
+  evseUid: string;
+  connectorId: string;
+  meterId?: string | null;
+  currency: string;
+  chargingPeriods?: any | null;
+  totalCost?: any | null;
+  status: string;
+  lastUpdated: any;
+  tenantId: number;
+  tenantPartnerId: number;
+  createdAt?: any;
+  updatedAt?: any;
+};
 export type GetChargingStationByIdQueryVariables = Exact<{
   id: Scalars['String']['input'];
 }>;
@@ -124,10 +148,10 @@ export type GetChargingStationByIdQueryResult = {
       tenantId: number,
       stationId: string,
       evseId?: number | null,
-      connectorId: number,
+      connectorId?: number | null,
       evseTypeConnectorId?: number | null,
-      status?: any | null,
-      errorCode?: any | null,
+      status?: string | null,
+      errorCode?: string | null,
       timestamp?: any | null,
       info?: string | null,
       vendorId?: string | null,
@@ -136,8 +160,8 @@ export type GetChargingStationByIdQueryResult = {
       updatedAt: any
     }>,
     tenant: {
-      partyId: string,
-      countryCode: string
+      partyId?: string | null,
+      countryCode?: string | null
     }
   }>
 };
@@ -195,8 +219,8 @@ export type GetLocationsQueryResult = {
     timeZone?: string | null,
     updatedAt: any,
     tenant: {
-      partyId: string,
-      countryCode: string
+      partyId?: string | null,
+      countryCode?: string | null
     },
     chargingPool: Array<{
       id: string,
@@ -231,7 +255,7 @@ export type GetLocationsQueryResult = {
           id: number,
           stationId: string,
           evseId?: number | null,
-          connectorId: number,
+          connectorId?: number | null,
           evseTypeConnectorId?: number | null,
           format?: string | null,
           maximumAmperage?: number | null,
@@ -240,8 +264,8 @@ export type GetLocationsQueryResult = {
           powerType?: string | null,
           termsAndConditionsUrl?: string | null,
           type?: string | null,
-          status?: any | null,
-          errorCode?: any | null,
+          status?: string | null,
+          errorCode?: string | null,
           timestamp?: any | null,
           info?: string | null,
           vendorId?: string | null,
@@ -277,8 +301,8 @@ export type GetLocationByIdQueryResult = {
     timeZone?: string | null,
     updatedAt: any,
     tenant: {
-      partyId: string,
-      countryCode: string
+      partyId?: string | null,
+      countryCode?: string | null
     },
     chargingPool: Array<{
       id: string,
@@ -313,7 +337,7 @@ export type GetLocationByIdQueryResult = {
           id: number,
           stationId: string,
           evseId?: number | null,
-          connectorId: number,
+          connectorId?: number | null,
           evseTypeConnectorId?: number | null,
           format?: string | null,
           maximumAmperage?: number | null,
@@ -322,8 +346,8 @@ export type GetLocationByIdQueryResult = {
           powerType?: string | null,
           termsAndConditionsUrl?: string | null,
           type?: string | null,
-          status?: any | null,
-          errorCode?: any | null,
+          status?: string | null,
+          errorCode?: string | null,
           timestamp?: any | null,
           info?: string | null,
           vendorId?: string | null,
@@ -395,7 +419,7 @@ export type GetConnectorByIdQueryResult = {
           id: number,
           stationId: string,
           evseId?: number | null,
-          connectorId: number,
+          connectorId?: number | null,
           evseTypeConnectorId?: number | null,
           format?: string | null,
           maximumAmperage?: number | null,
@@ -404,8 +428,8 @@ export type GetConnectorByIdQueryResult = {
           powerType?: string | null,
           termsAndConditionsUrl?: string | null,
           type?: string | null,
-          status?: any | null,
-          errorCode?: any | null,
+          status?: string | null,
+          errorCode?: string | null,
           timestamp?: any | null,
           info?: string | null,
           vendorId?: string | null,
@@ -416,6 +440,149 @@ export type GetConnectorByIdQueryResult = {
       }>
     }>
   }>
+};
+
+export type GetSessionByOcpiIdQueryVariables = Exact<{
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+  ocpiSessionId: Scalars['String']['input'];
+  tenantPartnerId: Scalars['Int']['input'];
+}>;
+
+
+export type GetSessionByOcpiIdQueryResult = {
+  Sessions: Array<{
+    id: number,
+    ocpiSessionId: string,
+    countryCode: string,
+    partyId: string,
+    startDateTime: any,
+    endDateTime?: any | null,
+    kwh: any,
+    cdrToken: any,
+    authMethod: string,
+    authorizationReference?: string | null,
+    locationId: string,
+    evseUid: string,
+    connectorId: string,
+    meterId?: string | null,
+    currency: string,
+    chargingPeriods?: any | null,
+    totalCost?: any | null,
+    status: string,
+    lastUpdated: any,
+    tenantId: number,
+    tenantPartnerId: number,
+    createdAt?: any | null,
+    updatedAt?: any | null
+  }>
+};
+
+export type GetSessionsPaginatedQueryVariables = Exact<{
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  where: Sessions_Bool_Exp;
+}>;
+
+
+export type GetSessionsPaginatedQueryResult = {
+  Sessions: Array<{
+    id: number,
+    ocpiSessionId: string,
+    countryCode: string,
+    partyId: string,
+    startDateTime: any,
+    endDateTime?: any | null,
+    kwh: any,
+    cdrToken: any,
+    authMethod: string,
+    authorizationReference?: string | null,
+    locationId: string,
+    evseUid: string,
+    connectorId: string,
+    meterId?: string | null,
+    currency: string,
+    chargingPeriods?: any | null,
+    totalCost?: any | null,
+    status: string,
+    lastUpdated: any,
+    tenantId: number,
+    tenantPartnerId: number,
+    createdAt?: any | null,
+    updatedAt?: any | null
+  }>
+};
+
+export type UpsertSessionMutationVariables = Exact<{
+  object: Sessions_Insert_Input;
+}>;
+
+
+export type UpsertSessionMutationResult = {
+  insert_Sessions_one?: {
+    id: number,
+    ocpiSessionId: string,
+    countryCode: string,
+    partyId: string,
+    startDateTime: any,
+    endDateTime?: any | null,
+    kwh: any,
+    cdrToken: any,
+    authMethod: string,
+    authorizationReference?: string | null,
+    locationId: string,
+    evseUid: string,
+    connectorId: string,
+    meterId?: string | null,
+    currency: string,
+    chargingPeriods?: any | null,
+    totalCost?: any | null,
+    status: string,
+    lastUpdated: any,
+    tenantId: number,
+    tenantPartnerId: number,
+    createdAt?: any | null,
+    updatedAt?: any | null
+  } | null
+};
+
+export type UpdateSessionMutationVariables = Exact<{
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+  ocpiSessionId: Scalars['String']['input'];
+  tenantPartnerId: Scalars['Int']['input'];
+  set: Sessions_Set_Input;
+}>;
+
+
+export type UpdateSessionMutationResult = {
+  update_Sessions?: {
+    returning: Array<{
+      id: number,
+      ocpiSessionId: string,
+      countryCode: string,
+      partyId: string,
+      startDateTime: any,
+      endDateTime?: any | null,
+      kwh: any,
+      cdrToken: any,
+      authMethod: string,
+      authorizationReference?: string | null,
+      locationId: string,
+      evseUid: string,
+      connectorId: string,
+      meterId?: string | null,
+      currency: string,
+      chargingPeriods?: any | null,
+      totalCost?: any | null,
+      status: string,
+      lastUpdated: any,
+      tenantId: number,
+      tenantPartnerId: number,
+      createdAt?: any | null,
+      updatedAt?: any | null
+    }>
+  } | null
 };
 
 export type GetTariffByKeyQueryVariables = Exact<{
@@ -441,8 +608,8 @@ export type GetTariffByKeyQueryResult = {
     tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
-      countryCode: string,
-      partyId: string
+      countryCode?: string | null,
+      partyId?: string | null
     }
   }>
 };
@@ -470,15 +637,16 @@ export type GetTariffsQueryResult = {
     tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
-      countryCode: string,
-      partyId: string
+      countryCode?: string | null,
+      partyId?: string | null
     }
   }>
 };
 
 export type CreateOrUpdateTariffMutationVariables = Exact<{
-  object: any;
+  object: Tariffs_Insert_Input;
 }>;
+
 
 export type CreateOrUpdateTariffMutationResult = {
   insert_Tariffs_one?: {
@@ -496,8 +664,8 @@ export type CreateOrUpdateTariffMutationResult = {
     tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
-      countryCode: string,
-      partyId: string
+      countryCode?: string | null,
+      partyId?: string | null
     }
   } | null
 };
@@ -505,6 +673,7 @@ export type CreateOrUpdateTariffMutationResult = {
 export type DeleteTariffMutationVariables = Exact<{
   id: Scalars['Int']['input'];
 }>;
+
 
 export type DeleteTariffMutationResult = {
   delete_Tariffs_by_pk?: {
@@ -517,6 +686,7 @@ export type GetTariffByOcpiIdQueryVariables = Exact<{
   countryCode: Scalars['String']['input'];
   partyId: Scalars['String']['input'];
 }>;
+
 
 export type GetTariffByOcpiIdQueryResult = {
   Tariffs: Array<{
@@ -534,27 +704,17 @@ export type GetTariffByOcpiIdQueryResult = {
     tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
-      countryCode: string,
-      partyId: string
+      countryCode?: string | null,
+      partyId?: string | null
     }
   }>
-};
-
-export type GetTenantPartnerIdByCountryPartyQueryVariables = Exact<{
-  countryCode: Scalars['String']['input'];
-  partyId: Scalars['String']['input'];
-}>;
-
-export type GetTenantPartnerIdByCountryPartyQueryResult = {
-  TenantPartners: Array<{
-    id: number;
-  }>;
 };
 
 export type GetTariffByPartnerQueryVariables = Exact<{
   tariffId: Scalars['Int']['input'];
   tenantPartnerId: Scalars['Int']['input'];
 }>;
+
 
 export type GetTariffByPartnerQueryResult = {
   Tariffs: Array<{
@@ -572,8 +732,8 @@ export type GetTariffByPartnerQueryResult = {
     tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
-      countryCode: string,
-      partyId: string
+      countryCode?: string | null,
+      partyId?: string | null
     }
   }>
 };
@@ -615,10 +775,22 @@ export type GetTenantPartnerByServerTokenQueryResult = {
     tenantId: number,
     tenant: {
       id: number,
-      countryCode: string,
-      partyId: string,
+      countryCode?: string | null,
+      partyId?: string | null,
       serverProfileOCPI?: any | null
     }
+  }>
+};
+
+export type GetTenantPartnerIdByCountryPartyQueryVariables = Exact<{
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+}>;
+
+
+export type GetTenantPartnerIdByCountryPartyQueryResult = {
+  TenantPartners: Array<{
+    id: number
   }>
 };
 
@@ -636,8 +808,8 @@ export type GetTenantPartnerByIdQueryResult = {
     tenantId: number,
     tenant: {
       id: number,
-      countryCode: string,
-      partyId: string,
+      countryCode?: string | null,
+      partyId?: string | null,
       serverProfileOCPI?: any | null
     }
   } | null
@@ -671,8 +843,8 @@ export type GetTenantPartnerByCpoClientAndModuleIdQueryResult = {
     tenantId: number,
     tenant: {
       id: number,
-      countryCode: string,
-      partyId: string,
+      countryCode?: string | null,
+      partyId?: string | null,
       serverProfileOCPI?: any | null
     }
   }>
@@ -694,8 +866,8 @@ export type TenantPartnersListQueryResult = {
     tenantId: number,
     tenant: {
       id: number,
-      countryCode: string,
-      partyId: string,
+      countryCode?: string | null,
+      partyId?: string | null,
       serverProfileOCPI?: any | null
     }
   }>
@@ -709,8 +881,8 @@ export type GetTenantByIdQueryVariables = Exact<{
 export type GetTenantByIdQueryResult = {
   Tenants: Array<{
     serverProfileOCPI?: any | null,
-    countryCode: string,
-    partyId: string
+    countryCode?: string | null,
+    partyId?: string | null
   }>
 };
 
@@ -728,7 +900,7 @@ export type ReadAuthorizationsQueryResult = {
     createdAt: any,
     updatedAt: any,
     tenantId: number,
-    idToken: string,
+    idToken: any,
     idTokenType?: string | null,
     additionalInfo?: any | null,
     status: string,
@@ -741,7 +913,7 @@ export type ReadAuthorizationsQueryResult = {
       partyId: string
     } | null,
     groupAuthorization?: {
-      idToken: string
+      idToken: any
     } | null
   }>
 };
@@ -761,7 +933,7 @@ export type UpdateAuthorizationMutationResult = {
       createdAt: any,
       updatedAt: any,
       tenantId: number,
-      idToken: string,
+      idToken: any,
       idTokenType?: string | null,
       additionalInfo?: any | null,
       status: string,
@@ -774,7 +946,7 @@ export type UpdateAuthorizationMutationResult = {
         partyId: string
       } | null,
       groupAuthorization?: {
-        idToken: string
+        idToken: any
       } | null
     }>
   } | null
@@ -790,7 +962,7 @@ export type GetAuthorizationByTokenQueryVariables = Exact<{
 export type GetAuthorizationByTokenQueryResult = {
   Authorizations: Array<{
     id: number,
-    idToken: string,
+    idToken: any,
     idTokenType?: string | null,
     tenantId: number,
     additionalInfo?: any | null,
@@ -806,7 +978,7 @@ export type GetAuthorizationByTokenQueryResult = {
       partyId: string
     } | null,
     groupAuthorization?: {
-      idToken: string
+      idToken: any
     } | null
   }>
 };
@@ -819,7 +991,7 @@ export type GetAuthorizationByIdQueryVariables = Exact<{
 export type GetAuthorizationByIdQueryResult = {
   Authorizations_by_pk?: {
     id: number,
-    idToken: string,
+    idToken: any,
     idTokenType?: string | null,
     tenantId: number,
     additionalInfo?: any | null,
@@ -835,7 +1007,7 @@ export type GetAuthorizationByIdQueryResult = {
       partyId: string
     } | null,
     groupAuthorization?: {
-      idToken: string
+      idToken: any
     } | null
   } | null
 };
@@ -861,7 +1033,7 @@ export type CreateAuthorizationMutationResult = {
     createdAt: any,
     updatedAt: any,
     tenantId: number,
-    idToken: string,
+    idToken: any,
     idTokenType?: string | null,
     additionalInfo?: any | null,
     status: string,
@@ -874,9 +1046,44 @@ export type CreateAuthorizationMutationResult = {
       partyId: string
     } | null,
     groupAuthorization?: {
-      idToken: string
+      idToken: any
     } | null
   } | null
+};
+
+export type GetAuthorizationsPaginatedQueryVariables = Exact<{
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  where: Authorizations_Bool_Exp;
+}>;
+
+
+export type GetAuthorizationsPaginatedQueryResult = {
+  Authorizations: Array<{
+    id: number,
+    createdAt: any,
+    updatedAt: any,
+    tenantId: number,
+    idToken: any,
+    idTokenType?: string | null,
+    additionalInfo?: any | null,
+    status: string,
+    realTimeAuth: string,
+    language1?: string | null,
+    groupAuthorizationId?: number | null,
+    tenantPartner?: {
+      id: number,
+      countryCode: string,
+      partyId: string
+    } | null,
+    tenant: {
+      countryCode?: string | null,
+      partyId?: string | null
+    },
+    groupAuthorization?: {
+      idToken: any
+    } | null
+  }>
 };
 
 export type GetGroupAuthorizationQueryVariables = Exact<{
@@ -888,42 +1095,8 @@ export type GetGroupAuthorizationQueryVariables = Exact<{
 export type GetGroupAuthorizationQueryResult = {
   Authorizations: Array<{
     id: number,
-    idToken: string,
+    idToken: any,
     idTokenType?: string | null
-  }>
-};
-
-export type GetAuthorizationsPaginatedQueryVariables = Exact<{
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  where: Authorizations_Paginated_Bool_Exp;
-}>;
-
-export type GetAuthorizationsPaginatedQueryResult = {
-  Authorizations: Array<{
-    id: number,
-    createdAt: any,
-    updatedAt: any,
-    tenantId: number,
-    idToken: string,
-    idTokenType?: string | null,
-    additionalInfo?: any | null,
-    status: string,
-    realTimeAuth: string,
-    language1?: string | null,
-    groupAuthorizationId?: number | null,
-    tenantPartner?: {
-      id: number,
-      countryCode: string,
-      partyId: string
-    } | null,
-    tenant?: {
-      countryCode: string,
-      partyId: string
-    } | null,
-    groupAuthorization?: {
-      idToken: string
-    } | null
   }>
 };
 
@@ -1003,8 +1176,8 @@ export type GetTransactionByTransactionIdQueryResult = {
     authorizationId?: number | null,
     tariffId?: number | null,
     tenant: {
-      countryCode: string,
-      partyId: string
+      countryCode?: string | null,
+      partyId?: string | null
     },
     authorization?: {
       tenantPartner?: {
@@ -1014,8 +1187,8 @@ export type GetTransactionByTransactionIdQueryResult = {
         partnerProfileOCPI?: any | null,
         tenant: {
           id: number,
-          countryCode: string,
-          partyId: string
+          countryCode?: string | null,
+          partyId?: string | null
         }
       } | null
     } | null,
@@ -1041,73 +1214,4 @@ export type GetTransactionByTransactionIdQueryResult = {
       sampledValue?: any | null
     }>
   }>
-};
-
-export type SessionDbRow = {
-  id: number,
-  ocpiSessionId: string,
-  countryCode: string,
-  partyId: string,
-  startDateTime: any,
-  endDateTime?: any | null,
-  kwh: any,
-  cdrToken: any,
-  authMethod: string,
-  authorizationReference?: string | null,
-  locationId: string,
-  evseUid: string,
-  connectorId: string,
-  meterId?: string | null,
-  currency: string,
-  chargingPeriods?: any | null,
-  totalCost?: any | null,
-  status: string,
-  lastUpdated: any,
-  tenantId: number,
-  tenantPartnerId: number,
-  createdAt: any,
-  updatedAt: any,
-};
-
-export type GetSessionByOcpiIdQueryVariables = Exact<{
-  countryCode: Scalars['String']['input'];
-  partyId: Scalars['String']['input'];
-  ocpiSessionId: Scalars['String']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
-}>;
-
-export type GetSessionByOcpiIdQueryResult = {
-  Sessions: Array<SessionDbRow>
-};
-
-export type GetSessionsPaginatedQueryVariables = Exact<{
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  where: Sessions_Bool_Exp;
-}>;
-
-export type GetSessionsPaginatedQueryResult = {
-  Sessions: Array<SessionDbRow>
-};
-
-export type UpsertSessionMutationVariables = Exact<{
-  object: any;
-}>;
-
-export type UpsertSessionMutationResult = {
-  insert_Sessions_one?: SessionDbRow | null
-};
-
-export type UpdateSessionMutationVariables = Exact<{
-  countryCode: Scalars['String']['input'];
-  partyId: Scalars['String']['input'];
-  ocpiSessionId: Scalars['String']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
-  set: any;
-}>;
-
-export type UpdateSessionMutationResult = {
-  update_Sessions?: {
-    returning: Array<SessionDbRow>
-  } | null
 };
