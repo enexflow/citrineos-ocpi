@@ -22,6 +22,7 @@ tsconfig.eslint.json
 Server/src/assets/logo.png
 .github/workflows/lint.yml
 .github/workflows/test-build-server.yml
+.github/workflows/push-to-ecr.yml
 00_Base/package.json
 00_Base/tsconfig.json
 03_Modules/Cdrs/package.json
