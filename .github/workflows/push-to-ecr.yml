@@ -2,7 +2,7 @@ name: Push docker images
 
 on:
   push:
-    branches: [ env/staging, env/prod, TECH-1417/creer-une-cicd-pour-le-repo-citrine-ocpi]
+    branches: [ env/*]
 
 jobs:
   push-to-ecr:
