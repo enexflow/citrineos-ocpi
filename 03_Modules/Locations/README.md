@@ -8,43 +8,6 @@ Implementation of the [OCPI 2.2.1 Locations module](https://github.com/ocpi/ocpi
 
 **Data owner:** CPO (for Sender), partner CPO records (for Receiver)
 
-## Architecture
-
-The Locations module has two separate operational flows based on platform role:
-
-```mermaid
-flowchart LR
-  subgraph sender["Sender Interface"]
-    s_get_list["GET locations"]
-    s_get_location["GET location by id"]
-    s_get_evse["GET EVSE by uid"]
-    s_get_connector["GET connector by id"]
-    s_service["LocationsService"]
-    s_mapper["Sender mappers: fromGraphql"]
-  end
-
-  subgraph receiver["Receiver Interface"]
-    r_get_location["GET receiver location"]
-    r_get_evse["GET receiver EVSE"]
-    r_get_connector["GET receiver connector"]
-    r_put["PUT receiver endpoints"]
-    r_patch["PATCH receiver endpoints"]
-    r_service["LocationReceiverService"]
-    r_mapper["Receiver mappers: fromGraphqlReceiver"]
-  end
-
-  s_get_list --> s_service --> s_mapper
-  s_get_location --> s_service --> s_mapper
-  s_get_evse --> s_service --> s_mapper
-  s_get_connector --> s_service --> s_mapper
-
-  r_get_location --> r_service --> r_mapper
-  r_get_evse --> r_service --> r_mapper
-  r_get_connector --> r_service --> r_mapper
-  r_put --> r_service
-  r_patch --> r_service
-```
-
 ## Endpoints
 
 ### Sender Interface
@@ -122,27 +85,3 @@ Main responsibilities:
 `LocationsModule` extends `AbstractDtoModule` and handles location/evse/connector insert/update events for broadcasting.
 
 Broadcast safeguards currently rely on ownership checks (for example OCPI ids and owner partner markers) so partner-owned receiver records are not re-broadcast as sender-originated updates.
-
-## Testing
-
-### Unit tests
-
-Target the service and mapper behavior separately:
-
-- `LocationReceiverService` receiver flows and OCPI error handling
-- `LocationsService` sender read flows
-- `LocationMapper` dual mapping behavior
-
-### Integration scripts
-
-Use curl scripts to validate end-to-end Receiver behavior and persistence:
-
-- `location-test-curls-part-one.sh`
-- `location-test-curls-part-two.sh`
-
-Recommended checks:
-
-- full location round-trip
-- EVSE/connector PUT and PATCH behavior
-- unknown resource handling
-- consistency between Receiver GET endpoints and Receiver mapper path

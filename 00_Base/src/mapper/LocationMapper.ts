@@ -163,8 +163,6 @@ export class LocationMapper {
       postal_code: location.postalCode,
       state: location.state,
       country: location.country,
-      parking_type: location.parkingType as ParkingType | null,
-      energy_mix: location.energyMix,
       coordinates: location.coordinates && {
         longitude: location.coordinates.coordinates[0].toString(),
         latitude: location.coordinates.coordinates[1].toString(),
@@ -178,13 +176,13 @@ export class LocationMapper {
           )
           .flat()
           .filter((evse) => evse !== undefined),
-      facilities: location.facilities as Facilities[] | null,
-      images: location.images as ImageDTO[] | null,
-      opening_times: location.openingHours as Hours | null,
-      charging_when_closed: location.chargingWhenClosed as boolean | null,
-      operator: LocationMapper.mapBusinessDetails(location.operator),
-      suboperator: LocationMapper.mapBusinessDetails(location.suboperator),
-      owner: LocationMapper.mapBusinessDetails(location.owner),
+      parking_type: LocationMapper.mapLocationParkingType(location.parkingType),
+      facilities: location.facilities
+        ?.map(LocationMapper.mapLocationFacility)
+        .filter((f) => f !== null),
+      opening_times: location.openingHours
+        ? LocationMapper.mapLocationHours(location.openingHours)
+        : undefined,
       last_updated: location.updatedAt!,
     };
   }
@@ -314,17 +312,9 @@ export class EvseMapper {
             ),
           )
         : EvseStatus.UNKNOWN,
-      capabilities: (
-        (
-          evse as EvseDto & {
-            capabilities?: ChargingStationCapabilityEnumType[];
-          }
-        ).capabilities ?? station.capabilities
-      )
-        ?.map((c: ChargingStationCapabilityEnumType) =>
-          EvseMapper.mapEvseCapabilities(c),
-        )
-        .filter((c: Capability | null): c is Capability => c !== null),
+      capabilities: station.capabilities
+        ?.map((c) => EvseMapper.mapEvseCapabilities(c))
+        .filter((c) => c !== null),
       physical_reference: evse.physicalReference,
       coordinates: station.coordinates
         ? {
@@ -415,17 +405,9 @@ export class EvseMapper {
             connectors.some((con) => con!.id === c.id!.toString()),
           ),
         ),
-      capabilities: (
-        (
-          evse as EvseDto & {
-            capabilities?: ChargingStationCapabilityEnumType[];
-          }
-        ).capabilities ?? station.capabilities
-      )
-        ?.map((c: ChargingStationCapabilityEnumType) =>
-          EvseMapper.mapEvseCapabilities(c),
-        )
-        .filter((c: Capability | null): c is Capability => c !== null),
+      capabilities: station.capabilities
+        ?.map((c) => EvseMapper.mapEvseCapabilities(c))
+        .filter((c) => c !== null),
       physical_reference: evse.physicalReference,
       coordinates: station.coordinates
         ? {

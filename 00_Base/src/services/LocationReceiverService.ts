@@ -750,13 +750,13 @@ export class LocationReceiverService {
 
     const dbLocationId = response.Locations[0].id;
     const locationPatch = this.mapLocationPatch(location);
-    const responseUpdateLocation = await this.ocpiGraphqlClient.request<
-      any,
-      any
-    >(UPDATE_LOCATION_PATCH_MUTATION, {
-      id: dbLocationId,
-      changes: locationPatch,
-    });
+    await this.ocpiGraphqlClient.request<any, any>(
+      UPDATE_LOCATION_PATCH_MUTATION,
+      {
+        id: dbLocationId,
+        changes: locationPatch,
+      },
+    );
 
     return buildOcpiResponse(
       OcpiResponseStatusCode.GenericSuccessCode,
@@ -852,7 +852,8 @@ export class LocationReceiverService {
     const dbEvseId = evses[0].id;
     const dbLocationId = lookupResponse.Locations[0].id;
     const evsePatch = this.mapEvsePatch(evse);
-    const responseUpdateEvse = await this.ocpiGraphqlClient.request<
+
+    await this.ocpiGraphqlClient.request<
       UpdateEvsePatchMutationResult,
       UpdateEvsePatchMutationVariables
     >(UPDATE_EVSE_PATCH_MUTATION, {
@@ -861,7 +862,7 @@ export class LocationReceiverService {
     });
 
     // cascade timestamps to parents : location
-    const responseUpdateLocation = await this.ocpiGraphqlClient.request<
+    await this.ocpiGraphqlClient.request<
       UpdateLocationPatchMutationResult,
       UpdateLocationPatchMutationVariables
     >(UPDATE_LOCATION_PATCH_MUTATION, {

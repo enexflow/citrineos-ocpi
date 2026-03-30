@@ -54,8 +54,6 @@ import type {
   LocationDto,
 } from '@citrineos/base';
 
-import type { LocationDTO, LocationEvseDTO } from '../model/DTO/LocationDTO.js';
-
 @Service()
 export class LocationsService {
   constructor(
