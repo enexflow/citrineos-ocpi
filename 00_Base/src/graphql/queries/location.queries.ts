@@ -257,8 +257,8 @@ export const GET_LOCATION_BY_OCPID_ID_QUERY = gql`
 `;
 
 export const GET_EVSE_BY_ID_QUERY = gql`
-  query GetEvseById($locationId: String!, $stationId: String!, $evseId: Int!) {
-    Locations(where: { ocpiId: { _eq: $locationId } }) {
+  query GetEvseById($locationId: Int!, $stationId: String!, $evseId: Int!) {
+    Locations(where: { id: { _eq: $locationId } }) {
       chargingPool: ChargingStations(where: { id: { _eq: $stationId } }) {
         id
         isOnline
@@ -297,12 +297,12 @@ export const GET_EVSE_BY_ID_QUERY = gql`
 
 export const GET_CONNECTOR_BY_ID_QUERY = gql`
   query GetConnectorById(
-    $locationId: String!
+    $locationId: Int!
     $stationId: String!
     $evseId: Int!
     $connectorId: Int!
   ) {
-    Locations(where: { ocpiId: { _eq: $locationId } }) {
+    Locations(where: { id: { _eq: $locationId } }) {
       chargingPool: ChargingStations(where: { id: { _eq: $stationId } }) {
         evses: Evses(where: { id: { _eq: $evseId } }) {
           connectors: Connectors(

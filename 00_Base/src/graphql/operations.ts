@@ -739,7 +739,7 @@ export type GetLocationByOcpiIdQueryResult = {
 };
 
 export type GetEvseByIdQueryVariables = Exact<{
-  locationId: Scalars['String']['input'];
+  locationId: Scalars['Int']['input'];
   stationId: Scalars['String']['input'];
   evseId: Scalars['Int']['input'];
 }>;
@@ -783,7 +783,7 @@ export type GetEvseByIdQueryResult = {
 };
 
 export type GetConnectorByIdQueryVariables = Exact<{
-  locationId: Scalars['String']['input'];
+  locationId: Scalars['Int']['input'];
   stationId: Scalars['String']['input'];
   evseId: Scalars['Int']['input'];
   connectorId: Scalars['Int']['input'];

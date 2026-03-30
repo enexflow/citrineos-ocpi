@@ -23,7 +23,6 @@ export const GET_CHARGING_STATION_BY_ID_QUERY = gql`
       locationId
       createdAt
       updatedAt
-
       evses: Evses {
         id
         tenantId

@@ -89,7 +89,6 @@ export class LocationsBroadcaster extends BaseBroadcaster {
     evseDto: EvseDto,
     chargingStationDto: ChargingStationDto,
   ): Promise<void> {
-    console.log('BROADCAST PUT EVSE I AM HERE !!!', evseDto);
     const locationId = chargingStationDto?.locationId;
     if (!locationId) throw new Error('Location ID missing in EVSE data');
     const evse = EvseMapper.fromGraphql(chargingStationDto!, evseDto);

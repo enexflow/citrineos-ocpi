@@ -168,7 +168,7 @@ export class LocationsService {
 
     try {
       const variables = {
-        locationId: locationId.toString(),
+        locationId: locationId,
         stationId,
         evseId,
       };
@@ -205,7 +205,7 @@ export class LocationsService {
 
     try {
       const variables = {
-        locationId: locationId.toString(),
+        locationId: locationId,
         stationId,
         evseId,
         connectorId,
