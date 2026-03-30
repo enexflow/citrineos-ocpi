@@ -7,27 +7,13 @@ import { Logger } from 'tslog';
 import { Service } from 'typedi';
 import { EvseStatus } from '../model/EvseStatus.js';
 
-import type {
-  LocationResponse,
-  PaginatedLocationResponse,
-} from '../model/DTO/LocationDTO.js';
-import type { EvseResponse } from '../model/DTO/EvseDTO.js';
-import type {
-  ConnectorDTO,
-  ConnectorResponse,
-} from '../model/DTO/ConnectorDTO.js';
-import { PaginatedParams } from '../controllers/param/PaginatedParams.js';
-import {
-  buildOcpiPaginatedResponse,
-  DEFAULT_LIMIT,
-  DEFAULT_OFFSET,
-} from '../model/PaginatedResponse.js';
+import type { LocationResponse } from '../model/DTO/LocationDTO.js';
+import type { ConnectorDTO } from '../model/DTO/ConnectorDTO.js';
 import {
   buildOcpiResponse,
   OcpiResponseStatusCode,
 } from '../model/OcpiResponse.js';
 import { buildOcpiErrorResponse } from '../model/OcpiErrorResponse.js';
-import { OcpiHeaders } from '../model/OcpiHeaders.js';
 import { NotFoundException } from '../exception/NotFoundException.js';
 import type {
   InsertChargingStationMutationResult,
@@ -55,6 +41,15 @@ import type {
   UpdateConnectorPatchMutationResult,
   GetPartnerEvseByOcpiIdsQueryVariables,
   GetPartnerEvseByOcpiIdsQueryResult,
+  GetConnectorByOcpiIdAndEvseIdQueryVariables,
+  GetConnectorByOcpiIdAndEvseIdQueryResult,
+  GetChargingStationByLocationAndOwnerPartnerQueryResult,
+  GetChargingStationByLocationAndOwnerPartnerQueryVariables,
+  UpsertConnectorMutationResult,
+  GetTariffByPartnerQueryResult,
+  GetTariffByPartnerQueryVariables,
+  UpsertConnectorTariffOcpiPartnerMutationVariables,
+  UpsertConnectorTariffOcpiPartnerMutationResult,
 } from '../graphql/index.js';
 import {
   OcpiGraphqlClient,
@@ -73,6 +68,9 @@ import {
   GET_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID,
   UPDATE_CONNECTOR_PATCH_MUTATION,
   GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY,
+  UPSERT_CONNECTOR_TARIFF_OCPIPARTNER_MUTATION,
+  GET_TARIFF_BY_PARTNER_QUERY,
+  DELETE_OCPI_CONNECTOR_TARIFF_MUTATION,
 } from '../graphql/index.js';
 import {
   ConnectorMapper,
@@ -120,7 +118,8 @@ export class LocationReceiverService {
         GetLocationByOcpiIdAndPartnerIdQueryVariables
       >(GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
       const location = LocationMapper.fromGraphqlReceiver(
-        response.Locations[0] as LocationDto, // TODO: add proper types
+        response.Locations[0],
+        tenantPartner,
       );
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
@@ -159,18 +158,11 @@ export class LocationReceiverService {
         partnerId: tenantPartner.id,
         evseUid: evseUid,
       };
-      console.log(
-        'variables GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY ',
-        variables,
-      );
       const response = await this.ocpiGraphqlClient.request<
         GetEvseByOcpiIdAndPartnerIdQueryResult,
         GetEvseByOcpiIdAndPartnerIdQueryVariables
       >(GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
-      const evse = EvseMapper.fromGraphqlReceiver(
-        response.Evses[0].ChargingStation as ChargingStationDto,
-        response.Evses[0] as EvseDto,
-      );
+      const evse = EvseMapper.fromGraphqlReceiver(response.Evses[0]);
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
         evse,
@@ -199,7 +191,7 @@ export class LocationReceiverService {
       `Getting location ${locationId} by country ${countryCode} and party ${partyId}`,
     );
     try {
-      if (!tenantPartner) {
+      if (!tenantPartner.id) {
         throw new UnauthorizedException(
           'Credentials not found for given token',
         );
@@ -210,20 +202,12 @@ export class LocationReceiverService {
         evseUid: evseUid,
         connectorId: connectorId,
       };
-      console.log(
-        'variables GET_CONNECTOR_BY_OCPI_ID_AND_PARTNER_ID_QUERY ',
-        variables,
-      );
       const response = await this.ocpiGraphqlClient.request<
-        any,
-        any // TODO: add proper types
+        GetConnectorByOcpiIdAndEvseIdQueryResult,
+        GetConnectorByOcpiIdAndEvseIdQueryVariables
       >(GET_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID, variables);
-      console.log(
-        'response GET_CONNECTOR_BY_OCPI_ID_AND_PARTNER_ID_QUERY Graphql receiver',
-        response,
-      );
       const connector = ConnectorMapper.fromGraphqlReceiver(
-        response.Connectors[0] as ConnectorDto,
+        response.Connectors[0],
       );
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
@@ -249,8 +233,8 @@ export class LocationReceiverService {
     const coordinates = {
       type: 'Point',
       coordinates: [
-        Number(location.coordinates.longitude),
-        Number(location.coordinates.latitude),
+        Number(location?.coordinates?.longitude),
+        Number(location?.coordinates?.latitude),
       ],
     };
     const response = await this.ocpiGraphqlClient.request<
@@ -290,32 +274,22 @@ export class LocationReceiverService {
       throw new Error('Failed to insert location');
     }
 
-    const stationIdVariables = {
+    if (!tenantPartner.id) {
+      throw new UnauthorizedException('Credentials not found for given token');
+    }
+
+    const variables = {
       locationId: response.insert_Locations_one.id,
       partnerId: tenantPartner.id,
     };
 
     let idChargingStationAssociatedWithLocation = null;
-    console.log(
-      'BEFORE CREATE VIRTUAL CHARGING STATION I AM HERE !!!',
-      response,
-    );
     const stationIdFoundResponse = await this.ocpiGraphqlClient.request<
-      any,
-      any
-    >(
-      GET_CHARGING_STATION_BY_LOCATION_ID_AND_OWNER_PARTNER_ID,
-      stationIdVariables,
-    );
-    console.log('stationIdFoundResponse ', stationIdFoundResponse);
+      GetChargingStationByLocationAndOwnerPartnerQueryResult,
+      GetChargingStationByLocationAndOwnerPartnerQueryVariables
+    >(GET_CHARGING_STATION_BY_LOCATION_ID_AND_OWNER_PARTNER_ID, variables);
 
     if (stationIdFoundResponse.ChargingStations.length === 0) {
-      console.log(
-        'creating virtual charging station for partner ',
-        tenantPartner.id,
-        ' and location ',
-        locationId,
-      );
       const responseCreateVirtualChargingStation =
         await this.createVirtualChargingStationForPartnerAndLocation(
           response.insert_Locations_one.id.toString(),
@@ -326,12 +300,12 @@ export class LocationReceiverService {
         null;
     } else {
       idChargingStationAssociatedWithLocation =
-        stationIdFoundResponse.ChargingStations[0].id ?? null;
+        stationIdFoundResponse.ChargingStations[0].id;
     }
-    console.log(
-      'idChargingStationAssociatedWithLocation ',
-      idChargingStationAssociatedWithLocation,
-    );
+
+    if (!idChargingStationAssociatedWithLocation) {
+      throw new Error('Failed to create virtual charging station');
+    }
 
     for (const evse of location.evses ?? []) {
       await this.upsertEvseForPartner(
@@ -344,30 +318,13 @@ export class LocationReceiverService {
   }
 
   async putLocationByCountryPartyAndId(
-    countryCode: string,
-    partyId: string,
     location: LocationDTO,
     locationId: string,
     tenantPartner: TenantPartnerDto,
   ): Promise<LocationResponse> {
-    this.logger.info(
-      `Receiver PUT location ${countryCode}/${partyId} body=${JSON.stringify(location)}`,
-    );
-
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
-
-    const variables = { id: locationId, partnerId: tenantPartner.id };
-    console.log('variables ', variables);
-    const response = await this.ocpiGraphqlClient.request<
-      GetLocationByOcpiIdAndPartnerIdQueryResult,
-      GetLocationByOcpiIdAndPartnerIdQueryVariables
-    >(GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
-    console.log(
-      'response GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY ',
-      response,
-    );
 
     await this.upsertLocationForPartner(location, locationId, tenantPartner);
 
@@ -381,14 +338,6 @@ export class LocationReceiverService {
     locationId: string,
     tenantPartner: TenantPartnerDto,
   ): Promise<InsertChargingStationMutationResult> {
-    console.log(
-      'creating virtual charging station for partner ',
-      tenantPartner.id,
-      ' and location ',
-      locationId,
-    );
-    console.log('tenantPartner.tenantId ', tenantPartner.tenantId);
-    console.log('!!! location ', locationId);
     const response = await this.ocpiGraphqlClient.request<
       InsertChargingStationMutationResult,
       InsertChargingStationMutationVariables
@@ -401,7 +350,60 @@ export class LocationReceiverService {
         updatedAt: new Date(),
       },
     });
-    console.log('response CREATE VIRTUAL CHARGING STATION ', response);
+    return response;
+  }
+
+  async deleteOcpiConnectorTariff(
+    connectorId: number,
+    connectorOcpiId: string,
+  ): Promise<any> {
+    const response = await this.ocpiGraphqlClient.request<any, any>(
+      DELETE_OCPI_CONNECTOR_TARIFF_MUTATION,
+      {
+        connectorId: connectorId,
+        connectorOcpiId: connectorOcpiId,
+      },
+    );
+    return response;
+  }
+
+  async upsertTariffForPartnerAndConnector(
+    tenantPartner: TenantPartnerDto,
+    tariff: any,
+    connectorOcpiId: string,
+    connectorId: number,
+  ): Promise<any> {
+    if (!tenantPartner.id) {
+      throw new Error('Tenant partner not found');
+    }
+    const tariffResponse = await this.ocpiGraphqlClient.request<
+      GetTariffByPartnerQueryResult,
+      GetTariffByPartnerQueryVariables
+    >(GET_TARIFF_BY_PARTNER_QUERY, {
+      ocpiTariffId: tariff,
+      tenantPartnerId: tenantPartner.id,
+    });
+
+    const tariffId = tariffResponse.Tariffs[0]?.id;
+    if (!tariffId) {
+      throw new Error('Tariff not found');
+    }
+
+    const response = await this.ocpiGraphqlClient.request<
+      UpsertConnectorTariffOcpiPartnerMutationResult,
+      UpsertConnectorTariffOcpiPartnerMutationVariables
+    >(UPSERT_CONNECTOR_TARIFF_OCPIPARTNER_MUTATION, {
+      object: {
+        connectorOcpiId: connectorOcpiId,
+        tariffOcpiId: tariff,
+        tariffId: tariffId,
+        tenantPartnerId: tenantPartner.id,
+        tenantId: tenantPartner.tenantId,
+        connectorId: connectorId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
     return response;
   }
 
@@ -409,18 +411,24 @@ export class LocationReceiverService {
     tenantPartner: TenantPartnerDto,
     connector: any,
     evseId: string,
+    evseOcpiUid: string,
     stationId: string,
-    status: EvseStatus,
-  ): Promise<void> {
+  ): Promise<UpsertConnectorMutationResult> {
+    if (!tenantPartner.id) {
+      throw new UnauthorizedException('Credentials not found for given token');
+    }
     const response = await this.ocpiGraphqlClient.request<
-      UpsertLocationMutationResult,
+      UpsertConnectorMutationResult,
       UpsertConnectorMutationVariables
     >(UPSERT_CONNECTOR_MUTATION, {
       object: {
         ocpiId: connector.id,
         stationId,
         evseId: Number(evseId),
-        connectorId: Number(evseId) * 1000 + (Number(connector.id) || 1),
+        connectorId:
+          Number(evseId) * 1000 +
+          (Number(connector.id) || 1) +
+          tenantPartner.id,
         type: connector.standard,
         format: connector.format,
         powerType: connector.power_type ?? null,
@@ -430,12 +438,35 @@ export class LocationReceiverService {
         maximumPowerWatts: connector.max_electric_power ?? null,
         termsAndConditionsUrl: connector.terms_and_conditions ?? null,
         timestamp: connector.last_updated ?? new Date().toISOString(),
-        status: status,
         createdAt: new Date(),
         updatedAt: connector.last_updated ?? new Date(),
       },
     });
-    console.log('response ', response);
+
+    const connectorOcpiId = response.insert_Connectors_one?.ocpiId;
+    const connectorId = response.insert_Connectors_one?.id;
+
+    if (!response.insert_Connectors_one?.id) {
+      throw new Error('Failed to insert connector');
+    }
+
+    if (!connectorOcpiId || !connectorId || !evseOcpiUid || !evseId) {
+      throw new Error('Failed to get connector or evse');
+    }
+
+    // if there is other tariffs for this connector, delete them
+    await this.deleteOcpiConnectorTariff(connectorId, connectorOcpiId);
+    if (connector.tariff_ids?.length) {
+      for (const tariff of connector.tariff_ids) {
+        await this.upsertTariffForPartnerAndConnector(
+          tenantPartner,
+          tariff,
+          connectorOcpiId,
+          connectorId,
+        );
+      }
+    }
+    return response;
   }
 
   async upsertEvseForPartner(
@@ -476,8 +507,8 @@ export class LocationReceiverService {
     });
 
     const insertedEvseId = response?.insert_Evses_one?.id;
-
-    if (!insertedEvseId) {
+    const insertedEvseOcpiUid = response?.insert_Evses_one?.ocpiUid;
+    if (!insertedEvseId || !insertedEvseOcpiUid) {
       throw new Error('Failed to insert evse');
     }
 
@@ -487,8 +518,8 @@ export class LocationReceiverService {
           tenantPartner,
           connector,
           String(insertedEvseId),
+          insertedEvseOcpiUid,
           stationId,
-          evse.status as EvseStatus,
         );
       }
     }
@@ -509,14 +540,11 @@ export class LocationReceiverService {
       throw new UnauthorizedException('Credentials not found for given token');
     }
 
-    // const variables = { tenantPartnerId: tenantPartner.id, locationId };
     const variables = { id: locationId, partnerId: tenantPartner.id };
-    console.log('variables ', variables);
     const response = await this.ocpiGraphqlClient.request<
       GetLocationByOcpiIdAndPartnerIdQueryResult,
       GetLocationByOcpiIdAndPartnerIdQueryVariables
     >(GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
-    console.log('response ', response);
 
     if (!response.Locations || response.Locations.length === 0) {
       return buildOcpiErrorResponse(
@@ -530,7 +558,6 @@ export class LocationReceiverService {
       locationId: locationId,
       evseId: evseUid,
     };
-    console.log('evse Var !', evseVariables);
     const evseResponse = await this.ocpiGraphqlClient.request<
       GetEvseByLocationAndOwnerPartnerQueryResult,
       GetEvseByLocationAndOwnerPartnerQueryVariables
@@ -554,6 +581,7 @@ export class LocationReceiverService {
       );
     }
 
+    // cascade timestamps to parents : location
     await this.ocpiGraphqlClient.request<
       UpdateLocationPatchMutationResult,
       UpdateLocationPatchMutationVariables
@@ -590,7 +618,6 @@ export class LocationReceiverService {
       partnerId: tenantPartner.id,
       evseUid: evseUid,
     };
-    console.log('variables ', variables);
     const lookupResponse = await this.ocpiGraphqlClient.request<
       GetEvseByOcpiIdAndPartnerIdQueryResult,
       GetEvseByOcpiIdAndPartnerIdQueryVariables
@@ -598,6 +625,7 @@ export class LocationReceiverService {
 
     const chargingStation = lookupResponse?.Evses[0]?.ChargingStation;
     const evse = lookupResponse?.Evses[0];
+    const evseOcpiUid = lookupResponse?.Evses[0]?.ocpiUid;
     const location = chargingStation?.location;
 
     if (!location) {
@@ -607,9 +635,7 @@ export class LocationReceiverService {
       ) as LocationResponse;
     }
 
-    // const connectors = evses[0]?.connectors ?? [];
-
-    if (!evse) {
+    if (!evse || !evseOcpiUid) {
       return buildOcpiErrorResponse(
         OcpiResponseStatusCode.ClientUnknownLocation,
         'Unknown EVSE',
@@ -618,27 +644,15 @@ export class LocationReceiverService {
 
     const ts = new Date(connector.last_updated as any);
 
-    await this.ocpiGraphqlClient.request(UPSERT_CONNECTOR_MUTATION, {
-      object: {
-        ocpiId: connector.id,
-        evseId: evse.id, // DB integer id from Evses[0].id
-        stationId: chargingStation.id, // from Evses[0].ChargingStation.id
-        connectorId: evse.id * 1000 + (Number(connector.id) || 1),
-        type: connector.standard, // ← still has enum mismatch issue
-        format: connector.format,
-        powerType: connector.power_type ?? null,
-        maximumVoltage: connector.max_voltage ?? null,
-        maximumAmperage: connector.max_amperage ?? null,
-        maximumPowerWatts: connector.max_electric_power ?? null,
-        termsAndConditionsUrl: connector.terms_and_conditions ?? null,
-        tenantId: tenantPartner.tenantId,
-        timestamp: connector.last_updated,
-        updatedAt: connector.last_updated ?? new Date(),
-        createdAt: new Date(),
-      },
-    });
+    await this.upsertConnectorForPartnerAndEvse(
+      tenantPartner,
+      connector,
+      String(evse.id),
+      evseOcpiUid,
+      String(chargingStation.id),
+    );
 
-    // 3) cascade timestamps to parents
+    // cascade timestamps to parents : location and evse
     await this.ocpiGraphqlClient.request<
       UpdateEvsePatchMutationResult,
       UpdateEvsePatchMutationVariables
@@ -692,6 +706,9 @@ export class LocationReceiverService {
     if (has(input, 'operator')) out.operator = input.operator ?? null;
     if (has(input, 'suboperator')) out.suboperator = input.suboperator ?? null;
     if (has(input, 'owner')) out.owner = input.owner ?? null;
+    if (has(input, 'publish_allowed_to'))
+      out.publishAllowedTo = input.publish_allowed_to ?? null;
+    if (has(input, 'publish')) out.publishUpstream = input.publish ?? null;
     if (has(input, 'related_locations'))
       out.relatedLocations = input.related_locations ?? null;
     if (has(input, 'charging_when_closed'))
@@ -730,7 +747,6 @@ export class LocationReceiverService {
       GetPartnerLocationByOcpiIdQueryResult,
       GetPartnerLocationByOcpiIdQueryVariables
     >(GET_PARTNER_LOCATION_BY_OCPI_ID, variables);
-    console.log('response GET_PARTNER_LOCATION_BY_OCPI_ID ', response);
 
     if (!response.Locations || response.Locations.length === 0) {
       return buildOcpiErrorResponse(
@@ -748,10 +764,6 @@ export class LocationReceiverService {
       id: dbLocationId,
       changes: locationPatch,
     });
-    console.log(
-      'response UPDATE_LOCATION_PATCH_MUTATION ',
-      responseUpdateLocation,
-    );
 
     return buildOcpiResponse(
       OcpiResponseStatusCode.GenericSuccessCode,
@@ -854,18 +866,15 @@ export class LocationReceiverService {
       id: dbEvseId,
       changes: evsePatch,
     });
-    console.log('response UPDATE_EVSE_PATCH_MUTATION ', responseUpdateEvse);
+
+    // cascade timestamps to parents : location
     const responseUpdateLocation = await this.ocpiGraphqlClient.request<
-      any,
-      any
+      UpdateLocationPatchMutationResult,
+      UpdateLocationPatchMutationVariables
     >(UPDATE_LOCATION_PATCH_MUTATION, {
       id: dbLocationId,
       changes: { updatedAt: new Date(evse.last_updated as any) },
     });
-    console.log(
-      'response UPDATE_LOCATION_PATCH_MUTATION ',
-      responseUpdateLocation,
-    );
 
     return buildOcpiResponse(
       OcpiResponseStatusCode.GenericSuccessCode,
@@ -892,7 +901,6 @@ export class LocationReceiverService {
 
     if (has(input, 'terms_and_conditions'))
       out.termsAndConditionsUrl = input.terms_and_conditions ?? null;
-    if (has(input, 'tariff_ids')) out.tariffIds = input.tariff_ids ?? null; // if column exists
 
     if (has(input, 'last_updated')) {
       out.timestamp = input.last_updated;
@@ -960,6 +968,7 @@ export class LocationReceiverService {
     const dbEvseId = evses[0].id;
     const dbConnectorId = connectors[0].id;
     const connectorPatch = this.mapConnectorPatch(connector);
+
     await this.ocpiGraphqlClient.request<
       UpdateConnectorPatchMutationResult,
       UpdateConnectorPatchMutationVariables
@@ -967,7 +976,21 @@ export class LocationReceiverService {
       id: dbConnectorId,
       changes: connectorPatch,
     });
-    // 4) Cascade parent timestamps per OCPI spec
+
+    if (connector.tariff_ids?.length) {
+      // if there is other tariffs for this connector, delete them
+      await this.deleteOcpiConnectorTariff(dbConnectorId, connectorId);
+      for (const tariff of connector.tariff_ids) {
+        await this.upsertTariffForPartnerAndConnector(
+          tenantPartner,
+          tariff,
+          connectorId,
+          dbConnectorId,
+        );
+      }
+    }
+
+    // cascade timestamps to parents : evse and location
     const ts = new Date(connector.last_updated as any);
     await this.ocpiGraphqlClient.request<
       UpdateEvsePatchMutationResult,

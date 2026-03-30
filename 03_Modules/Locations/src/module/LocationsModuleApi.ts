@@ -232,7 +232,6 @@ export class LocationsModuleApi
         locationId,
         tenantPartner,
       );
-    console.log('response GET location by country party', response);
     return response as LocationResponse;
   }
 
@@ -262,7 +261,6 @@ export class LocationsModuleApi
         evseUid,
         tenantPartner,
       );
-    console.log('response GET evse by country party', response);
     return response as LocationResponse;
   }
 
@@ -294,7 +292,6 @@ export class LocationsModuleApi
         connectorId,
         tenantPartner,
       );
-    console.log('response GET connector by country party', response);
     return response as LocationResponse;
   }
 
@@ -322,13 +319,10 @@ export class LocationsModuleApi
     const tenantPartner = ctx.state.tenantPartner as TenantPartnerDto;
     const response =
       await this.locationsReceiverService.putLocationByCountryPartyAndId(
-        countryCode,
-        partyId,
         location,
         locationId,
         tenantPartner,
       );
-    console.log('response PUT location by country party', response);
     return response as OcpiEmptyResponse;
   }
 
@@ -364,7 +358,6 @@ export class LocationsModuleApi
         evse,
         tenantPartner,
       );
-    console.log('response PUT evse by country party', response);
     return response as OcpiEmptyResponse;
   }
 
@@ -402,7 +395,6 @@ export class LocationsModuleApi
         connector,
         tenantPartner,
       );
-    console.log('response PUT connector by country party', response);
     return response as OcpiEmptyResponse;
   }
 
@@ -436,7 +428,6 @@ export class LocationsModuleApi
         location,
         tenantPartner,
       );
-    console.log('response PATCH location by country party', response);
     return response as OcpiEmptyResponse;
   }
 
@@ -472,7 +463,6 @@ export class LocationsModuleApi
         location,
         tenantPartner,
       );
-    console.log('response PATCH evse by country party', response);
     return response as OcpiEmptyResponse;
   }
 
@@ -512,7 +502,6 @@ export class LocationsModuleApi
         location, // patch body from request
         tenantPartner,
       );
-    console.log('response PATCH connector by country party', response);
     return response as OcpiEmptyResponse;
   }
 }

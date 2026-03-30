@@ -33,7 +33,10 @@ export const LocationDTOSchema = z.object({
   related_locations: z.array(AdditionalGeoLocationSchema).nullable().optional(),
   parking_type: z.nativeEnum(ParkingType).nullable().optional(),
   evses: z.array(EvseDTOSchema).nullable().optional(),
-  directions: z.array(z.object({ language: z.string(), text: z.string() })).nullable().optional(),
+  directions: z
+    .array(z.object({ language: z.string(), text: z.string() }))
+    .nullable()
+    .optional(),
   operator: BusinessDetailsSchema.nullable().optional(),
   suboperator: BusinessDetailsSchema.nullable().optional(),
   owner: BusinessDetailsSchema.nullable().optional(),

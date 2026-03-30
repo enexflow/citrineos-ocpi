@@ -23,6 +23,7 @@ import {
   type LocationFacilityEnumType,
   type LocationParkingEnumType,
   type AdditionalGeoLocation,
+  type TenantPartnerDto,
 } from '@citrineos/base';
 import {
   ChargingStationCapabilityEnum,
@@ -47,10 +48,16 @@ import { ImageType } from '../model/ImageType.js';
 import { ImageCategory } from '../model/ImageCategory.js';
 import type { ImageDTO } from '../model/DTO/ImageDTO.js';
 
+import type {
+  GetLocationByOcpiIdAndPartnerIdQueryResult,
+  GetEvseByOcpiIdAndPartnerIdQueryResult,
+} from '../graphql/operations.js';
+export type LocationReceiverDTO =
+  GetLocationByOcpiIdAndPartnerIdQueryResult['Locations'][number];
+export type EvseReceiverDTO =
+  GetEvseByOcpiIdAndPartnerIdQueryResult['Evses'][number];
 
 export class LocationMapper {
-
-
   static mapBusinessDetails(
     details: LocationDto['operator'],
   ): BusinessDetails | null | undefined {
@@ -105,30 +112,33 @@ export class LocationMapper {
     };
   }
 
-  static fromGraphqlReceiver(location: LocationDto): LocationDTO {
+  static fromGraphqlReceiver(
+    location: LocationReceiverDTO,
+    tenantPartner: TenantPartnerDto,
+  ): LocationDTO {
     return {
-      id: location.ocpiId! ,
-      country_code: location.tenant!.countryCode!,
-      party_id: location.tenant!.partyId!,
-      publish: location.publishUpstream,
+      id: location.ocpiId!,
+      country_code: tenantPartner.countryCode!,
+      party_id: tenantPartner.partyId!,
+      publish: location.publishUpstream ?? false,
       name: location.name,
-      address: location.address,
-      city: location.city,
+      address: location.address ?? '',
+      city: location.city ?? '',
       postal_code: location.postalCode,
-      state: location.state,
-      country: location.country,
+      state: location.state ?? '',
+      country: location.country ?? '',
       parking_type: location.parkingType as ParkingType | null,
       directions: location.directions ?? [],
       coordinates: {
         longitude: location.coordinates.coordinates[0].toString(),
         latitude: location.coordinates.coordinates[1].toString(),
       },
-      time_zone: location.timeZone,
+      time_zone: location.timeZone ?? '',
       energy_mix: location.energyMix,
-      related_locations: (location as LocationDto & { relatedLocations?: AdditionalGeoLocation[] }).relatedLocations,
+      related_locations: location.relatedLocations ?? undefined,
       evses: location.chargingPool
         ?.map((station) =>
-          station.evses?.map((evse) => EvseMapper.fromGraphqlReceiver(station, evse)),
+          station.evses?.map((evse) => EvseMapper.fromGraphqlReceiver(evse)),
         )
         ?.flat()
         ?.filter((evse) => evse !== undefined),
@@ -305,8 +315,16 @@ export class EvseMapper {
             ),
           )
         : EvseStatus.UNKNOWN,
-      capabilities: ((evse as EvseDto & { capabilities?: ChargingStationCapabilityEnumType[] }).capabilities ?? station.capabilities)
-        ?.map((c: ChargingStationCapabilityEnumType) => EvseMapper.mapEvseCapabilities(c))
+      capabilities: (
+        (
+          evse as EvseDto & {
+            capabilities?: ChargingStationCapabilityEnumType[];
+          }
+        ).capabilities ?? station.capabilities
+      )
+        ?.map((c: ChargingStationCapabilityEnumType) =>
+          EvseMapper.mapEvseCapabilities(c),
+        )
         .filter((c: Capability | null): c is Capability => c !== null),
       physical_reference: evse.physicalReference,
       coordinates: station.coordinates
@@ -324,56 +342,62 @@ export class EvseMapper {
     };
   }
 
-  static fromGraphqlReceiver(
-    station: ChargingStationDto,
-    evse: EvseDto,
-  ): EvseDTO | undefined {
+  static fromGraphqlReceiver(evse: EvseReceiverDTO): EvseDTO | undefined {
+    const stationId = evse.stationId ?? '';
     let connectors = evse.connectors
       ?.map(ConnectorMapper.fromGraphqlReceiver)
-      ?.filter((c) => c !== undefined);
+      ?.filter((c): c is ConnectorDTO => c !== undefined);
     if (!connectors || connectors.length === 0) {
       const logger = Container.get(Logger);
-      logger.warn('EVSE has no valid connectors', {
-        stationId: station.id,
-        evseId: evse.id,
-      });
-      connectors = undefined;
-      // return;
-      // TODO: solve this case
+      logger.warn('EVSE has no valid connectors', { evseId: evse.id });
+      connectors = [];
     }
 
-    console.log('evse COORDINATES !!!!!', evse.coordinates);
-
     return {
-      uid: evse.ocpiUid! ?? UID_FORMAT(station.id, evse.id!), // TODO: add proper type
+      uid: evse.ocpiUid ?? UID_FORMAT(stationId, evse.id),
       evse_id: evse.evseId,
       physical_reference: evse.physicalReference,
-      connectors: connectors || [],
+      connectors,
       floor_level: evse.floorLevel,
-      status: (evse as any).ocpiStatus as EvseStatus ?? EvseStatus.UNKNOWN,
-      status_schedule: evse.statusSchedule?.map((s) => ({
-        period_begin: s.period_begin,
-        period_end: s.period_end,
-        status: s.status as EvseStatus,
-      })),
-      images: evse.images?.map((i) => ({
-        url: i.url,
-        type: i.type as ImageType,
-        category: i.category as ImageCategory,
-        width: i.width ?? undefined,
-        height: i.height ?? undefined,
-      })) ?? [],
+      status: (evse.ocpiStatus as EvseStatus) ?? EvseStatus.UNKNOWN,
+      status_schedule: evse.statusSchedule?.map(
+        (s: { period_begin: string; period_end: string; status: string }) => ({
+          period_begin: s.period_begin,
+          period_end: s.period_end,
+          status: s.status as EvseStatus,
+        }),
+      ),
+      images:
+        evse.images?.map(
+          (i: {
+            url: string;
+            type: string;
+            category: string;
+            width?: number | null;
+            height?: number | null;
+          }) => ({
+            url: i.url,
+            type: i.type as ImageType,
+            category: i.category as ImageCategory,
+            width: i.width ?? undefined,
+            height: i.height ?? undefined,
+          }),
+        ) ?? [],
       directions: evse.directions ?? [],
-      capabilities: (evse as any).capabilities as Capability[] | null | undefined,
-      parking_restrictions: ((evse as any).parkingRestrictions ?? station.parkingRestrictions) as ParkingRestriction[] | [] | undefined,
-      coordinates: evse.coordinates && evse.coordinates.coordinates.length === 2 ? {
-        longitude: evse.coordinates.coordinates[0].toString(),
-        latitude: evse.coordinates.coordinates[1].toString(),
-      } : null,
+      capabilities: evse.capabilities as Capability[] | null | undefined,
+      parking_restrictions: evse.parkingRestrictions as
+        | ParkingRestriction[]
+        | undefined, // ← no station fallback needed
+      coordinates:
+        evse.coordinates && evse.coordinates.coordinates?.length === 2
+          ? {
+              longitude: evse.coordinates.coordinates[0].toString(),
+              latitude: evse.coordinates.coordinates[1].toString(),
+            }
+          : null,
       last_updated: evse.updatedAt!,
     };
   }
-
 
   static fromPartialGraphql(
     station: Partial<ChargingStationDto>,
@@ -392,8 +416,16 @@ export class EvseMapper {
             connectors.some((con) => con!.id === c.id!.toString()),
           ),
         ),
-      capabilities: ((evse as EvseDto & { capabilities?: ChargingStationCapabilityEnumType[] }).capabilities ?? station.capabilities)
-        ?.map((c: ChargingStationCapabilityEnumType) => EvseMapper.mapEvseCapabilities(c))
+      capabilities: (
+        (
+          evse as EvseDto & {
+            capabilities?: ChargingStationCapabilityEnumType[];
+          }
+        ).capabilities ?? station.capabilities
+      )
+        ?.map((c: ChargingStationCapabilityEnumType) =>
+          EvseMapper.mapEvseCapabilities(c),
+        )
         .filter((c: Capability | null): c is Capability => c !== null),
       physical_reference: evse.physicalReference,
       coordinates: station.coordinates
@@ -534,7 +566,7 @@ export class ConnectorMapper {
   static fromGraphqlReceiver(connector: any): ConnectorDTO | undefined {
     const partial: Partial<ConnectorDTO> = {
       id: connector.ocpiId ?? connector.id?.toString(),
-      standard: connector.type as ConnectorType, // stored as OCPI literal
+      standard: connector.type as ConnectorType,
       format: connector.format as ConnectorFormat,
       power_type: connector.powerType as PowerType,
       max_voltage: connector.maximumVoltage || undefined,
@@ -542,9 +574,10 @@ export class ConnectorMapper {
       max_electric_power: connector.maximumPowerWatts || undefined,
       terms_and_conditions: connector.termsAndConditionsUrl,
       last_updated: connector.updatedAt,
-    }
+      tariff_ids: connector.tariffs?.map((t: any) => t.tariffOcpiId),
+    };
     if (ConnectorMapper.validatePartialConnector(partial)) {
-      return partial as ConnectorDTO
+      return partial as ConnectorDTO;
     }
   }
 

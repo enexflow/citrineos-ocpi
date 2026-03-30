@@ -85,13 +85,10 @@ export type Tariffs_Insert_Input = any;
 export type Sessions_Insert_Input = any;
 export type Sessions_Set_Input = any;
 export type Evses_Insert_Input = any;
-export type Evses_Upsert_Input = any;
-export type Evses_Set_Input = any;
-export type ChargingStations_Insert_Input = any;
-export type ChargingStations_Upsert_Input = any;
-export type ChargingStations_Set_Input = any;
+export type ConnectorTariffs_Insert_Input = any;
 export type Connectors_Insert_Input = any;
-export type Connectors_Upsert_Input = any;
+export type ChargingStations_Insert_Input = any;
+export type Evses_Set_Input = any;
 export type Connectors_Set_Input = any;
 export type Locations_Insert_Input = any;
 export type Locations_Set_Input = any;
@@ -236,7 +233,8 @@ export type UpsertConnectorMutationVariables = Exact<{
 
 export type UpsertConnectorMutationResult = {
   insert_Connectors_one?: {
-    id: number
+    id: number,
+    ocpiId?: string | null
   } | null
 };
 
@@ -293,6 +291,7 @@ export type GetConnectorByOcpiIdAndEvseIdQueryResult = {
   Connectors: Array<{
     id: number,
     ocpiId?: string | null,
+    evseId?: number | null,
     stationId: string,
     connectorId?: number | null,
     format?: string | null,
@@ -309,7 +308,14 @@ export type GetConnectorByOcpiIdAndEvseIdQueryResult = {
     vendorId?: string | null,
     vendorErrorCode?: string | null,
     createdAt: any,
-    updatedAt: any
+    updatedAt: any,
+    tariffs: Array<{
+      id: number,
+      tariffOcpiId: string,
+      connectorOcpiId: string,
+      tariffId: number,
+      connectorId: number
+    }>
   }>
 };
 
@@ -326,6 +332,29 @@ export type UpdateConnectorPatchMutationResult = {
   } | null
 };
 
+export type UpsertConnectorTariffOcpiPartnerMutationVariables = Exact<{
+  object: ConnectorTariffs_Insert_Input;
+}>;
+
+
+export type UpsertConnectorTariffOcpiPartnerMutationResult = {
+  insert_ConnectorTariffs_one?: {
+    id: number
+  } | null
+};
+
+export type DeleteOcpiConnectorTariffMutationVariables = Exact<{
+  connectorId: Scalars['Int']['input'];
+  connectorOcpiId: Scalars['String']['input'];
+}>;
+
+
+export type DeleteOcpiConnectorTariffMutationResult = {
+  delete_ConnectorTariffs?: {
+    affected_rows: number
+  } | null
+};
+
 export type UpsertEvseMutationVariables = Exact<{
   object: Evses_Insert_Input;
 }>;
@@ -333,7 +362,8 @@ export type UpsertEvseMutationVariables = Exact<{
 
 export type UpsertEvseMutationResult = {
   insert_Evses_one?: {
-    id: number
+    id: number,
+    ocpiUid?: string | null
   } | null
 };
 
@@ -410,6 +440,7 @@ export type GetEvseByOcpiIdAndPartnerIdQueryResult = {
     statusSchedule?: any | null,
     images?: any | null,
     directions?: any | null,
+    coordinates?: any | null,
     ocpiStatus?: string | null,
     ChargingStation?: {
       id: string,
@@ -422,6 +453,7 @@ export type GetEvseByOcpiIdAndPartnerIdQueryResult = {
     } | null,
     connectors: Array<{
       id: number,
+      evseId?: number | null,
       ocpiId?: string | null,
       stationId: string,
       connectorId?: number | null,
@@ -436,7 +468,14 @@ export type GetEvseByOcpiIdAndPartnerIdQueryResult = {
       errorCode?: string | null,
       timestamp?: any | null,
       createdAt: any,
-      updatedAt: any
+      updatedAt: any,
+      tariffs: Array<{
+        id: number,
+        tariffOcpiId: string,
+        connectorOcpiId: string,
+        tariffId: number,
+        connectorId: number
+      }>
     }>
   }>
 };
@@ -449,6 +488,90 @@ export type GetLocationsQueryVariables = Exact<{
 
 
 export type GetLocationsQueryResult = {
+  Locations: Array<{
+    id: number,
+    name?: string | null,
+    address?: string | null,
+    city?: string | null,
+    coordinates?: any | null,
+    country?: string | null,
+    createdAt: any,
+    facilities?: any | null,
+    openingHours?: any | null,
+    parkingType?: string | null,
+    postalCode?: string | null,
+    publishUpstream?: boolean | null,
+    state?: string | null,
+    timeZone?: string | null,
+    updatedAt: any,
+    tenant: {
+      name: string,
+      isUserTenant: boolean,
+      partyId?: string | null,
+      countryCode?: string | null
+    },
+    chargingPool: Array<{
+      id: string,
+      isOnline?: boolean | null,
+      protocol?: string | null,
+      capabilities?: any | null,
+      chargePointVendor?: string | null,
+      chargePointModel?: string | null,
+      chargePointSerialNumber?: string | null,
+      chargeBoxSerialNumber?: string | null,
+      coordinates?: any | null,
+      firmwareVersion?: string | null,
+      floorLevel?: string | null,
+      iccid?: string | null,
+      imsi?: string | null,
+      meterType?: string | null,
+      meterSerialNumber?: string | null,
+      parkingRestrictions?: any | null,
+      locationId?: number | null,
+      createdAt: any,
+      updatedAt: any,
+      evses: Array<{
+        id: number,
+        stationId?: string | null,
+        evseTypeId?: number | null,
+        evseId?: string | null,
+        physicalReference?: string | null,
+        removed?: boolean | null,
+        createdAt: any,
+        updatedAt: any,
+        connectors: Array<{
+          id: number,
+          stationId: string,
+          evseId?: number | null,
+          connectorId?: number | null,
+          evseTypeConnectorId?: number | null,
+          format?: string | null,
+          maximumAmperage?: number | null,
+          maximumPowerWatts?: number | null,
+          maximumVoltage?: number | null,
+          powerType?: string | null,
+          termsAndConditionsUrl?: string | null,
+          type?: string | null,
+          status?: string | null,
+          errorCode?: string | null,
+          timestamp?: any | null,
+          info?: string | null,
+          vendorId?: string | null,
+          vendorErrorCode?: string | null,
+          createdAt: any,
+          updatedAt: any
+        }>
+      }>
+    }>
+  }>
+};
+
+export type GetLocationByIdQueryVariables = Exact<{
+  id: Scalars['Int']['input'];
+}>;
+
+
+export type GetLocationByIdQueryResult = {
   Locations: Array<{
     id: number,
     name?: string | null,
@@ -525,12 +648,12 @@ export type GetLocationsQueryResult = {
   }>
 };
 
-export type GetLocationByIdQueryVariables = Exact<{
+export type GetLocationByOcpiIdQueryVariables = Exact<{
   id: Scalars['String']['input'];
 }>;
 
 
-export type GetLocationByIdQueryResult = {
+export type GetLocationByOcpiIdQueryResult = {
   Locations: Array<{
     id: number,
     name?: string | null,
@@ -601,7 +724,14 @@ export type GetLocationByIdQueryResult = {
           vendorId?: string | null,
           vendorErrorCode?: string | null,
           createdAt: any,
-          updatedAt: any
+          updatedAt: any,
+          tariffs: Array<{
+            id: number,
+            tariffOcpiId: string,
+            connectorOcpiId: string,
+            tariffId: number,
+            connectorId: number
+          }>
         }>
       }>
     }>
@@ -758,6 +888,7 @@ export type GetLocationByOcpiIdAndPartnerIdQueryResult = {
         statusSchedule?: any | null,
         ocpiStatus?: string | null,
         ocpiUid?: string | null,
+        coordinates?: any | null,
         floorLevel?: string | null,
         parkingRestrictions?: any | null,
         removed?: boolean | null,
@@ -784,7 +915,14 @@ export type GetLocationByOcpiIdAndPartnerIdQueryResult = {
           vendorId?: string | null,
           vendorErrorCode?: string | null,
           createdAt: any,
-          updatedAt: any
+          updatedAt: any,
+          tariffs: Array<{
+            id: number,
+            tariffOcpiId: string,
+            connectorOcpiId: string,
+            tariffId: number,
+            connectorId: number
+          }>
         }>
       }>
     }>
@@ -845,6 +983,18 @@ export type UpdateLocationPatchMutationResult = {
   update_Locations_by_pk?: {
     id: number,
     updatedAt: any
+  } | null
+};
+
+export type GetLocationOwnershipByIdQueryVariables = Exact<{
+  id: Scalars['Int']['input'];
+}>;
+
+
+export type GetLocationOwnershipByIdQueryResult = {
+  Locations_by_pk?: {
+    id: number,
+    ownerTenantPartnerId?: number | null
   } | null
 };
 

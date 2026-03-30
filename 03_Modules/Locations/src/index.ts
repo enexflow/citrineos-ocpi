@@ -15,17 +15,18 @@ import {
   GET_CHARGING_STATION_BY_ID_QUERY,
   GET_CONNECTOR_OWNERSHIP_BY_ID,
   GET_EVSE_OWNERSHIP_BY_ID,
+  GET_LOCATION_OWNERSHIP_BY_ID,
   LocationsBroadcaster,
   OcpiConfigToken,
   OcpiGraphqlClient,
   OcpiModule,
   RabbitMqDtoReceiver,
 } from '@citrineos/ocpi-base';
-import type { 
+import type {
   GetEvseOwnershipByIdQueryResult,
-  GetEvseOwnershipByIdQueryVariables, 
-  GetConnectorOwnershipByIdQueryResult, 
-  GetConnectorOwnershipByIdQueryVariables 
+  GetEvseOwnershipByIdQueryVariables,
+  GetConnectorOwnershipByIdQueryResult,
+  GetConnectorOwnershipByIdQueryVariables,
 } from '../../../00_Base/src/graphql/index.js';
 
 import type { ILogObj } from 'tslog';
@@ -83,9 +84,8 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       );
       return;
     }
-    console.log('locationDto in handleLocationInsert !!!!!! ', locationDto);
     // if the location is owned by a tenant partner, don't broadcast
-    if ((locationDto as any).ownerTenantPartnerId != null) return; 
+    if ((locationDto as any).ownerTenantPartnerId != null) return;
 
     await this.locationsBroadcaster.broadcastPutLocation(tenant, locationDto);
   }
@@ -108,11 +108,23 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
 
-    console.log('locationDto in handleLocationUpdate !!!!!! ', locationDto);
-
     // if the location is owned by a tenant partner, don't broadcast
     if ((locationDto as any).ownerTenantPartnerId != null) return;
 
+    //sometimes we won't get the full object so we need to check if the location is owned by a tenant partner by looking at the database
+    const locationDbId = Number(locationDto.id);
+    if (!Number.isInteger(locationDbId)) return;
+    const locationOwnership = await this.ocpiGraphqlClient.request<any, any>(
+      GET_LOCATION_OWNERSHIP_BY_ID,
+      { id: locationDbId },
+    );
+    const fullLocation = locationOwnership?.Locations_by_pk;
+    if (!fullLocation) return;
+    if (fullLocation.ownerTenantPartnerId != null) {
+      return;
+    }
+
+    // if the location is not owned by a tenant partner, we can broadcast the update
     await this.locationsBroadcaster.broadcastPatchLocation(tenant, locationDto);
   }
 
@@ -178,14 +190,14 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const evseDto = event._payload;
 
     // if the evse is owned by a tenant partner, don't broadcast
-    if ((evseDto as any).ocpiUid != null) return; 
+    if ((evseDto as any).ocpiUid != null) return;
     // sometime we won't get the full object so we neef to check if the evse is owned by a tenant partner by looking at the database
     const evseDbId = Number(evseDto.id);
     if (!Number.isInteger(evseDbId)) return;
-    const evseOwnership = await this.ocpiGraphqlClient.request<GetEvseOwnershipByIdQueryResult, GetEvseOwnershipByIdQueryVariables>(
-      GET_EVSE_OWNERSHIP_BY_ID,
-      { id: evseDbId },
-    );
+    const evseOwnership = await this.ocpiGraphqlClient.request<
+      GetEvseOwnershipByIdQueryResult,
+      GetEvseOwnershipByIdQueryVariables
+    >(GET_EVSE_OWNERSHIP_BY_ID, { id: evseDbId });
     const fullEvse = evseOwnership?.Evses_by_pk;
     if (!fullEvse) return;
     if (
@@ -266,7 +278,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
   ): Promise<void> {
     this._logger.debug(`Handling Connector Update: ${JSON.stringify(event)}`);
     const connectorDto = event._payload;
-    
+
     // if the connector is owned by a tenant partner, don't broadcast so we need to check if the connector is owned by a tenant partner by looking at the database
     if ((connectorDto as any).ocpiId != null) return;
 
@@ -274,10 +286,10 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const connectorDbId = Number(connectorDto.id);
     if (!Number.isInteger(connectorDbId)) return;
 
-    const connectorOwnership = await this.ocpiGraphqlClient.request<GetConnectorOwnershipByIdQueryResult, GetConnectorOwnershipByIdQueryVariables>(
-      GET_CONNECTOR_OWNERSHIP_BY_ID,
-      { id: connectorDbId },
-    );
+    const connectorOwnership = await this.ocpiGraphqlClient.request<
+      GetConnectorOwnershipByIdQueryResult,
+      GetConnectorOwnershipByIdQueryVariables
+    >(GET_CONNECTOR_OWNERSHIP_BY_ID, { id: connectorDbId });
 
     const fullConnector = connectorOwnership?.Connectors_by_pk;
     if (!fullConnector) return;

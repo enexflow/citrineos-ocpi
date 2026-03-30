@@ -1,24 +1,29 @@
+// SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import { gql } from 'graphql-request';
 
 export const UPSERT_CONNECTOR_MUTATION = gql`
   mutation UpsertConnector($object: Connectors_insert_input!) {
     insert_Connectors_one(
-      object: $object,
+      object: $object
       on_conflict: {
-        constraint: connectors_ocpi_id_evse_unique,
+        constraint: connectors_ocpi_id_evse_unique
         update_columns: [
-          type,
-          format,
-          powerType,
-          maximumVoltage,
-          maximumAmperage,
-          maximumPowerWatts,
-          termsAndConditionsUrl,
+          type
+          format
+          powerType
+          maximumVoltage
+          maximumAmperage
+          maximumPowerWatts
+          termsAndConditionsUrl
           updatedAt
         ]
       }
     ) {
       id
+      ocpiId
     }
   }
 `;
@@ -39,67 +44,82 @@ export const GET_CONNECTOR_OWNERSHIP_BY_ID = gql`
 `;
 
 export const GET_PARTNER_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID = gql`
-query GetPartnerConnectorByOcpiIdAndEvseId(
-  $partnerId: Int!,
-  $locationId: String!,
-  $evseUid: String!,
-  $connectorId: String!
-) {
-  Locations(where: {
-    ocpiId: { _eq: $locationId }
-    ownerTenantPartnerId: { _eq: $partnerId }
-  }) {
-    id
-    chargingPool: ChargingStations {
+  query GetPartnerConnectorByOcpiIdAndEvseId(
+    $partnerId: Int!
+    $locationId: String!
+    $evseUid: String!
+    $connectorId: String!
+  ) {
+    Locations(
+      where: {
+        ocpiId: { _eq: $locationId }
+        ownerTenantPartnerId: { _eq: $partnerId }
+      }
+    ) {
       id
-      evses: Evses(where: { ocpiUid: { _eq: $evseUid } }) {
+      chargingPool: ChargingStations {
         id
-        connectors: Connectors(where: { ocpiId: { _eq: $connectorId } }) {
+        evses: Evses(where: { ocpiUid: { _eq: $evseUid } }) {
           id
+          connectors: Connectors(where: { ocpiId: { _eq: $connectorId } }) {
+            id
+          }
         }
       }
     }
   }
-}
 `;
 
 export const GET_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID = gql`
-query GetConnectorByOcpiIdAndEvseId(
-  $partnerId: Int!, $locationId: String!, $evseUid: String!, $connectorId: String!
-) {
-  Connectors(where: {
-    ocpiId: { _eq: $connectorId },
-    Evse: {
-      ocpiUid: { _eq: $evseUid },
-      ChargingStation: {
-        Location: {
-          ocpiId: { _eq: $locationId },
-          ownerTenantPartnerId: { _eq: $partnerId }
+  query GetConnectorByOcpiIdAndEvseId(
+    $partnerId: Int!
+    $locationId: String!
+    $evseUid: String!
+    $connectorId: String!
+  ) {
+    Connectors(
+      where: {
+        ocpiId: { _eq: $connectorId }
+        Evse: {
+          ocpiUid: { _eq: $evseUid }
+          ChargingStation: {
+            Location: {
+              ocpiId: { _eq: $locationId }
+              ownerTenantPartnerId: { _eq: $partnerId }
+            }
+          }
         }
       }
+    ) {
+      id
+      ocpiId
+      evseId
+      stationId
+      connectorId
+      format
+      maximumAmperage
+      maximumPowerWatts
+      maximumVoltage
+      powerType
+      termsAndConditionsUrl
+      type
+      status
+      errorCode
+      timestamp
+      info
+      vendorId
+      vendorErrorCode
+      createdAt
+      updatedAt
+      tariffs: ConnectorTariffsOcpiPartner {
+        id
+        tariffOcpiId
+        connectorOcpiId
+        tariffId
+        connectorId
+      }
     }
-  }) {
-    id
-    ocpiId
-    stationId
-    connectorId
-    format
-    maximumAmperage
-    maximumPowerWatts
-    maximumVoltage
-    powerType
-    termsAndConditionsUrl
-    type
-    status
-    errorCode
-    timestamp
-    info
-    vendorId
-    vendorErrorCode
-    createdAt
-    updatedAt
   }
-}
 `;
 
 export const UPDATE_CONNECTOR_PATCH_MUTATION = gql`
@@ -107,6 +127,32 @@ export const UPDATE_CONNECTOR_PATCH_MUTATION = gql`
     update_Connectors_by_pk(pk_columns: { id: $id }, _set: $changes) {
       id
       updatedAt
+    }
+  }
+`;
+
+export const UPSERT_CONNECTOR_TARIFF_OCPIPARTNER_MUTATION = gql`
+  mutation UpsertConnectorTariffOcpiPartner(
+    $object: ConnectorTariffs_insert_input!
+  ) {
+    insert_ConnectorTariffs_one(object: $object) {
+      id
+    }
+  }
+`;
+
+export const DELETE_OCPI_CONNECTOR_TARIFF_MUTATION = gql`
+  mutation DeleteOcpiConnectorTariff(
+    $connectorId: Int!
+    $connectorOcpiId: String!
+  ) {
+    delete_ConnectorTariffs(
+      where: {
+        connectorId: { _eq: $connectorId }
+        connectorOcpiId: { _eq: $connectorOcpiId }
+      }
+    ) {
+      affected_rows
     }
   }
 `;

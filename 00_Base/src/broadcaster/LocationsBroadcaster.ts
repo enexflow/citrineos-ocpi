@@ -66,15 +66,6 @@ export class LocationsBroadcaster extends BaseBroadcaster {
     path: string,
   ): Promise<void> {
     try {
-      console.log('Broadcasting location to clients', location);
-      console.log('Path', path);
-      console.log('Method', method);
-      console.log('Tenant', tenant);
-      console.log('Location', location);
-      console.log('Body', location);
-      console.log('Schema', OcpiEmptyResponseSchema);
-      console.log('Path', path);
-      console.log('Method', method);
       await this.locationsClientApi.broadcastToClients({
         cpoCountryCode: tenant.countryCode!,
         cpoPartyId: tenant.partyId!,
@@ -98,7 +89,7 @@ export class LocationsBroadcaster extends BaseBroadcaster {
     evseDto: EvseDto,
     chargingStationDto: ChargingStationDto,
   ): Promise<void> {
-    console.log('BROADCAST PUT EVSE I AM HERE !!!', evseDto)
+    console.log('BROADCAST PUT EVSE I AM HERE !!!', evseDto);
     const locationId = chargingStationDto?.locationId;
     if (!locationId) throw new Error('Location ID missing in EVSE data');
     const evse = EvseMapper.fromGraphql(chargingStationDto!, evseDto);

@@ -28,6 +28,8 @@ export const GET_LOCATIONS_QUERY = gql`
       timeZone
       updatedAt
       tenant: Tenant {
+        name
+        isUserTenant
         partyId
         countryCode
       }
@@ -89,7 +91,86 @@ export const GET_LOCATIONS_QUERY = gql`
 `;
 
 export const GET_LOCATION_BY_ID_QUERY = gql`
-  query GetLocationById($id: String!) {
+  query GetLocationById($id: Int!) {
+    Locations(where: { id: { _eq: $id } }) {
+      id
+      name
+      address
+      city
+      coordinates
+      country
+      createdAt
+      facilities
+      openingHours
+      parkingType
+      postalCode
+      publishUpstream
+      state
+      timeZone
+      updatedAt
+      tenant: Tenant {
+        partyId
+        countryCode
+      }
+      chargingPool: ChargingStations {
+        id
+        isOnline
+        protocol
+        capabilities
+        chargePointVendor
+        chargePointModel
+        chargePointSerialNumber
+        chargeBoxSerialNumber
+        coordinates
+        firmwareVersion
+        floorLevel
+        iccid
+        imsi
+        meterType
+        meterSerialNumber
+        parkingRestrictions
+        locationId
+        createdAt
+        updatedAt
+        evses: Evses {
+          id
+          stationId
+          evseTypeId
+          evseId
+          physicalReference
+          removed
+          createdAt
+          updatedAt
+          connectors: Connectors {
+            id
+            stationId
+            evseId
+            connectorId
+            evseTypeConnectorId
+            format
+            maximumAmperage
+            maximumPowerWatts
+            maximumVoltage
+            powerType
+            termsAndConditionsUrl
+            type
+            status
+            errorCode
+            timestamp
+            info
+            vendorId
+            vendorErrorCode
+            createdAt
+            updatedAt
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const GET_LOCATION_BY_OCPID_ID_QUERY = gql`
+  query GetLocationByOcpiId($id: String!) {
     Locations(where: { ocpiId: { _eq: $id } }) {
       id
       name
@@ -161,6 +242,13 @@ export const GET_LOCATION_BY_ID_QUERY = gql`
             vendorErrorCode
             createdAt
             updatedAt
+            tariffs: ConnectorTariffsOcpiPartner {
+              id
+              tariffOcpiId
+              connectorOcpiId
+              tariffId
+              connectorId
+            }
           }
         }
       }
@@ -249,7 +337,9 @@ export const GET_CONNECTOR_BY_ID_QUERY = gql`
 
 export const GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
   query GetLocationByOcpiIdAndPartnerId($id: String!, $partnerId: Int!) {
-    Locations(where: { ocpiId: { _eq: $id }, ownerTenantPartnerId: { _eq: $partnerId } }) {
+    Locations(
+      where: { ocpiId: { _eq: $id }, ownerTenantPartnerId: { _eq: $partnerId } }
+    ) {
       ocpiId
       id
       name
@@ -337,6 +427,13 @@ export const GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
             vendorErrorCode
             createdAt
             updatedAt
+            tariffs: ConnectorTariffsOcpiPartner {
+              id
+              tariffOcpiId
+              connectorOcpiId
+              tariffId
+              connectorId
+            }
           }
         }
       }
@@ -344,76 +441,79 @@ export const GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
   }
 `;
 
-
 export const GET_EVSE_BY_LOCATION_ID_AND_OWNER_PARTNER_ID = gql`
-query GetEvseByLocationAndOwnerPartner(
-  $partnerId: Int!,
-  $locationId: String!,
-  $evseId: String!
-) {
-  Locations(where: {
-    ocpiId: { _eq: $locationId },
-    ownerTenantPartnerId: { _eq: $partnerId }
-  }) {
-    id
-    chargingPool: ChargingStations {
+  query GetEvseByLocationAndOwnerPartner(
+    $partnerId: Int!
+    $locationId: String!
+    $evseId: String!
+  ) {
+    Locations(
+      where: {
+        ocpiId: { _eq: $locationId }
+        ownerTenantPartnerId: { _eq: $partnerId }
+      }
+    ) {
       id
-      evses: Evses(where: { evseId: { _eq: $evseId } }) {
+      chargingPool: ChargingStations {
         id
-        evseId
+        evses: Evses(where: { evseId: { _eq: $evseId } }) {
+          id
+          evseId
+        }
       }
     }
   }
-}`;
-
+`;
 
 export const UPSERT_LOCATION_MUTATION = gql`
   mutation UpsertLocation($object: Locations_insert_input!) {
-  insert_Locations_one(
-    object: $object,
-    on_conflict: {
-      constraint: locations_ocpi_id_partner_unique,
-      update_columns: [
-        name,
-        address,
-        city,
-        country,
-        postalCode,
-        state,
-        parkingType,
-        timeZone,
-        coordinates,
-        operator,
-        suboperator,
-        owner,
-        chargingWhenClosed,
-        relatedLocations,
-        publishUpstream,
-        publishAllowedTo,
-        energyMix,
-        openingHours,
-        facilities,
-        images,
-        directions,
-        updatedAt
-      ]
+    insert_Locations_one(
+      object: $object
+      on_conflict: {
+        constraint: locations_ocpi_id_partner_unique
+        update_columns: [
+          name
+          address
+          city
+          country
+          postalCode
+          state
+          parkingType
+          timeZone
+          coordinates
+          operator
+          suboperator
+          owner
+          chargingWhenClosed
+          relatedLocations
+          publishUpstream
+          publishAllowedTo
+          energyMix
+          openingHours
+          facilities
+          images
+          directions
+          updatedAt
+        ]
+      }
+    ) {
+      id
     }
-  ) {
-    id
   }
-}
 `;
 
 export const GET_PARTNER_LOCATION_BY_OCPI_ID = gql`
-query GetPartnerLocationByOcpiId($partnerId: Int!, $locationId: String!) {
-  Locations(where: {
-    ocpiId: { _eq: $locationId }
-    ownerTenantPartnerId: { _eq: $partnerId }
-  }) {
-    id
-    tenantId
+  query GetPartnerLocationByOcpiId($partnerId: Int!, $locationId: String!) {
+    Locations(
+      where: {
+        ocpiId: { _eq: $locationId }
+        ownerTenantPartnerId: { _eq: $partnerId }
+      }
+    ) {
+      id
+      tenantId
+    }
   }
-}
 `;
 
 export const UPDATE_LOCATION_PATCH_MUTATION = gql`
@@ -421,6 +521,15 @@ export const UPDATE_LOCATION_PATCH_MUTATION = gql`
     update_Locations_by_pk(pk_columns: { id: $id }, _set: $changes) {
       id
       updatedAt
+    }
+  }
+`;
+
+export const GET_LOCATION_OWNERSHIP_BY_ID = gql`
+  query GetLocationOwnershipById($id: Int!) {
+    Locations_by_pk(id: $id) {
+      id
+      ownerTenantPartnerId
     }
   }
 `;

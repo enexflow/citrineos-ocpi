@@ -3,24 +3,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Locations module OCPI 2.2.1 - test curl commands with assertions
+# Locations module OCPI 2.2.1 - Connector & PATCH focused tests
 #
-# Every PUT/PATCH is followed by a GET that asserts the expected fields.
+# Covers:
+#   - Connector GET/PUT/PATCH round-trips with all fields
+#   - PATCH idempotency (patch same field twice)
+#   - PATCH partial updates (only specified fields change)
+#   - PATCH cascade: connector patch must update parent EVSE + Location last_updated
+#   - PATCH cascade: EVSE patch must update parent Location last_updated
+#   - Error cases: missing last_updated, unknown IDs
 #
 # In this test:
 #   - Our platform acts as eMSP: FR/ZTA (the Tenant)
 #   - Partner CPO: FR/TMS (the TenantPartner)
+#   - Location used: LOC-PATCH-001 (created fresh by this script)
 #
 # Usage:
-#   chmod +x locations-test-curls.sh
-#   ./locations-test-curls.sh
+#   chmod +x locations-connector-patch-test-curls.sh
+#   ./locations-connector-patch-test-curls.sh
 
 BASE_URL="http://10.80.80.95:8085/ocpi/2.2.1/locations/receiver/FR/TMS"
 
-# AUTH_TOKEN="Token MGE0YTFjZjktMDlkNC00ZTViLTgzYzItYWMxNTlhZWEzODhk"
+AUTH_TOKEN="Token MGE0YTFjZjktMDlkNC00ZTViLTgzYzItYWMxNTlhZWEzODhk"
 
-# AUTH_TOKEN="Token MGE0YTFjZjktMDlkNC00ZTViLTgzYzItYWMxNTlhZWEzODhk"
-AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
 OCPI_HEADERS=(
   -H "Authorization: $AUTH_TOKEN"
   -H "X-Request-ID: $(uuidgen 2>/dev/null || echo test-req-001)"
@@ -30,6 +35,8 @@ OCPI_HEADERS=(
   -H "OCPI-to-country-code: FR"
   -H "OCPI-to-party-id: ZTA"
 )
+
+
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -42,21 +49,9 @@ RESET='\033[0m'
 PASS=0
 FAIL=0
 
-get_evse_json() {
-  local body="$1"
-  local expected_uid="$2"
-  local expected_evse_id="$3"
-  echo "$body" | python3 -c "
-import sys, json
-doc = json.load(sys.stdin)
-evses = (((doc or {}).get('data') or {}).get('evses') or [])
-for e in evses:
-    if (e.get('uid') == '$expected_uid') or (e.get('evse_id') == '$expected_evse_id'):
-        print(json.dumps(e))
-        raise SystemExit(0)
-print('__MISSING__')
-" 2>/dev/null
-}
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 separator() {
   echo ""
@@ -65,7 +60,7 @@ separator() {
   echo -e "${CYAN}════════════════════════════════════════════════════════════${RESET}"
 }
 
-# Execute a curl, print HTTP status, return body via stdout
+# Execute a curl, print HTTP status to stderr, return body via stdout
 do_curl() {
   local expected_http="$1"
   shift
@@ -75,7 +70,7 @@ do_curl() {
 
   local http_code
   http_code=$(curl -sS -w "%{http_code}" -o "$tmp" "$@" 2>&1) || {
-    echo -e "${RED}  Connection error — is the server running?${RESET}"
+    echo -e "${RED}  Connection error — is the server running?${RESET}" >&2
     FAIL=$((FAIL + 1))
     rm -f "$tmp"
     echo ""
@@ -86,7 +81,7 @@ do_curl() {
     echo -e "  ${GREEN}HTTP $http_code${RESET}  ${DIM}(expected $expected_http)${RESET}" >&2
     PASS=$((PASS + 1))
   else
-    echo -e "  ${RED}HTTP $http_code${RESET}  ${YELLOW}(expected $expected_http)${RESET}"
+    echo -e "  ${RED}HTTP $http_code${RESET}  ${YELLOW}(expected $expected_http)${RESET}" >&2
     FAIL=$((FAIL + 1))
   fi
 
@@ -126,6 +121,35 @@ except (KeyError, IndexError, TypeError):
   fi
 }
 
+# Assert a dot-path does NOT equal a value (useful for checking field changed)
+assert_field_not() {
+  local body="$1"
+  local path="$2"
+  local unexpected="$3"
+
+  local actual
+  actual=$(echo "$body" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+keys = '$path'.split('.')
+val = data
+try:
+    for k in keys:
+        val = val[int(k)] if k.lstrip('-').isdigit() else val[k]
+    print(val if not isinstance(val, bool) else str(val).lower())
+except (KeyError, IndexError, TypeError):
+    print('__MISSING__')
+" 2>/dev/null)
+
+  if [ "$actual" != "$unexpected" ]; then
+    echo -e "    ${GREEN}✓${RESET} ${DIM}$path${RESET} changed from ${GREEN}$unexpected${RESET} to ${GREEN}$actual${RESET}"
+    PASS=$((PASS + 1))
+  else
+    echo -e "    ${RED}✗${RESET} ${DIM}$path${RESET}: expected value to change from ${RED}$unexpected${RESET} but it did not"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
 # Assert an array at dot-path contains a value
 assert_contains() {
   local body="$1"
@@ -151,6 +175,35 @@ except (KeyError, TypeError):
     PASS=$((PASS + 1))
   else
     echo -e "    ${RED}✗${RESET} ${DIM}$path${RESET} does not contain ${RED}$expected${RESET}"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# Assert an array at dot-path does NOT contain a value (useful for checking tariff replaced)
+assert_not_contains() {
+  local body="$1"
+  local path="$2"
+  local unexpected="$3"
+
+  local found
+  found=$(echo "$body" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+keys = '$path'.split('.')
+val = data
+try:
+    for k in keys:
+        val = val[int(k)] if k.lstrip('-').isdigit() else val[k]
+    print('true' if '$unexpected' in [str(x) for x in val] else 'false')
+except (KeyError, TypeError):
+    print('false')
+" 2>/dev/null)
+
+  if [ "$found" = "false" ]; then
+    echo -e "    ${GREEN}✓${RESET} ${DIM}$path${RESET} no longer contains ${GREEN}$unexpected${RESET}"
+    PASS=$((PASS + 1))
+  else
+    echo -e "    ${RED}✗${RESET} ${DIM}$path${RESET} still contains ${RED}$unexpected${RESET} (should have been replaced)"
     FAIL=$((FAIL + 1))
   fi
 }
@@ -184,7 +237,40 @@ except (KeyError, TypeError):
   fi
 }
 
-# Assert OCPI status_code in body is NOT 1000 (i.e. an error was returned)
+# Extract a raw field value (no assertion) for use in later comparisons
+get_field() {
+  local body="$1"
+  local path="$2"
+  echo "$body" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+keys = '$path'.split('.')
+val = data
+try:
+    for k in keys:
+        val = val[int(k)] if k.lstrip('-').isdigit() else val[k]
+    print(val)
+except (KeyError, IndexError, TypeError):
+    print('__MISSING__')
+" 2>/dev/null
+}
+
+# Assert two values are different (used for timestamp cascade checks)
+assert_different() {
+  local label="$1"
+  local val_before="$2"
+  local val_after="$3"
+
+  if [ "$val_before" != "$val_after" ] && [ "$val_after" != "__MISSING__" ]; then
+    echo -e "    ${GREEN}✓${RESET} $label changed: ${DIM}$val_before${RESET} → ${GREEN}$val_after${RESET}"
+    PASS=$((PASS + 1))
+  else
+    echo -e "    ${RED}✗${RESET} $label did not change (before=$val_before, after=$val_after)"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# Assert OCPI status_code in body is NOT 1000
 assert_ocpi_error() {
   local body="$1"
   local label="$2"
@@ -200,405 +286,564 @@ assert_ocpi_error() {
   fi
 }
 
+# Assert OCPI status_code is 1000
+assert_ocpi_success() {
+  local body="$1"
+  local label="$2"
+
+  local actual_status
+  actual_status=$(echo "$body" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status_code',''))" 2>/dev/null)
+  if [ "$actual_status" = "1000" ]; then
+    echo -e "    ${GREEN}✓${RESET} $label — OCPI status_code 1000"
+    PASS=$((PASS + 1))
+  else
+    echo -e "    ${RED}✗${RESET} $label — expected 1000, got $actual_status"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+
 # ===========================================================================
-# PHASE 1 — PUT full Location, GET and assert round-trip
+# PHASE 0 — Seed tariffs required by connector/patch tests
+# ===========================================================================
+TARIFF_BASE_URL="http://10.80.80.95:8085/ocpi/2.2.1/tariffs/FR/TMS"
+
+seed_tariff() {
+  local tariff_id="$1"
+  do_curl 200 \
+    -X PUT "$TARIFF_BASE_URL/$tariff_id" \
+    "${OCPI_HEADERS[@]}" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"id\": \"$tariff_id\",
+      \"country_code\": \"FR\",
+      \"party_id\": \"TMS\",
+      \"currency\": \"EUR\",
+      \"type\": \"REGULAR\",
+      \"elements\": [
+        {
+          \"price_components\": [
+            {
+              \"type\": \"ENERGY\",
+              \"price\": 0.25,
+              \"vat\": 0.20,
+              \"step_size\": 1
+            }
+          ]
+        }
+      ]
+    }" > /dev/null
+}
+
+separator "0. Seed tariffs used by connector/patch tests"
+seed_tariff "TARIFF-A1"
+seed_tariff "TARIFF-A2"
+seed_tariff "TARIFF-B1"
+seed_tariff "TARIFF-REPLACED"
+seed_tariff "TARIFF-NEW-X"
+seed_tariff "TARIFF-NEW-Y"
+seed_tariff "TARIFF-IDEMPOTENT"
+seed_tariff "TARIFF-CASCADE"
+seed_tariff "TARIFF-C1"
+
+# ===========================================================================
+# SETUP — PUT base location with 1 EVSE and 2 connectors
+# All subsequent tests build on LOC-PATCH-001
 # ===========================================================================
 
-separator "1. PUT /LOC-TEST-015 — Full location with 2 EVSEs and connectors"
+separator "SETUP: PUT /LOC-PATCH-001 — Base location with EVSE-A (2 connectors)"
 do_curl 200 \
-  -X PUT "$BASE_URL/LOC-TEST-015" \
+  -X PUT "$BASE_URL/LOC-PATCH-001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
     "country_code": "FR",
     "party_id": "TMS",
-    "id": "LOC-TEST-015",
+    "id": "LOC-PATCH-001",
     "publish": true,
-    "name": "Paris Charging Hub",
-    "address": "15 Rue de Rivoli",
-    "city": "Paris",
-    "postal_code": "75001",
-    "state": "Ile-de-France",
+    "name": "Connector Test Location",
+    "address": "42 Avenue des Tests",
+    "city": "Lyon",
+    "postal_code": "69001",
     "country": "FRA",
-    "coordinates": { "latitude": "48.857489", "longitude": "2.351074" },
-    "parking_type": "ON_STREET",
-    "related_locations": [
-      { "latitude": "48.857600", "longitude": "2.351200", "name": { "language": "en", "text": "Main entrance" } }
-    ],
+    "coordinates": { "latitude": "45.764043", "longitude": "4.835659" },
+    "parking_type": "PARKING_GARAGE",
+    "time_zone": "Europe/Paris",
+    "operator": { "name": "TestCPO", "website": "https://testcpo.example.com" },
     "evses": [
       {
-        "uid": "EVSE-001",
-        "evse_id": "FR*TMS*E000000001",
+        "uid": "EVSE-A",
+        "evse_id": "FR*TMS*EA00000001",
         "status": "AVAILABLE",
-        "status_schedule": [
-          { "period_begin": "2025-01-01T00:00:00Z", "period_end": "2025-12-31T23:59:59Z", "status": "AVAILABLE" }
-        ],
-        "capabilities": ["CHARGING_PROFILE_CAPABLE", "REMOTE_START_STOP_CAPABLE", "RESERVABLE", "RFID_READER"],
+        "capabilities": ["RFID_READER", "REMOTE_START_STOP_CAPABLE", "RESERVABLE"],
         "connectors": [
           {
-            "id": "1", "standard": "IEC_62196_T2", "format": "SOCKET", "power_type": "AC_3_PHASE",
-            "max_voltage": 230, "max_amperage": 32, "max_electric_power": 22000,
-            "tariff_ids": ["TARIFF-001", "TARIFF-002"],
+            "id": "1",
+            "standard": "IEC_62196_T2",
+            "format": "SOCKET",
+            "power_type": "AC_3_PHASE",
+            "max_voltage": 230,
+            "max_amperage": 32,
+            "max_electric_power": 22000,
+            "tariff_ids": ["TARIFF-A1", "TARIFF-A2"],
             "terms_and_conditions": "https://example.com/terms",
-            "last_updated": "2025-01-15T10:00:00Z"
+            "last_updated": "2025-01-01T00:00:00Z"
           },
           {
-            "id": "2", "standard": "IEC_62196_T2_COMBO", "format": "CABLE", "power_type": "DC",
-            "max_voltage": 920, "max_amperage": 400, "max_electric_power": 150000,
-            "tariff_ids": ["TARIFF-003"],
-            "terms_and_conditions": "https://example.com/terms",
-            "last_updated": "2025-01-15T10:00:00Z"
+            "id": "2",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 400,
+            "max_amperage": 125,
+            "max_electric_power": 50000,
+            "tariff_ids": ["TARIFF-B1"],
+            "last_updated": "2025-01-01T00:00:00Z"
           }
         ],
         "floor_level": "-1",
-        "coordinates": { "latitude": "48.857489", "longitude": "2.351074" },
-        "physical_reference": "A1",
-        "directions": [
-          { "language": "en", "text": "Take the ramp down to level -1, EVSE is on the left" },
-          { "language": "fr", "text": "Prenez la rampe jusqu au niveau -1, la borne est a gauche" }
-        ],
+        "physical_reference": "P1",
         "parking_restrictions": ["EV_ONLY"],
-        "images": [
-          { "url": "https://example.com/images/evse001.jpg", "category": "CHARGER", "type": "jpeg", "width": 800, "height": 600 }
-        ],
-        "last_updated": "2025-01-15T10:00:00Z"
-      },
-      {
-        "uid": "EVSE-002",
-        "evse_id": "FR*TMS*E000000002",
-        "status": "CHARGING",
-        "capabilities": ["CONTACTLESS_CARD_SUPPORT", "CREDIT_CARD_PAYABLE", "REMOTE_START_STOP_CAPABLE"],
-        "connectors": [
-          {
-            "id": "1", "standard": "CHADEMO", "format": "CABLE", "power_type": "DC",
-            "max_voltage": 500, "max_amperage": 120, "max_electric_power": 50000,
-            "tariff_ids": ["TARIFF-004"],
-            "last_updated": "2025-01-15T10:00:00Z"
-          }
-        ],
-        "floor_level": "0",
-        "physical_reference": "B2",
-        "parking_restrictions": ["EV_ONLY", "CUSTOMERS"],
-        "last_updated": "2025-01-15T10:00:00Z"
+        "last_updated": "2025-01-01T00:00:00Z"
       }
     ],
-    "directions": [ { "language": "en", "text": "Located next to the Louvre entrance, near bus stop 42" } ],
-    "operator": {
-      "name": "TMSCharge", "website": "https://tmscharge.example.com",
-      "logo": { "url": "https://tmscharge.example.com/logo.png", "category": "OPERATOR", "type": "png", "width": 200, "height": 200 }
-    },
-    "suboperator": { "name": "SubCharge Paris", "website": "https://subcharge.example.com" },
-    "owner": { "name": "City of Paris", "website": "https://paris.fr" },
-    "facilities": ["HOTEL", "SHOPPING_CENTRE", "MUSEUM"],
-    "time_zone": "Europe/Paris",
-    "opening_times": {
-      "twentyfourseven": false,
-      "regular_hours": [
-        { "weekday": 1, "period_begin": "07:00", "period_end": "22:00" },
-        { "weekday": 2, "period_begin": "07:00", "period_end": "22:00" },
-        { "weekday": 3, "period_begin": "07:00", "period_end": "22:00" },
-        { "weekday": 4, "period_begin": "07:00", "period_end": "22:00" },
-        { "weekday": 5, "period_begin": "07:00", "period_end": "22:00" },
-        { "weekday": 6, "period_begin": "08:00", "period_end": "23:00" },
-        { "weekday": 7, "period_begin": "09:00", "period_end": "20:00" }
-      ],
-      "exceptional_openings": [ { "period_begin": "2025-12-25T10:00:00Z", "period_end": "2025-12-25T18:00:00Z" } ],
-      "exceptional_closings": [ { "period_begin": "2025-05-01T00:00:00Z", "period_end": "2025-05-01T23:59:59Z" } ]
-    },
-    "charging_when_closed": true,
-    "images": [ { "url": "https://example.com/images/loc001.jpg", "category": "LOCATION", "type": "jpeg", "width": 1920, "height": 1080 } ],
-    "energy_mix": {
-      "is_green_energy": true,
-      "energy_sources": [ { "source": "SOLAR", "percentage": 60.0 }, { "source": "WIND", "percentage": 40.0 } ],
-      "environ_impact": [ { "category": "CARBON_DIOXIDE", "amount": 0.0 } ],
-      "supplier_name": "GreenPower FR",
-      "energy_product_name": "Pure Green 100"
-    },
-    "last_updated": "2025-01-15T10:00:00Z"
+    "last_updated": "2025-01-01T00:00:00Z"
   }' > /dev/null
 
-separator "2. GET /LOC-TEST-015 — Assert full location round-trip"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015" "${OCPI_HEADERS[@]}")
-echo "$body"
-echo "  -- Location --"
-assert_field   "$body" "data.party_id"                          "TMS"
-assert_field   "$body" "data.country_code"                      "FR"
-assert_field   "$body" "data.id"                                "LOC-TEST-015"
-assert_field   "$body" "data.publish"                           "true"
-assert_field   "$body" "data.name"                              "Paris Charging Hub"
-assert_field   "$body" "data.address"                           "15 Rue de Rivoli"
-assert_field   "$body" "data.city"                              "Paris"
-assert_field   "$body" "data.postal_code"                       "75001"
-assert_field   "$body" "data.country"                           "FRA"
-assert_field   "$body" "data.parking_type"                      "ON_STREET"
-assert_field   "$body" "data.time_zone"                         "Europe/Paris"
-assert_field   "$body" "data.charging_when_closed"              "true"
-assert_field   "$body" "data.coordinates.latitude"              "48.857489"
-assert_field   "$body" "data.coordinates.longitude"             "2.351074"
-assert_field   "$body" "data.operator.name"                     "TMSCharge"
-assert_field   "$body" "data.suboperator.name"                  "SubCharge Paris"
-assert_field   "$body" "data.owner.name"                        "City of Paris"
-assert_field   "$body" "data.energy_mix.is_green_energy"        "true"
-assert_field   "$body" "data.energy_mix.supplier_name"          "GreenPower FR"
-assert_field   "$body" "data.opening_times.twentyfourseven"     "false"
-assert_contains "$body" "data.facilities"                       "HOTEL"
-assert_contains "$body" "data.facilities"                       "MUSEUM"
-assert_length  "$body" "data.evses"                             "2"
-assert_length  "$body" "data.images"                            "1"
-assert_length  "$body" "data.directions"                        "1"
-assert_length  "$body" "data.related_locations"                 "1"
-echo "  -- EVSE-001 --"
-
-evse001=$(get_evse_json "$body" "EVSE-001" "FR*TMS*E000000001")
-if [ "$evse001" = "__MISSING__" ]; then
-  echo -e "    ${RED}✗${RESET} EVSE-001 not found by uid/evse_id"
-  FAIL=$((FAIL + 1))
-else
-  assert_field    "$evse001" "uid"                 "EVSE-001"
-  assert_field    "$evse001" "status"              "AVAILABLE"
-  assert_field    "$evse001" "floor_level"         "-1"
-  assert_field    "$evse001" "physical_reference"  "A1"
-  assert_field    "$evse001" "coordinates.latitude" "48.857489"
-  assert_contains "$evse001" "capabilities"        "RFID_READER"
-  assert_contains "$evse001" "capabilities"        "RESERVABLE"
-  assert_contains "$evse001" "parking_restrictions" "EV_ONLY"
-  assert_length   "$evse001" "connectors"          "2"
-  assert_length   "$evse001" "status_schedule"     "1"
-  assert_length   "$evse001" "images"              "1"
-  assert_length   "$evse001" "directions"          "2"
-  echo "  -- EVSE-001 connector 1 --"
-  assert_field   "$evse001" "connectors.0.id"           "1"
-  assert_field   "$evse001" "connectors.0.standard"     "IEC_62196_T2"
-  assert_field   "$evse001" "connectors.0.format"       "SOCKET"
-  assert_field   "$evse001" "connectors.0.power_type"   "AC_3_PHASE"
-  assert_field   "$evse001" "connectors.0.max_voltage"  "230"
-  assert_field   "$evse001" "connectors.0.max_amperage" "32"
-  assert_contains "$evse001" "connectors.0.tariff_ids"  "TARIFF-001"
-  assert_contains "$evse001" "connectors.0.tariff_ids"  "TARIFF-002"
-  echo "  -- EVSE-001 connector 2 --"
-  assert_field   "$evse001" "connectors.1.id"           "2"
-  assert_field   "$evse001" "connectors.1.standard"     "IEC_62196_T2_COMBO"
-  assert_contains "$evse001" "connectors.1.tariff_ids"  "TARIFF-003"
-fi
-
-echo "  -- EVSE-002 --"
-evse002=$(get_evse_json "$body" "EVSE-002" "FR*TMS*E000000002")
-if [ "$evse002" = "__MISSING__" ]; then
-  echo -e "    ${RED}✗${RESET} EVSE-002 not found by uid/evse_id"
-  FAIL=$((FAIL + 1))
-else
-  assert_field    "$evse002" "uid"                  "EVSE-002"
-  assert_field    "$evse002" "status"               "CHARGING"
-  assert_field    "$evse002" "floor_level"          "0"
-  assert_contains "$evse002" "capabilities"         "CREDIT_CARD_PAYABLE"
-  assert_contains "$evse002" "parking_restrictions" "CUSTOMERS"
-  assert_length   "$evse002" "connectors"           "1"
-  assert_contains "$evse002" "connectors.0.tariff_ids" "TARIFF-004"
-fi
+echo ""
+echo -e "  ${DIM}Base location created. Starting tests...${RESET}"
 
 # ===========================================================================
-# PHASE 2 — GET individual EVSE and Connector
+# PHASE 1 — Connector GET: full field round-trip
 # ===========================================================================
 
-separator "3. GET /LOC-TEST-015/EVSE-001 — Assert EVSE object"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015/EVSE-001" "${OCPI_HEADERS[@]}")
-assert_field   "$body" "data.uid"             "EVSE-001"
-assert_field   "$body" "data.status"          "AVAILABLE"
-assert_field   "$body" "data.evse_id"         "FR*TMS*E000000001"
-assert_field   "$body" "data.floor_level"     "-1"
-assert_contains "$body" "data.capabilities"   "RFID_READER"
-assert_length  "$body" "data.connectors"      "2"
+separator "1. GET /LOC-PATCH-001/EVSE-A/1 — Full connector round-trip"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/1" "${OCPI_HEADERS[@]}")
+assert_ocpi_success "$body" "GET connector"
+assert_field   "$body" "data.id"                    "1"
+assert_field   "$body" "data.standard"              "IEC_62196_T2"
+assert_field   "$body" "data.format"                "SOCKET"
+assert_field   "$body" "data.power_type"            "AC_3_PHASE"
+assert_field   "$body" "data.max_voltage"           "230"
+assert_field   "$body" "data.max_amperage"          "32"
+assert_field   "$body" "data.max_electric_power"    "22000"
+assert_field   "$body" "data.terms_and_conditions"  "https://example.com/terms"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-A1"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-A2"
 
-separator "4. GET /LOC-TEST-015/EVSE-001/1 — Assert connector object"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015/EVSE-001/1" "${OCPI_HEADERS[@]}")
-assert_field   "$body" "data.id"              "1"
-assert_field   "$body" "data.standard"        "IEC_62196_T2"
-assert_field   "$body" "data.format"          "SOCKET"
-assert_field   "$body" "data.power_type"      "AC_3_PHASE"
-assert_field   "$body" "data.max_voltage"     "230"
-assert_field   "$body" "data.max_amperage"    "32"
-assert_contains "$body" "data.tariff_ids"     "TARIFF-001"
+separator "2. GET /LOC-PATCH-001/EVSE-A/2 — Second connector round-trip"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/2" "${OCPI_HEADERS[@]}")
+assert_ocpi_success "$body" "GET connector 2"
+assert_field   "$body" "data.id"                    "2"
+assert_field   "$body" "data.standard"              "IEC_62196_T2_COMBO"
+assert_field   "$body" "data.format"                "CABLE"
+assert_field   "$body" "data.power_type"            "DC"
+assert_field   "$body" "data.max_voltage"           "400"
+assert_field   "$body" "data.max_amperage"          "125"
+assert_field   "$body" "data.max_electric_power"    "50000"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-B1"
 
 # ===========================================================================
-# PHASE 3 — PUT standalone EVSE, GET and assert
+# PHASE 2 — PUT connector: replace all fields
 # ===========================================================================
 
-separator "5. PUT /LOC-TEST-015/EVSE-003 — Add new EVSE to existing location"
+separator "3. PUT /LOC-PATCH-001/EVSE-A/1 — Replace connector 1 entirely"
 do_curl 200 \
-  -X PUT "$BASE_URL/LOC-TEST-015/EVSE-003" \
+  -X PUT "$BASE_URL/LOC-PATCH-001/EVSE-A/1" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
-    "uid": "EVSE-003",
-    "evse_id": "FR*TMS*E000000003",
-    "status": "AVAILABLE",
-    "capabilities": ["RFID_READER", "REMOTE_START_STOP_CAPABLE"],
-    "connectors": [
-      {
-        "id": "1", "standard": "IEC_62196_T2", "format": "CABLE", "power_type": "AC_1_PHASE",
-        "max_voltage": 230, "max_amperage": 16, "max_electric_power": 3680,
-        "tariff_ids": ["TARIFF-005"],
-        "last_updated": "2025-02-01T08:00:00Z"
-      }
-    ],
-    "floor_level": "1",
-    "physical_reference": "C3",
-    "parking_restrictions": ["EV_ONLY"],
-    "last_updated": "2025-02-01T08:00:00Z"
-  }' > /dev/null
-
-separator "6. GET /LOC-TEST-015/EVSE-003 — Assert new EVSE"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015/EVSE-003" "${OCPI_HEADERS[@]}")
-echo "$body"
-assert_field   "$body" "data.uid"                              "EVSE-003"
-assert_field   "$body" "data.status"                           "AVAILABLE"
-assert_field   "$body" "data.floor_level"                      "1"
-assert_field   "$body" "data.physical_reference"               "C3"
-assert_contains "$body" "data.capabilities"                    "RFID_READER"
-assert_contains "$body" "data.parking_restrictions"            "EV_ONLY"
-assert_length  "$body" "data.connectors"                       "1"
-assert_field   "$body" "data.connectors.0.id"                  "1"
-assert_field   "$body" "data.connectors.0.standard"            "IEC_62196_T2"
-assert_contains "$body" "data.connectors.0.tariff_ids"         "TARIFF-005"
-
-# ===========================================================================
-# PHASE 4 — PUT standalone Connector, GET and assert
-# ===========================================================================
-
-separator "7. PUT /LOC-TEST-015/EVSE-003/2 — Add second connector to EVSE-003"
-do_curl 200 \
-  -X PUT "$BASE_URL/LOC-TEST-015/EVSE-003/2" \
-  "${OCPI_HEADERS[@]}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "2",
-    "standard": "DOMESTIC_F",
-    "format": "SOCKET",
+    "id": "1",
+    "standard": "IEC_62196_T2",
+    "format": "CABLE",
     "power_type": "AC_1_PHASE",
     "max_voltage": 230,
-    "max_amperage": 10,
-    "max_electric_power": 2300,
-    "tariff_ids": ["TARIFF-006"],
-    "last_updated": "2025-02-01T09:00:00Z"
+    "max_amperage": 16,
+    "max_electric_power": 3680,
+    "tariff_ids": ["TARIFF-REPLACED"],
+    "terms_and_conditions": "https://example.com/new-terms",
+    "last_updated": "2025-02-01T10:00:00Z"
   }' > /dev/null
 
-separator "8. GET /LOC-TEST-015/EVSE-003/2 — Assert second connector"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015/EVSE-003/2" "${OCPI_HEADERS[@]}")
-assert_field   "$body" "data.id"                "2"
-assert_field   "$body" "data.standard"          "DOMESTIC_F"
-assert_field   "$body" "data.format"            "SOCKET"
-assert_field   "$body" "data.max_voltage"       "230"
-assert_field   "$body" "data.max_amperage"      "10"
-assert_field   "$body" "data.max_electric_power" "2300"
-assert_contains "$body" "data.tariff_ids"       "TARIFF-006"
+separator "4. GET /LOC-PATCH-001/EVSE-A/1 — Assert connector 1 fully replaced"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/1" "${OCPI_HEADERS[@]}")
+assert_field   "$body" "data.id"                    "1"
+assert_field   "$body" "data.standard"              "IEC_62196_T2"
+assert_field   "$body" "data.format"                "CABLE"
+assert_field   "$body" "data.power_type"            "AC_1_PHASE"
+assert_field   "$body" "data.max_voltage"           "230"
+assert_field   "$body" "data.max_amperage"          "16"
+assert_field   "$body" "data.max_electric_power"    "3680"
+assert_field   "$body" "data.terms_and_conditions"  "https://example.com/new-terms"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-REPLACED"
+assert_not_contains "$body" "data.tariff_ids"       "TARIFF-A1"
+assert_not_contains "$body" "data.tariff_ids"       "TARIFF-A2"
 
 # ===========================================================================
-# PHASE 5 — PATCH Location, GET and assert patched + unchanged fields
+# PHASE 3 — PATCH connector: partial updates, field by field
 # ===========================================================================
 
-separator "9. PATCH /LOC-TEST-015 — Update name and parking_type"
+separator "5. PATCH /LOC-PATCH-001/EVSE-A/1 — Update tariff_ids only"
 do_curl 200 \
-  -X PATCH "$BASE_URL/LOC-TEST-015" \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A/1" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Paris Charging Hub UPDATED",
-    "parking_type": "PARKING_GARAGE",
-    "last_updated": "2025-03-01T12:00:00Z"
+    "tariff_ids": ["TARIFF-NEW-X", "TARIFF-NEW-Y"],
+    "last_updated": "2025-02-15T08:00:00Z"
   }' > /dev/null
 
-separator "10. GET /LOC-TEST-015 — Assert patch applied, unpatched fields unchanged"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015" "${OCPI_HEADERS[@]}")
+separator "6. GET /LOC-PATCH-001/EVSE-A/1 — Assert tariff patched, other fields unchanged"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/1" "${OCPI_HEADERS[@]}")
 echo "  -- patched --"
-assert_field   "$body" "data.name"              "Paris Charging Hub UPDATED"
-assert_field   "$body" "data.parking_type"      "PARKING_GARAGE"
+assert_contains    "$body" "data.tariff_ids"        "TARIFF-NEW-X"
+assert_contains    "$body" "data.tariff_ids"        "TARIFF-NEW-Y"
+assert_not_contains "$body" "data.tariff_ids"       "TARIFF-REPLACED"
 echo "  -- unchanged --"
-assert_field   "$body" "data.city"              "Paris"
-assert_field   "$body" "data.country"           "FRA"
-assert_field   "$body" "data.operator.name"     "TMSCharge"
-assert_field   "$body" "data.energy_mix.supplier_name" "GreenPower FR"
-assert_length  "$body" "data.evses"             "3"
+assert_field   "$body" "data.standard"              "IEC_62196_T2"
+assert_field   "$body" "data.format"                "CABLE"
+assert_field   "$body" "data.power_type"            "AC_1_PHASE"
+assert_field   "$body" "data.max_voltage"           "230"
+assert_field   "$body" "data.max_amperage"          "16"
+assert_field   "$body" "data.max_electric_power"    "3680"
+assert_field   "$body" "data.terms_and_conditions"  "https://example.com/new-terms"
 
-# ===========================================================================
-# PHASE 6 — PATCH EVSE status, GET and assert
-# ===========================================================================
-
-separator "11. PATCH /LOC-TEST-015/EVSE-001 — Status to CHARGING"
+separator "7. PATCH /LOC-PATCH-001/EVSE-A/1 — Update power fields only"
 do_curl 200 \
-  -X PATCH "$BASE_URL/LOC-TEST-015/EVSE-001" \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A/1" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
-    "status": "CHARGING",
-    "last_updated": "2025-03-01T13:00:00Z"
+    "max_voltage": 400,
+    "max_amperage": 63,
+    "max_electric_power": 43000,
+    "last_updated": "2025-02-15T09:00:00Z"
   }' > /dev/null
 
-separator "12. GET /LOC-TEST-015/EVSE-001 — Assert status changed, other fields unchanged"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015/EVSE-001" "${OCPI_HEADERS[@]}")
+separator "8. GET /LOC-PATCH-001/EVSE-A/1 — Assert power fields patched, tariff unchanged"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/1" "${OCPI_HEADERS[@]}")
 echo "  -- patched --"
-assert_field   "$body" "data.status"            "CHARGING"
+assert_field   "$body" "data.max_voltage"           "400"
+assert_field   "$body" "data.max_amperage"          "63"
+assert_field   "$body" "data.max_electric_power"    "43000"
 echo "  -- unchanged --"
-assert_field   "$body" "data.floor_level"       "-1"
-assert_field   "$body" "data.physical_reference" "A1"
-assert_contains "$body" "data.capabilities"     "RFID_READER"
-assert_length  "$body" "data.connectors"        "2"
+assert_field   "$body" "data.standard"              "IEC_62196_T2"
+assert_field   "$body" "data.format"                "CABLE"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-NEW-X"
+assert_field   "$body" "data.terms_and_conditions"  "https://example.com/new-terms"
 
-separator "13. PATCH /LOC-TEST-015/EVSE-002 — Mark as REMOVED"
+separator "9. PATCH /LOC-PATCH-001/EVSE-A/1 — Update terms_and_conditions only"
 do_curl 200 \
-  -X PATCH "$BASE_URL/LOC-TEST-015/EVSE-002" \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A/1" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
-    "status": "REMOVED",
-    "last_updated": "2025-03-01T14:00:00Z"
+    "terms_and_conditions": "https://example.com/terms-v2",
+    "last_updated": "2025-02-15T10:00:00Z"
   }' > /dev/null
 
-separator "14. GET /LOC-TEST-015/EVSE-002 — Assert EVSE-002 is REMOVED"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015/EVSE-002" "${OCPI_HEADERS[@]}")
-assert_field "$body" "data.status" "REMOVED"
-
-# ===========================================================================
-# PHASE 7 — PATCH Connector tariff_ids, GET and assert
-# ===========================================================================
-
-separator "15. PATCH /LOC-TEST-015/EVSE-001/1 — Update tariff_ids"
-do_curl 200 \
-  -X PATCH "$BASE_URL/LOC-TEST-015/EVSE-001/1" \
-  "${OCPI_HEADERS[@]}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tariff_ids": ["TARIFF-NEW-001"],
-    "last_updated": "2025-03-01T15:00:00Z"
-  }' > /dev/null
-
-separator "16. GET /LOC-TEST-015/EVSE-001/1 — Assert tariff updated, other fields unchanged"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015/EVSE-001/1" "${OCPI_HEADERS[@]}")
+separator "10. GET /LOC-PATCH-001/EVSE-A/1 — Assert terms patched, power unchanged"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/1" "${OCPI_HEADERS[@]}")
 echo "  -- patched --"
-assert_contains "$body" "data.tariff_ids"       "TARIFF-NEW-001"
+assert_field   "$body" "data.terms_and_conditions"  "https://example.com/terms-v2"
 echo "  -- unchanged --"
-assert_field   "$body" "data.standard"          "IEC_62196_T2"
-assert_field   "$body" "data.max_voltage"       "230"
-assert_field   "$body" "data.max_amperage"      "32"
+assert_field   "$body" "data.max_voltage"           "400"
+assert_field   "$body" "data.max_amperage"          "63"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-NEW-X"
 
 # ===========================================================================
-# PHASE 8 — Error cases
+# PHASE 4 — PATCH idempotency: patch same value twice, result must be same
 # ===========================================================================
 
-separator "17. PATCH /LOC-TEST-015 — Missing last_updated (expect OCPI error)"
+separator "11. PATCH /LOC-PATCH-001/EVSE-A/2 — Set tariff_ids (first time)"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A/2" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tariff_ids": ["TARIFF-IDEMPOTENT"],
+    "last_updated": "2025-03-01T10:00:00Z"
+  }' > /dev/null
+
+separator "12. PATCH /LOC-PATCH-001/EVSE-A/2 — Set same tariff_ids again (idempotent)"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A/2" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tariff_ids": ["TARIFF-IDEMPOTENT"],
+    "last_updated": "2025-03-01T11:00:00Z"
+  }' > /dev/null
+
+separator "13. GET /LOC-PATCH-001/EVSE-A/2 — Assert idempotent result"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/2" "${OCPI_HEADERS[@]}")
+assert_length  "$body" "data.tariff_ids"            "1"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-IDEMPOTENT"
+
+# ===========================================================================
+# PHASE 5 — PATCH cascade: connector patch must update EVSE + Location last_updated
+# Per OCPI 2.2.1 spec section 8.2.2.3
+# ===========================================================================
+
+separator "14. Capture last_updated of EVSE-A and LOC-PATCH-001 before connector patch"
+loc_body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001" "${OCPI_HEADERS[@]}")
+evse_body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A" "${OCPI_HEADERS[@]}")
+loc_ts_before=$(get_field "$loc_body" "data.last_updated")
+evse_ts_before=$(get_field "$evse_body" "data.last_updated")
+echo -e "  ${DIM}Location last_updated before: $loc_ts_before${RESET}"
+echo -e "  ${DIM}EVSE-A last_updated before:   $evse_ts_before${RESET}"
+
+separator "15. PATCH /LOC-PATCH-001/EVSE-A/1 — Trigger cascade timestamp update"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A/1" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tariff_ids": ["TARIFF-CASCADE"],
+    "last_updated": "2025-06-01T12:00:00Z"
+  }' > /dev/null
+
+separator "16. GET EVSE-A and LOC-PATCH-001 — Assert cascade last_updated"
+loc_body_after=$(do_curl 200 "$BASE_URL/LOC-PATCH-001" "${OCPI_HEADERS[@]}")
+evse_body_after=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A" "${OCPI_HEADERS[@]}")
+loc_ts_after=$(get_field "$loc_body_after" "data.last_updated")
+evse_ts_after=$(get_field "$evse_body_after" "data.last_updated")
+assert_different "Location last_updated (connector patch cascade)" "$loc_ts_before" "$loc_ts_after"
+assert_different "EVSE-A last_updated (connector patch cascade)"   "$evse_ts_before" "$evse_ts_after"
+
+# ===========================================================================
+# PHASE 6 — PATCH cascade: EVSE patch must update Location last_updated
+# ===========================================================================
+
+separator "17. Capture Location last_updated before EVSE patch"
+loc_body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001" "${OCPI_HEADERS[@]}")
+loc_ts_before=$(get_field "$loc_body" "data.last_updated")
+echo -e "  ${DIM}Location last_updated before: $loc_ts_before${RESET}"
+
+separator "18. PATCH /LOC-PATCH-001/EVSE-A — Trigger EVSE→Location cascade"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "OUT_OF_ORDER",
+    "last_updated": "2025-07-01T09:00:00Z"
+  }' > /dev/null
+
+separator "19. GET LOC-PATCH-001 — Assert Location last_updated cascaded from EVSE patch"
+loc_body_after=$(do_curl 200 "$BASE_URL/LOC-PATCH-001" "${OCPI_HEADERS[@]}")
+loc_ts_after=$(get_field "$loc_body_after" "data.last_updated")
+assert_different "Location last_updated (EVSE patch cascade)" "$loc_ts_before" "$loc_ts_after"
+echo "  -- EVSE status unchanged check --"
+evse_body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A" "${OCPI_HEADERS[@]}")
+assert_field "$evse_body" "data.status" "OUT_OF_ORDER"
+
+# ===========================================================================
+# PHASE 7 — PATCH EVSE: partial field updates
+# ===========================================================================
+
+separator "20. PATCH /LOC-PATCH-001/EVSE-A — Update capabilities only"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "capabilities": ["CHARGING_PROFILE_CAPABLE", "CREDIT_CARD_PAYABLE"],
+    "last_updated": "2025-07-02T10:00:00Z"
+  }' > /dev/null
+
+separator "21. GET /LOC-PATCH-001/EVSE-A — Assert capabilities patched, status unchanged"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A" "${OCPI_HEADERS[@]}")
+echo "  -- patched --"
+assert_contains "$body" "data.capabilities"        "CHARGING_PROFILE_CAPABLE"
+assert_contains "$body" "data.capabilities"        "CREDIT_CARD_PAYABLE"
+assert_not_contains "$body" "data.capabilities"    "RFID_READER"
+echo "  -- unchanged --"
+assert_field   "$body" "data.status"               "OUT_OF_ORDER"
+assert_field   "$body" "data.floor_level"          "-1"
+assert_field   "$body" "data.physical_reference"   "P1"
+assert_length  "$body" "data.connectors"           "2"
+
+separator "22. PATCH /LOC-PATCH-001/EVSE-A — Update parking_restrictions only"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parking_restrictions": ["EV_ONLY", "CUSTOMERS"],
+    "last_updated": "2025-07-02T11:00:00Z"
+  }' > /dev/null
+
+separator "23. GET /LOC-PATCH-001/EVSE-A — Assert parking_restrictions patched"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A" "${OCPI_HEADERS[@]}")
+echo "  -- patched --"
+assert_contains "$body" "data.parking_restrictions" "EV_ONLY"
+assert_contains "$body" "data.parking_restrictions" "CUSTOMERS"
+echo "  -- unchanged --"
+assert_contains "$body" "data.capabilities"         "CHARGING_PROFILE_CAPABLE"
+assert_field   "$body" "data.status"                "OUT_OF_ORDER"
+
+# ===========================================================================
+# PHASE 8 — PATCH Location: partial field updates
+# ===========================================================================
+
+separator "24. PATCH /LOC-PATCH-001 — Update operator only"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operator": { "name": "NewOperator", "website": "https://newoperator.example.com" },
+    "last_updated": "2025-08-01T08:00:00Z"
+  }' > /dev/null
+
+separator "25. GET /LOC-PATCH-001 — Assert operator patched, address unchanged"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001" "${OCPI_HEADERS[@]}")
+echo "  -- patched --"
+assert_field   "$body" "data.operator.name"         "NewOperator"
+echo "  -- unchanged --"
+assert_field   "$body" "data.name"                  "Connector Test Location"
+assert_field   "$body" "data.address"               "42 Avenue des Tests"
+assert_field   "$body" "data.city"                  "Lyon"
+assert_field   "$body" "data.parking_type"          "PARKING_GARAGE"
+
+separator "26. PATCH /LOC-PATCH-001 — Update publish to false"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "publish": false,
+    "last_updated": "2025-08-01T09:00:00Z"
+  }' > /dev/null
+
+separator "27. GET /LOC-PATCH-001 — Assert publish changed to false"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001" "${OCPI_HEADERS[@]}")
+assert_field   "$body" "data.publish"               "false"
+assert_field   "$body" "data.operator.name"         "NewOperator"
+
+separator "28. PATCH /LOC-PATCH-001 — Restore publish to true"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "publish": true,
+    "last_updated": "2025-08-01T10:00:00Z"
+  }' > /dev/null
+
+separator "29. GET /LOC-PATCH-001 — Assert publish restored to true"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001" "${OCPI_HEADERS[@]}")
+assert_field   "$body" "data.publish"               "true"
+
+# ===========================================================================
+# PHASE 9 — Add a third connector via PUT, then PATCH it
+# ===========================================================================
+
+separator "30. PUT /LOC-PATCH-001/EVSE-A/3 — Add third connector"
+do_curl 200 \
+  -X PUT "$BASE_URL/LOC-PATCH-001/EVSE-A/3" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "3",
+    "standard": "CHADEMO",
+    "format": "CABLE",
+    "power_type": "DC",
+    "max_voltage": 500,
+    "max_amperage": 100,
+    "max_electric_power": 50000,
+    "tariff_ids": ["TARIFF-C1"],
+    "last_updated": "2025-09-01T08:00:00Z"
+  }' > /dev/null
+
+separator "31. GET /LOC-PATCH-001/EVSE-A/3 — Assert connector 3 created"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/3" "${OCPI_HEADERS[@]}")
+assert_field   "$body" "data.id"                    "3"
+assert_field   "$body" "data.standard"              "CHADEMO"
+assert_field   "$body" "data.format"                "CABLE"
+assert_field   "$body" "data.max_voltage"           "500"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-C1"
+
+separator "32. GET /LOC-PATCH-001/EVSE-A — Assert EVSE now has 3 connectors"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A" "${OCPI_HEADERS[@]}")
+assert_length  "$body" "data.connectors"            "3"
+
+separator "33. PATCH /LOC-PATCH-001/EVSE-A/3 — Update connector 3 amperage"
+do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A/3" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "max_amperage": 200,
+    "max_electric_power": 100000,
+    "last_updated": "2025-09-01T09:00:00Z"
+  }' > /dev/null
+
+separator "34. GET /LOC-PATCH-001/EVSE-A/3 — Assert amperage patched, standard unchanged"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/3" "${OCPI_HEADERS[@]}")
+echo "  -- patched --"
+assert_field   "$body" "data.max_amperage"          "200"
+assert_field   "$body" "data.max_electric_power"    "100000"
+echo "  -- unchanged --"
+assert_field   "$body" "data.standard"              "CHADEMO"
+assert_field   "$body" "data.format"                "CABLE"
+assert_field   "$body" "data.max_voltage"           "500"
+assert_contains "$body" "data.tariff_ids"           "TARIFF-C1"
+
+# ===========================================================================
+# PHASE 10 — Error cases
+# ===========================================================================
+
+separator "35. PATCH /LOC-PATCH-001/EVSE-A/1 — Missing last_updated (expect error)"
 body=$(do_curl 200 \
-  -X PATCH "$BASE_URL/LOC-TEST-015" \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A/1" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
-  -d '{ "name": "Should fail - no last_updated" }')
-assert_ocpi_error "$body" "PATCH without last_updated"
+  -d '{ "tariff_ids": ["SHOULD-FAIL"] }')
+assert_ocpi_error "$body" "PATCH connector without last_updated"
 
-separator "18. GET /LOC-NONEXISTENT — Unknown location (expect OCPI 2003)"
-body=$(do_curl 200 "$BASE_URL/LOC-NONEXISTENT" "${OCPI_HEADERS[@]}")
-assert_ocpi_error "$body" "GET unknown location"
+separator "36. PATCH /LOC-PATCH-001/EVSE-A — Missing last_updated (expect error)"
+body=$(do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-A" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "AVAILABLE" }')
+assert_ocpi_error "$body" "PATCH EVSE without last_updated"
 
-separator "19. GET /LOC-TEST-015/EVSE-999 — Unknown EVSE (expect OCPI error)"
-body=$(do_curl 200 "$BASE_URL/LOC-TEST-015/EVSE-999" "${OCPI_HEADERS[@]}")
-assert_ocpi_error "$body" "GET unknown EVSE"
+separator "37. PATCH /LOC-PATCH-001 — Missing last_updated (expect error)"
+body=$(do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "No timestamp" }')
+assert_ocpi_error "$body" "PATCH location without last_updated"
+
+separator "38. GET /LOC-PATCH-001/EVSE-A/99 — Non-existent connector (expect error)"
+body=$(do_curl 200 "$BASE_URL/LOC-PATCH-001/EVSE-A/99" "${OCPI_HEADERS[@]}")
+assert_ocpi_error "$body" "GET unknown connector"
+
+separator "39. PATCH /LOC-PATCH-001/EVSE-Z/1 — Non-existent EVSE (expect error)"
+body=$(do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-PATCH-001/EVSE-Z/1" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tariff_ids": ["SHOULD-FAIL"],
+    "last_updated": "2025-09-01T10:00:00Z"
+  }')
+assert_ocpi_error "$body" "PATCH connector on non-existent EVSE"
+
+separator "40. PATCH /LOC-DOES-NOT-EXIST/EVSE-A/1 — Non-existent location (expect error)"
+body=$(do_curl 200 \
+  -X PATCH "$BASE_URL/LOC-DOES-NOT-EXIST/EVSE-A/1" \
+  "${OCPI_HEADERS[@]}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tariff_ids": ["SHOULD-FAIL"],
+    "last_updated": "2025-09-01T10:00:00Z"
+  }')
+assert_ocpi_error "$body" "PATCH connector on non-existent location"
 
 # ===========================================================================
 # Summary

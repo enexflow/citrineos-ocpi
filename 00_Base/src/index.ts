@@ -410,15 +410,15 @@ export class OcpiServer extends KoaServer {
         if (['POST', 'PUT', 'PATCH'].includes(ctx.method)) {
           let rawBody = '';
           ctx.req.setEncoding('utf8');
-      
+
           await new Promise<void>((resolve, reject) => {
             ctx.req.on('data', (chunk) => (rawBody += chunk));
             ctx.req.on('end', () => resolve());
             ctx.req.on('error', reject);
           });
-      
+
           console.log('[Request]', ctx.method, ctx.path, rawBody || '(empty)');
-      
+
           // expose parsed body for downstream if needed
           try {
             (ctx.request as any).body = rawBody ? JSON.parse(rawBody) : {};
@@ -426,7 +426,7 @@ export class OcpiServer extends KoaServer {
             (ctx.request as any).body = rawBody;
           }
         }
-      
+
         await next();
       });
       const controllers = this._modules.map((module) =>
