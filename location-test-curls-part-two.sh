@@ -22,9 +22,13 @@
 #   chmod +x locations-connector-patch-test-curls.sh
 #   ./locations-connector-patch-test-curls.sh
 
-BASE_URL="http://10.80.80.95:8085/ocpi/2.2.1/locations/receiver/FR/TMS"
+OCPI_BASE="${OCPI_BASE:-http://127.0.0.1:8085/ocpi}"
+OCPI_VERSION="${OCPI_VERSION:-2.2.1}"
+SENDER_PREFIX="$OCPI_BASE/cpo/$OCPI_VERSION"
+RECEIVER_PREFIX="$OCPI_BASE/emsp/$OCPI_VERSION"
+BASE_URL="$RECEIVER_PREFIX/locations/FR/TMS"
 
-AUTH_TOKEN="Token MGE0YTFjZjktMDlkNC00ZTViLTgzYzItYWMxNTlhZWEzODhk"
+AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
 
 OCPI_HEADERS=(
   -H "Authorization: $AUTH_TOKEN"
@@ -306,7 +310,7 @@ assert_ocpi_success() {
 # ===========================================================================
 # PHASE 0 — Seed tariffs required by connector/patch tests
 # ===========================================================================
-TARIFF_BASE_URL="http://10.80.80.95:8085/ocpi/2.2.1/tariffs/FR/TMS"
+TARIFF_BASE_URL="$RECEIVER_PREFIX/tariffs/FR/TMS"
 
 seed_tariff() {
   local tariff_id="$1"

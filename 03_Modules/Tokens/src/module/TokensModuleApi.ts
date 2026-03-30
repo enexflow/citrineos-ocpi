@@ -110,7 +110,7 @@ const _MockPutTokenBody = {
   },
 };
 
-@JsonController(`/:${versionIdParam}/${ModuleId.Tokens}`)
+@JsonController(`/:role(cpo|emsp)/:${versionIdParam}/${ModuleId.Tokens}`)
 @Service()
 export class TokensModuleApi
   extends BaseController

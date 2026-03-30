@@ -54,6 +54,10 @@ export const EvseResponseSchemaName = 'EvseResponseSchema';
 export const EvseListResponseSchema = OcpiResponseSchema(EvseDTOSchema);
 export const EvseDTOSchemaName = 'EvseDTOSchema';
 
+/** Partial EVSE for OCPI Receiver PATCH. */
+export const EvsePatchSchema = EvseDTOSchema.partial();
+export const EvsePatchSchemaName = 'EvsePatchSchema';
+
 export type EvseDTO = z.infer<typeof EvseDTOSchema>;
 export type EvseResponse = z.infer<typeof EvseResponseSchema>;
 export type EvseListResponse = z.infer<typeof EvseListResponseSchema>;

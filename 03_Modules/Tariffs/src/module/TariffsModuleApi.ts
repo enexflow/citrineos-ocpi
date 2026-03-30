@@ -53,7 +53,7 @@ const MOCK_PAGINATED_TARIFF = await generateMockForSchema(
 );
 
 @Service()
-@JsonController(`/:${versionIdParam}/${ModuleId.Tariffs}`)
+@JsonController(`/:role(cpo|emsp)/:${versionIdParam}/${ModuleId.Tariffs}`)
 export class TariffsModuleApi
   extends BaseController
   implements ITariffsModuleApi

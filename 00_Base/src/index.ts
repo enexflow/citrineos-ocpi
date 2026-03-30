@@ -219,6 +219,8 @@ export type {
 export {
   LocationDTOSchema,
   LocationDTOSchemaName,
+  LocationPatchSchema,
+  LocationPatchSchemaName,
   LocationResponseSchema,
   LocationResponseSchemaName,
   PaginatedLocationResponseSchema,
@@ -233,6 +235,8 @@ export {
   EvseResponseSchemaName,
   EvseDTOSchema,
   EvseDTOSchemaName,
+  EvsePatchSchema,
+  EvsePatchSchemaName,
 } from './model/DTO/EvseDTO.js';
 export type {
   ConnectorDTO,
@@ -240,6 +244,10 @@ export type {
 } from './model/DTO/ConnectorDTO.js';
 export {
   TEMPORARY_CONNECTOR_ID,
+  ConnectorDTOSchema,
+  ConnectorDTOSchemaName,
+  ConnectorPatchSchema,
+  ConnectorPatchSchemaName,
   ConnectorResponseSchema,
   ConnectorResponseSchemaName,
 } from './model/DTO/ConnectorDTO.js';

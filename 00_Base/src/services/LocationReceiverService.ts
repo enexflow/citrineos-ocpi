@@ -79,6 +79,65 @@ import {
 import type { TenantPartnerDto } from '@citrineos/base';
 
 import type { LocationDTO, LocationEvseDTO } from '../model/DTO/LocationDTO.js';
+import type { EvseResponse } from '../model/DTO/EvseDTO.js';
+import type { ConnectorResponse } from '../model/DTO/ConnectorDTO.js';
+
+function ocpiCiEquals(a: string, b: string): boolean {
+  return a.trim().toUpperCase() === b.trim().toUpperCase();
+}
+
+/** OCPI: URL segments must match the authenticated CPO partner when present. */
+function validateUrlMatchesTenantPartner(
+  countryCode: string,
+  partyId: string,
+  tenantPartner: TenantPartnerDto,
+): LocationResponse | undefined {
+  const cc = tenantPartner.countryCode;
+  const pid = tenantPartner.partyId;
+  if (cc == null || pid == null) return undefined;
+  if (!ocpiCiEquals(cc, countryCode) || !ocpiCiEquals(pid, partyId)) {
+    return buildOcpiErrorResponse(
+      OcpiResponseStatusCode.ClientInvalidOrMissingParameters,
+      'country_code and party_id in URL must match the authenticated partner',
+    ) as LocationResponse;
+  }
+  return undefined;
+}
+
+function validateLocationBodyMatchesUrl(
+  countryCode: string,
+  partyId: string,
+  location: LocationDTO,
+): LocationResponse | undefined {
+  if (
+    !ocpiCiEquals(location.country_code, countryCode) ||
+    !ocpiCiEquals(location.party_id, partyId)
+  ) {
+    return buildOcpiErrorResponse(
+      OcpiResponseStatusCode.ClientInvalidOrMissingParameters,
+      'country_code and party_id in URL must match the Location object',
+    ) as LocationResponse;
+  }
+  return undefined;
+}
+
+function validateLocationTenantMatchesUrl(
+  tenant: { countryCode?: string | null; partyId?: string | null } | undefined,
+  countryCode: string,
+  partyId: string,
+): LocationResponse | undefined {
+  if (!tenant?.countryCode || !tenant?.partyId) return undefined;
+  if (
+    !ocpiCiEquals(tenant.countryCode, countryCode) ||
+    !ocpiCiEquals(tenant.partyId, partyId)
+  ) {
+    return buildOcpiErrorResponse(
+      OcpiResponseStatusCode.ClientInvalidOrMissingParameters,
+      'country_code and party_id in URL must match the Location tenant',
+    ) as LocationResponse;
+  }
+  return undefined;
+}
 
 @Service()
 export class LocationReceiverService {
@@ -102,6 +161,12 @@ export class LocationReceiverService {
           'Credentials not found for given token',
         );
       }
+      const partnerErr = validateUrlMatchesTenantPartner(
+        countryCode,
+        partyId,
+        tenantPartner,
+      );
+      if (partnerErr) return partnerErr;
       const variables = {
         id: locationId,
         partnerId: tenantPartner.id,
@@ -136,7 +201,7 @@ export class LocationReceiverService {
     locationId: string,
     evseUid: string,
     tenantPartner: TenantPartnerDto,
-  ): Promise<LocationResponse> {
+  ): Promise<EvseResponse> {
     this.logger.debug(
       `Getting location ${locationId} by country ${countryCode} and party ${partyId}`,
     );
@@ -146,6 +211,12 @@ export class LocationReceiverService {
           'Credentials not found for given token',
         );
       }
+      const partnerErr = validateUrlMatchesTenantPartner(
+        countryCode,
+        partyId,
+        tenantPartner,
+      );
+      if (partnerErr) return partnerErr as EvseResponse;
       const variables = {
         locationId: locationId,
         partnerId: tenantPartner.id,
@@ -159,7 +230,7 @@ export class LocationReceiverService {
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
         evse,
-      ) as LocationResponse;
+      ) as EvseResponse;
     } catch (e) {
       const statusCode =
         e instanceof NotFoundException
@@ -168,7 +239,7 @@ export class LocationReceiverService {
       return buildOcpiErrorResponse(
         statusCode,
         (e as Error).message,
-      ) as LocationResponse;
+      ) as EvseResponse;
     }
   }
 
@@ -179,7 +250,7 @@ export class LocationReceiverService {
     evseUid: string,
     connectorId: string,
     tenantPartner: TenantPartnerDto,
-  ): Promise<LocationResponse> {
+  ): Promise<ConnectorResponse> {
     this.logger.debug(
       `Getting location ${locationId} by country ${countryCode} and party ${partyId}`,
     );
@@ -189,6 +260,12 @@ export class LocationReceiverService {
           'Credentials not found for given token',
         );
       }
+      const partnerErr = validateUrlMatchesTenantPartner(
+        countryCode,
+        partyId,
+        tenantPartner,
+      );
+      if (partnerErr) return partnerErr as ConnectorResponse;
       const variables = {
         locationId: locationId,
         partnerId: tenantPartner.id,
@@ -205,7 +282,7 @@ export class LocationReceiverService {
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
         connector,
-      ) as LocationResponse;
+      ) as ConnectorResponse;
     } catch (e) {
       const statusCode =
         e instanceof NotFoundException
@@ -214,7 +291,7 @@ export class LocationReceiverService {
       return buildOcpiErrorResponse(
         statusCode,
         (e as Error).message,
-      ) as LocationResponse;
+      ) as ConnectorResponse;
     }
   }
 
@@ -253,6 +330,7 @@ export class LocationReceiverService {
         chargingWhenClosed: location.charging_when_closed ?? null,
         relatedLocations: location.related_locations ?? null,
         publishUpstream: location.publish ?? false,
+        publishAllowedTo: location.publish_allowed_to ?? null,
         energyMix: location.energy_mix ?? null,
         openingHours: location.opening_times ?? null,
         facilities: location.facilities ?? null,
@@ -311,20 +389,31 @@ export class LocationReceiverService {
   }
 
   async putLocationByCountryPartyAndId(
+    countryCode: string,
+    partyId: string,
     location: LocationDTO,
     locationId: string,
     tenantPartner: TenantPartnerDto,
-  ): Promise<LocationResponse> {
+  ): Promise<LocationResponse | undefined> {
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
+    const partnerErr = validateUrlMatchesTenantPartner(
+      countryCode,
+      partyId,
+      tenantPartner,
+    );
+    if (partnerErr) return partnerErr;
+    const bodyErr = validateLocationBodyMatchesUrl(
+      countryCode,
+      partyId,
+      location,
+    );
+    if (bodyErr) return bodyErr;
 
     await this.upsertLocationForPartner(location, locationId, tenantPartner);
 
-    return buildOcpiResponse(
-      OcpiResponseStatusCode.GenericSuccessCode,
-      location,
-    ) as LocationResponse;
+    return undefined;
   }
 
   async createVirtualChargingStationForPartnerAndLocation(
@@ -525,13 +614,19 @@ export class LocationReceiverService {
     evseUid: string,
     evse: LocationEvseDTO,
     tenantPartner: TenantPartnerDto,
-  ): Promise<LocationResponse> {
+  ): Promise<LocationResponse | undefined> {
     this.logger.info(
       `Receiver PUT evse ${countryCode}/${partyId}/${locationId}/${evseUid} body=${JSON.stringify(evse)}`,
     );
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
+    const partnerErr = validateUrlMatchesTenantPartner(
+      countryCode,
+      partyId,
+      tenantPartner,
+    );
+    if (partnerErr) return partnerErr;
 
     const variables = { id: locationId, partnerId: tenantPartner.id };
     const response = await this.ocpiGraphqlClient.request<
@@ -546,6 +641,14 @@ export class LocationReceiverService {
       ) as LocationResponse;
     }
 
+    const locRow = response.Locations[0];
+    const tenantErr = validateLocationTenantMatchesUrl(
+      locRow.tenant,
+      countryCode,
+      partyId,
+    );
+    if (tenantErr) return tenantErr;
+
     const evseVariables = {
       partnerId: tenantPartner.id,
       locationId: locationId,
@@ -557,15 +660,28 @@ export class LocationReceiverService {
     >(GET_EVSE_BY_LOCATION_ID_AND_OWNER_PARTNER_ID, evseVariables);
     const location_id = evseResponse.Locations[0].id;
 
-    // if there is no charging station we create a virtual one (there should always be one as they are created when the location is created)
+    const internalLocationIdStr = String(evseResponse.Locations[0].id);
+
     if (evseResponse.Locations[0].chargingPool.length === 0) {
-      await this.createVirtualChargingStationForPartnerAndLocation(
-        locationId,
+      const created =
+        await this.createVirtualChargingStationForPartnerAndLocation(
+          internalLocationIdStr,
+          tenantPartner,
+        );
+      const stationId = created?.insert_ChargingStations_one?.id;
+      if (!stationId) {
+        return buildOcpiErrorResponse(
+          OcpiResponseStatusCode.ServerGenericError,
+          'Failed to create charging station for location',
+        ) as LocationResponse;
+      }
+      await this.upsertEvseForPartner(
         tenantPartner,
+        evseUid,
+        evse,
+        String(stationId),
       );
-    }
-    // if there is a charging station we insert the evse into the charging station (the first one as there should always be only one)
-    else {
+    } else {
       await this.upsertEvseForPartner(
         tenantPartner,
         evseUid,
@@ -574,7 +690,6 @@ export class LocationReceiverService {
       );
     }
 
-    // cascade timestamps to parents : location
     await this.ocpiGraphqlClient.request<
       UpdateLocationPatchMutationResult,
       UpdateLocationPatchMutationVariables
@@ -583,10 +698,7 @@ export class LocationReceiverService {
       changes: { updatedAt: evse.last_updated },
     });
 
-    return buildOcpiResponse(
-      OcpiResponseStatusCode.GenericSuccessCode,
-      evse,
-    ) as LocationResponse;
+    return undefined;
   }
 
   async putConnectorByCountryPartyAndId(
@@ -597,7 +709,7 @@ export class LocationReceiverService {
     connectorId: string,
     connector: ConnectorDTO,
     tenantPartner: TenantPartnerDto,
-  ): Promise<LocationResponse> {
+  ): Promise<LocationResponse | undefined> {
     this.logger.info(
       `Receiver PUT connector ${countryCode}/${partyId}/${locationId}/${evseUid}/${connectorId} body=${JSON.stringify(connector)}`,
     );
@@ -605,6 +717,12 @@ export class LocationReceiverService {
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
+    const partnerErr = validateUrlMatchesTenantPartner(
+      countryCode,
+      partyId,
+      tenantPartner,
+    );
+    if (partnerErr) return partnerErr;
 
     const variables = {
       locationId: locationId,
@@ -662,10 +780,7 @@ export class LocationReceiverService {
       changes: { updatedAt: ts },
     });
 
-    return buildOcpiResponse(
-      OcpiResponseStatusCode.GenericSuccessCode,
-      connector,
-    ) as LocationResponse;
+    return undefined;
   }
 
   mapLocationPatch(input: Partial<LocationDTO>): any {
@@ -719,7 +834,7 @@ export class LocationReceiverService {
     locationId: string,
     location: Partial<LocationDTO>,
     tenantPartner: TenantPartnerDto,
-  ): Promise<LocationResponse> {
+  ): Promise<LocationResponse | undefined> {
     this.logger.info(
       `Receiver PATCH location ${countryCode}/${partyId}/${locationId} body=${JSON.stringify(location)}`,
     );
@@ -727,6 +842,12 @@ export class LocationReceiverService {
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
+    const partnerErr = validateUrlMatchesTenantPartner(
+      countryCode,
+      partyId,
+      tenantPartner,
+    );
+    if (partnerErr) return partnerErr;
 
     if (!location.last_updated) {
       return buildOcpiErrorResponse(
@@ -758,10 +879,7 @@ export class LocationReceiverService {
       },
     );
 
-    return buildOcpiResponse(
-      OcpiResponseStatusCode.GenericSuccessCode,
-      location,
-    ) as LocationResponse;
+    return undefined;
   }
 
   mapEvsePatch(input: Partial<LocationEvseDTO>) {
@@ -810,13 +928,19 @@ export class LocationReceiverService {
     evseUid: string,
     evse: Partial<LocationEvseDTO>,
     tenantPartner: TenantPartnerDto,
-  ): Promise<LocationResponse> {
+  ): Promise<LocationResponse | undefined> {
     this.logger.info(
       `Receiver PATCH evse ${countryCode}/${partyId}/${locationId}/${evseUid} body=${JSON.stringify(evse)}`,
     );
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
+    const partnerErr = validateUrlMatchesTenantPartner(
+      countryCode,
+      partyId,
+      tenantPartner,
+    );
+    if (partnerErr) return partnerErr;
 
     if (!evse.last_updated) {
       return buildOcpiErrorResponse(
@@ -870,10 +994,7 @@ export class LocationReceiverService {
       changes: { updatedAt: new Date(evse.last_updated as any) },
     });
 
-    return buildOcpiResponse(
-      OcpiResponseStatusCode.GenericSuccessCode,
-      evse,
-    ) as LocationResponse;
+    return undefined;
   }
 
   mapConnectorPatch(input: Partial<ConnectorDTO>) {
@@ -911,7 +1032,7 @@ export class LocationReceiverService {
     connectorId: string,
     connector: Partial<ConnectorDTO>,
     tenantPartner: TenantPartnerDto,
-  ): Promise<LocationResponse> {
+  ): Promise<LocationResponse | undefined> {
     this.logger.info(
       `Receiver PATCH connector ${countryCode}/${partyId}/${locationId}/${evseUid}/${connectorId} body=${JSON.stringify(connector)}`,
     );
@@ -919,6 +1040,12 @@ export class LocationReceiverService {
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
+    const partnerErr = validateUrlMatchesTenantPartner(
+      countryCode,
+      partyId,
+      tenantPartner,
+    );
+    if (partnerErr) return partnerErr;
 
     if (!connector.last_updated) {
       return buildOcpiErrorResponse(
@@ -1000,9 +1127,6 @@ export class LocationReceiverService {
       id: dbLocationId,
       changes: { updatedAt: ts },
     });
-    return buildOcpiResponse(
-      OcpiResponseStatusCode.GenericSuccessCode,
-      connector,
-    ) as LocationResponse;
+    return undefined;
   }
 }

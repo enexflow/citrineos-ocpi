@@ -8,30 +8,49 @@ Implementation of the [OCPI 2.2.1 Locations module](https://github.com/ocpi/ocpi
 
 **Data owner:** CPO (for Sender), partner CPO records (for Receiver)
 
+Full HTTP paths are prefixed with a role namespace and version, e.g. `/{role}/{version}/locations` where:
+
+- Sender (CPO): `/ocpi/cpo/2.2.1/...`
+- Receiver (eMSP): `/ocpi/emsp/2.2.1/...`
+
+## Receiver URL shape (OCPI)
+
+The Receiver interface follows OCPI:
+
+`/{country_code}/{party_id}/{location_id}[/{evse_uid}][/{connector_id}]`
+
+under the locations module base path (e.g. `/ocpi/emsp/2.2.1/locations/...`).
+
+### Routing note
+
+`country_code` is matched as exactly two letters (`[A-Za-z]{2}`) and `party_id` as three alphanumeric characters (`[A-Za-z0-9]{3}`). That avoids clashes with **Sender** routes that also use three path segments (`:location_id/:evse_uid/:connector_id`). Requests such as `/{numeric}/…` are handled by the Sender; requests like `/FR/HYX/LOC1` match the Receiver.
+
 ## Endpoints
 
 ### Sender Interface
 
-| Method | Path                                              | Description                     |
-| ------ | ------------------------------------------------- | ------------------------------- |
-| GET    | `/locations`                                      | Paginated list of locations     |
-| GET    | `/locations/:location_id`                         | Fetch one location              |
-| GET    | `/locations/:location_id/:evse_uid`               | Fetch one EVSE for a location   |
-| GET    | `/locations/:location_id/:evse_uid/:connector_id` | Fetch one connector for an EVSE |
+| Method | Path                                                        | Description                     |
+| ------ | ----------------------------------------------------------- | ------------------------------- |
+| GET    | `/cpo/2.2.1/locations`                                      | Paginated list of locations     |
+| GET    | `/cpo/2.2.1/locations/:location_id`                         | Fetch one location              |
+| GET    | `/cpo/2.2.1/locations/:location_id/:evse_uid`               | Fetch one EVSE for a location   |
+| GET    | `/cpo/2.2.1/locations/:location_id/:evse_uid/:connector_id` | Fetch one connector for an EVSE |
 
 ### Receiver Interface
 
-| Method | Path                                                                               | Description                               |
-| ------ | ---------------------------------------------------------------------------------- | ----------------------------------------- |
-| GET    | `/locations/receiver/:country_code/:party_id/:location_id`                         | Retrieve stored partner location          |
-| GET    | `/locations/receiver/:country_code/:party_id/:location_id/:evse_uid`               | Retrieve stored partner EVSE              |
-| GET    | `/locations/receiver/:country_code/:party_id/:location_id/:evse_uid/:connector_id` | Retrieve stored partner connector         |
-| PUT    | `/locations/receiver/:country_code/:party_id/:location_id`                         | Upsert full location from partner CPO     |
-| PUT    | `/locations/receiver/:country_code/:party_id/:location_id/:evse_uid`               | Upsert EVSE from partner CPO              |
-| PUT    | `/locations/receiver/:country_code/:party_id/:location_id/:evse_uid/:connector_id` | Upsert connector from partner CPO         |
-| PATCH  | `/locations/receiver/:country_code/:party_id/:location_id`                         | Partial location update from partner CPO  |
-| PATCH  | `/locations/receiver/:country_code/:party_id/:location_id/:evse_uid`               | Partial EVSE update from partner CPO      |
-| PATCH  | `/locations/receiver/:country_code/:party_id/:location_id/:evse_uid/:connector_id` | Partial connector update from partner CPO |
+| Method | Path                                                                                 | Description                               |
+| ------ | ------------------------------------------------------------------------------------ | ----------------------------------------- |
+| GET    | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id`                         | Retrieve stored partner location          |
+| GET    | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id/:evse_uid`               | Retrieve stored partner EVSE              |
+| GET    | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id` | Retrieve stored partner connector         |
+| PUT    | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id`                         | Upsert full location from partner CPO     |
+| PUT    | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id/:evse_uid`               | Upsert EVSE from partner CPO              |
+| PUT    | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id` | Upsert connector from partner CPO         |
+| PATCH  | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id`                         | Partial location update from partner CPO  |
+| PATCH  | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id/:evse_uid`               | Partial EVSE update from partner CPO      |
+| PATCH  | `/emsp/2.2.1/locations/:country_code/:party_id/:location_id/:evse_uid/:connector_id` | Partial connector update from partner CPO |
+
+Successful **PUT** and **PATCH** Receiver responses use the standard OCPI empty success envelope (`status_code` 1000, `timestamp`, no `data` object), consistent with other modules (e.g. Sessions).
 
 ## Mapper Design (Critical)
 
@@ -75,8 +94,9 @@ Main responsibilities:
 Main responsibilities:
 
 - validate tenant partner authorization for Receiver endpoints
+- validate `country_code` / `party_id` in the URL against the authenticated partner and (for PUT location) against the Location body
 - upsert/persist partner location, EVSE, connector payloads
-- perform partial updates for PATCH endpoints
+- perform partial updates for PATCH endpoints (`last_updated` required per OCPI)
 - map responses with Receiver mapper path (`fromGraphqlReceiver`)
 - build OCPI success/error responses
 

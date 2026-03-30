@@ -65,4 +65,8 @@ export type PaginatedLocationResponse = z.infer<
 
 export const LocationDTOSchemaName = 'LocationDTOSchema';
 
+/** Partial Location for OCPI Receiver PATCH (all fields optional). */
+export const LocationPatchSchema = LocationDTOSchema.partial();
+export const LocationPatchSchemaName = 'LocationPatchSchema';
+
 export type LocationEvseDTO = z.infer<typeof EvseDTOSchema>;

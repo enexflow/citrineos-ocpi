@@ -36,10 +36,14 @@
 #
 # Or run individual sections by copying the curl commands.
 
-BASE_URL="http://localhost:8085/ocpi/2.2.1/tariffs"
+OCPI_BASE="${OCPI_BASE:-http://localhost:8085/ocpi}"
+OCPI_VERSION="${OCPI_VERSION:-2.2.1}"
+SENDER_PREFIX="$OCPI_BASE/cpo/$OCPI_VERSION"
+RECEIVER_PREFIX="$OCPI_BASE/emsp/$OCPI_VERSION"
+SENDER_BASE_URL="$SENDER_PREFIX/tariffs"
+RECEIVER_BASE_URL="$RECEIVER_PREFIX/tariffs"
 
-# AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
-AUTH_TOKEN="Token MGE0YTFjZjktMDlkNC00ZTViLTgzYzItYWMxNTlhZWEzODhk"
+AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
 
 # OCPI headers: CPO partner FR/TMS -> our eMSP FR/ZTA
 # OCPI_HEADERS=(
@@ -93,7 +97,7 @@ run_curl() {
   http_code=$(curl -sS -w "%{http_code}" -o "$tmp" "$@" 2>&1) || {
     echo -e "${RED}  Connection error:${RESET}"
     echo -e "${DIM}$(cat "$tmp")${RESET}"
-    echo -e "${RED}  -> Is the server running on $BASE_URL ?${RESET}"
+    echo -e "${RED}  -> Is the server running on $RECEIVER_BASE_URL and $SENDER_BASE_URL ?${RESET}"
     FAIL=$((FAIL + 1))
     rm -f "$tmp"
     return
@@ -131,7 +135,7 @@ run_curl() {
 
 separator "1. PUT tariff-std-001 — Create tariff (ENERGY + FLAT) with alphanumeric ID"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/tariff-std-001" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -162,7 +166,7 @@ run_curl 200 \
 
 separator "2. PUT UUID tariff — Create tariff (with tariffAltText) using UUID format ID"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -190,7 +194,7 @@ run_curl 200 \
 
 separator "3. PUT numeric tariff — Create tariff with purely numeric ID (backward compat)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/42" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/42" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -228,37 +232,37 @@ run_curl 200 \
 
 separator "4. GET tariff-std-001 — Retrieve alphanumeric tariff"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/tariff-std-001" \
+  "$RECEIVER_BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}"
 
 separator "5. GET UUID tariff — Retrieve UUID-format tariff"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
+  "$RECEIVER_BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   "${OCPI_HEADERS[@]}"
 
 separator "6. GET numeric tariff — Retrieve numeric tariff"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/42" \
+  "$RECEIVER_BASE_URL/FR/TMS/42" \
   "${OCPI_HEADERS[@]}"
 
 separator "7. GET non-existent — Non-existent tariff with non-numeric ID (expect 404)"
 run_curl 404 \
-  "$BASE_URL/FR/TMS/non-existent-tariff-xyz" \
+  "$RECEIVER_BASE_URL/FR/TMS/non-existent-tariff-xyz" \
   "${OCPI_HEADERS[@]}"
 
 separator "8. GET /tariffs — Sender paginated list (our own tariffs only, partner tariffs excluded)"
 run_curl 200 \
-  "$BASE_URL" \
+  "$SENDER_BASE_URL" \
   "${OCPI_HEADERS[@]}"
 
 separator "9. GET /tariffs?limit=1&offset=0 — Pagination (page 1)"
 run_curl 200 \
-  "$BASE_URL?limit=1&offset=0" \
+  "$SENDER_BASE_URL?limit=1&offset=0" \
   "${OCPI_HEADERS[@]}"
 
 separator "10. GET /tariffs?limit=1&offset=1 — Pagination (page 2)"
 run_curl 200 \
-  "$BASE_URL?limit=1&offset=1" \
+  "$SENDER_BASE_URL?limit=1&offset=1" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
@@ -267,7 +271,7 @@ run_curl 200 \
 
 separator "11. PUT tariff-std-001 — Update tariff (add TIME component)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/tariff-std-001" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -307,7 +311,7 @@ run_curl 200 \
 
 separator "12. GET tariff-std-001 — Verify the update"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/tariff-std-001" \
+  "$RECEIVER_BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
@@ -316,17 +320,17 @@ run_curl 200 \
 
 separator "13. DELETE UUID tariff"
 run_curl 200 \
-  -X DELETE "$BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
+  -X DELETE "$RECEIVER_BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   "${OCPI_HEADERS[@]}"
 
 separator "14. GET UUID tariff — Verify deletion (expect 404)"
 run_curl 404 \
-  "$BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
+  "$RECEIVER_BASE_URL/FR/TMS/f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   "${OCPI_HEADERS[@]}"
 
 separator "15. DELETE non-existent — Delete non-existent tariff (expect error)"
 run_curl 404 \
-  -X DELETE "$BASE_URL/FR/TMS/non-existent-tariff-xyz" \
+  -X DELETE "$RECEIVER_BASE_URL/FR/TMS/non-existent-tariff-xyz" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
@@ -335,12 +339,12 @@ run_curl 404 \
 
 separator "16. DELETE tariff-std-001 — Cleanup alphanumeric tariff"
 run_curl 200 \
-  -X DELETE "$BASE_URL/FR/TMS/tariff-std-001" \
+  -X DELETE "$RECEIVER_BASE_URL/FR/TMS/tariff-std-001" \
   "${OCPI_HEADERS[@]}"
 
 separator "17. DELETE 42 — Cleanup numeric tariff"
 run_curl 200 \
-  -X DELETE "$BASE_URL/FR/TMS/42" \
+  -X DELETE "$RECEIVER_BASE_URL/FR/TMS/42" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
