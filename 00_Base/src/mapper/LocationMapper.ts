@@ -58,7 +58,7 @@ export type EvseReceiverDTO =
 
 export class LocationMapper {
   static mapBusinessDetails(
-    details: LocationDto['operator'],
+    details: LocationDTO['operator'],
   ): BusinessDetails | null | undefined {
     if (details == null) return details;
     return {
