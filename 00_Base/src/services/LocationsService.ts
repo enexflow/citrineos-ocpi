@@ -1,21 +1,16 @@
 // SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
 //
 // SPDX-License-Identifier: Apache-2.0
-import { UnauthorizedException } from '@citrineos/base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { Service } from 'typedi';
-import { EvseStatus } from '../model/EvseStatus.js';
 
 import type {
   LocationResponse,
   PaginatedLocationResponse,
 } from '../model/DTO/LocationDTO.js';
 import type { EvseResponse } from '../model/DTO/EvseDTO.js';
-import type {
-  ConnectorDTO,
-  ConnectorResponse,
-} from '../model/DTO/ConnectorDTO.js';
+import type { ConnectorResponse } from '../model/DTO/ConnectorDTO.js';
 import { PaginatedParams } from '../controllers/param/PaginatedParams.js';
 import {
   buildOcpiPaginatedResponse,
@@ -57,7 +52,6 @@ import type {
   ConnectorDto,
   EvseDto,
   LocationDto,
-  TenantPartnerDto,
 } from '@citrineos/base';
 
 import type { LocationDTO, LocationEvseDTO } from '../model/DTO/LocationDTO.js';

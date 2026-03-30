@@ -5,7 +5,6 @@ import { UnauthorizedException } from '@citrineos/base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { Service } from 'typedi';
-import { EvseStatus } from '../model/EvseStatus.js';
 
 import type { LocationResponse } from '../model/DTO/LocationDTO.js';
 import type { ConnectorDTO } from '../model/DTO/ConnectorDTO.js';
@@ -77,13 +76,7 @@ import {
   EvseMapper,
   LocationMapper,
 } from '../mapper/index.js';
-import type {
-  ChargingStationDto,
-  ConnectorDto,
-  EvseDto,
-  LocationDto,
-  TenantPartnerDto,
-} from '@citrineos/base';
+import type { TenantPartnerDto } from '@citrineos/base';
 
 import type { LocationDTO, LocationEvseDTO } from '../model/DTO/LocationDTO.js';
 

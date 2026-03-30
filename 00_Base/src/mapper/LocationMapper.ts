@@ -22,7 +22,6 @@ import {
   type LocationDto,
   type LocationFacilityEnumType,
   type LocationParkingEnumType,
-  type AdditionalGeoLocation,
   type TenantPartnerDto,
 } from '@citrineos/base';
 import {
