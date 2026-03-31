@@ -28,7 +28,12 @@
 #   chmod +x sessions-test-curls.sh
 #   ./sessions-test-curls.sh
 
-BASE_URL="http://localhost:8085/ocpi/2.2.1/sessions"
+OCPI_BASE="${OCPI_BASE:-http://localhost:8085/ocpi}"
+OCPI_VERSION="${OCPI_VERSION:-2.2.1}"
+SENDER_PREFIX="$OCPI_BASE/cpo/$OCPI_VERSION"
+RECEIVER_PREFIX="$OCPI_BASE/emsp/$OCPI_VERSION"
+SENDER_BASE_URL="$SENDER_PREFIX/sessions"
+RECEIVER_BASE_URL="$RECEIVER_PREFIX/sessions"
 
 AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
 
@@ -72,7 +77,7 @@ run_curl() {
   http_code=$(curl -sS -w "%{http_code}" -o "$tmp" "$@" 2>&1) || {
     echo -e "${RED}  Connection error:${RESET}"
     echo -e "${DIM}$(cat "$tmp")${RESET}"
-    echo -e "${RED}  -> Is the server running on $BASE_URL ?${RESET}"
+    echo -e "${RED}  -> Is the server running on $RECEIVER_BASE_URL and $SENDER_BASE_URL ?${RESET}"
     FAIL=$((FAIL + 1))
     rm -f "$tmp"
     return
@@ -105,7 +110,7 @@ run_curl() {
 
 separator "1. PUT /sessions/FR/TMS/sess-001 — Create session 1 (ACTIVE charging session)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/sess-001" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/sess-001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -132,7 +137,7 @@ run_curl 200 \
 
 separator "2. PUT /sessions/FR/TMS/sess-002 — Create session 2 (COMPLETED with charging periods)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/sess-002" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/sess-002" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -186,17 +191,17 @@ run_curl 200 \
 
 separator "3. GET /sessions/FR/TMS/sess-001 — Retrieve session 1"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/sess-001" \
+  "$RECEIVER_BASE_URL/FR/TMS/sess-001" \
   "${OCPI_HEADERS[@]}"
 
 separator "4. GET /sessions/FR/TMS/sess-002 — Retrieve session 2"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/sess-002" \
+  "$RECEIVER_BASE_URL/FR/TMS/sess-002" \
   "${OCPI_HEADERS[@]}"
 
 separator "5. GET /sessions/FR/TMS/nonexistent — Non-existent session (expect 404)"
 run_curl 404 \
-  "$BASE_URL/FR/TMS/nonexistent" \
+  "$RECEIVER_BASE_URL/FR/TMS/nonexistent" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
@@ -205,7 +210,7 @@ run_curl 404 \
 
 separator "6. PATCH /sessions/FR/TMS/sess-001 — Update kwh and add charging period"
 run_curl 200 \
-  -X PATCH "$BASE_URL/FR/TMS/sess-001" \
+  -X PATCH "$RECEIVER_BASE_URL/FR/TMS/sess-001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -225,12 +230,12 @@ run_curl 200 \
 
 separator "7. GET /sessions/FR/TMS/sess-001 — Verify the patch"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/sess-001" \
+  "$RECEIVER_BASE_URL/FR/TMS/sess-001" \
   "${OCPI_HEADERS[@]}"
 
 separator "8. PUT /sessions/FR/TMS/sess-001 — Replace session 1 (mark COMPLETED)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/sess-001" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/sess-001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -271,7 +276,7 @@ run_curl 200 \
 
 separator "9. GET /sessions/FR/TMS/sess-001 — Verify the replacement"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/sess-001" \
+  "$RECEIVER_BASE_URL/FR/TMS/sess-001" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
@@ -285,12 +290,12 @@ run_curl 200 \
 
 separator "10. GET /sessions — Sender paginated list"
 run_curl 200 \
-  "$BASE_URL" \
+  "$SENDER_BASE_URL" \
   "${OCPI_HEADERS[@]}"
 
 separator "11. GET /sessions?limit=1&offset=0 — Pagination (page 1)"
 run_curl 200 \
-  "$BASE_URL?limit=1&offset=0" \
+  "$SENDER_BASE_URL?limit=1&offset=0" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
@@ -299,7 +304,7 @@ run_curl 200 \
 
 separator "12. PATCH /sessions/FR/TMS/nonexistent — Patch non-existent (expect error)"
 run_curl 404 \
-  -X PATCH "$BASE_URL/FR/TMS/nonexistent" \
+  -X PATCH "$RECEIVER_BASE_URL/FR/TMS/nonexistent" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{

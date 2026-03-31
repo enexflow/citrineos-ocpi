@@ -48,18 +48,18 @@ When the platform acts as an eMSP, it receives sessions from partner CPOs via th
 
 ### Sender Interface (CPO)
 
-| Method | Path                                          | Description                                        |
-| ------ | --------------------------------------------- | -------------------------------------------------- |
-| GET    | `/sessions`                                   | Paginated list of sessions for the requesting eMSP |
-| PUT    | `/sessions/{session_id}/charging_preferences` | Receive charging preferences from eMSP (mock)      |
+| Method | Path                                                    | Description                                        |
+| ------ | ------------------------------------------------------- | -------------------------------------------------- |
+| GET    | `/cpo/2.2.1/sessions`                                   | Paginated list of sessions for the requesting eMSP |
+| PUT    | `/cpo/2.2.1/sessions/{session_id}/charging_preferences` | Receive charging preferences from eMSP (mock)      |
 
 ### Receiver Interface (eMSP)
 
-| Method | Path                                               | Description                             |
-| ------ | -------------------------------------------------- | --------------------------------------- |
-| GET    | `/sessions/{country_code}/{party_id}/{session_id}` | Retrieve a stored session               |
-| PUT    | `/sessions/{country_code}/{party_id}/{session_id}` | Receive new/updated session from CPO    |
-| PATCH  | `/sessions/{country_code}/{party_id}/{session_id}` | Receive partial session update from CPO |
+| Method | Path                                                          | Description                             |
+| ------ | ------------------------------------------------------------- | --------------------------------------- |
+| GET    | `/emsp/2.2.1/sessions/{country_code}/{party_id}/{session_id}` | Retrieve a stored session               |
+| PUT    | `/emsp/2.2.1/sessions/{country_code}/{party_id}/{session_id}` | Receive new/updated session from CPO    |
+| PATCH  | `/emsp/2.2.1/sessions/{country_code}/{party_id}/{session_id}` | Receive partial session update from CPO |
 
 ## Data Model
 

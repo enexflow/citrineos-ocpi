@@ -39,7 +39,7 @@ const MOCK_CHARGING_PROFILE_RESPONSE = await generateMockForSchema(
   ChargingProfileResponseSchemaName,
 );
 
-@JsonController(`/:${versionIdParam}/${ModuleId.ChargingProfiles}`)
+@JsonController(`/emsp/:${versionIdParam}/${ModuleId.ChargingProfiles}`)
 @Service()
 export class ChargingProfilesModuleApi
   extends BaseController

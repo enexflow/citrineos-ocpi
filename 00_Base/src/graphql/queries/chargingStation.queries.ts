@@ -57,3 +57,28 @@ export const GET_CHARGING_STATION_BY_ID_QUERY = gql`
     }
   }
 `;
+
+export const GET_CHARGING_STATION_BY_LOCATION_ID_AND_OWNER_PARTNER_ID = gql`
+  query GetChargingStationByLocationAndOwnerPartner(
+    $locationId: Int!
+    $partnerId: Int!
+  ) {
+    ChargingStations(
+      where: {
+        locationId: { _eq: $locationId }
+        Location: { ownerTenantPartnerId: { _eq: $partnerId } }
+      }
+    ) {
+      id
+    }
+  }
+`;
+
+export const INSERT_CHARGING_STATION_MUTATION = gql`
+  mutation InsertChargingStation($object: ChargingStations_insert_input!) {
+    insert_ChargingStations_one(object: $object) {
+      id
+      locationId
+    }
+  }
+`;

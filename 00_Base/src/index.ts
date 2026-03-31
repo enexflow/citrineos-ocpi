@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
 //
 // SPDX-License-Identifier: Apache-2.0
-
 import type { RoutingControllersOptions } from 'routing-controllers';
 import { useContainer } from 'routing-controllers';
 import type { Constructable } from 'typedi';
@@ -213,10 +212,15 @@ export { EnumQueryParam } from './util/decorators/EnumQueryParam.js';
 export type { CommandResult } from './model/CommandResult.js';
 export type {
   LocationDTO,
+  LocationEvseDTO,
   LocationResponse,
   PaginatedLocationResponse,
 } from './model/DTO/LocationDTO.js';
 export {
+  LocationDTOSchema,
+  LocationDTOSchemaName,
+  LocationPatchSchema,
+  LocationPatchSchemaName,
   LocationResponseSchema,
   LocationResponseSchemaName,
   PaginatedLocationResponseSchema,
@@ -229,6 +233,10 @@ export {
   EXTRACT_STATION_ID,
   EvseResponseSchema,
   EvseResponseSchemaName,
+  EvseDTOSchema,
+  EvseDTOSchemaName,
+  EvsePatchSchema,
+  EvsePatchSchemaName,
 } from './model/DTO/EvseDTO.js';
 export type {
   ConnectorDTO,
@@ -236,6 +244,10 @@ export type {
 } from './model/DTO/ConnectorDTO.js';
 export {
   TEMPORARY_CONNECTOR_ID,
+  ConnectorDTOSchema,
+  ConnectorDTOSchemaName,
+  ConnectorPatchSchema,
+  ConnectorPatchSchemaName,
   ConnectorResponseSchema,
   ConnectorResponseSchemaName,
 } from './model/DTO/ConnectorDTO.js';
@@ -290,6 +302,7 @@ export { CredentialsService } from './services/CredentialsService.js';
 export { TokensService } from './services/TokensService.js';
 // export { TokensAdminService } from './services/TokensAdminService.js';
 export { LocationsService } from './services/LocationsService.js';
+export { LocationReceiverService } from './services/LocationReceiverService.js';
 export { VersionService } from './services/VersionService.js';
 export { SessionsService } from './services/SessionsService.js';
 // export { AdminLocationsService } from './services/AdminLocationsService.js';
@@ -401,6 +414,29 @@ export class OcpiServer extends KoaServer {
   private initKoaServer() {
     try {
       this.koa = new Koa();
+      this.koa.use(async (ctx, next) => {
+        if (['POST', 'PUT', 'PATCH'].includes(ctx.method)) {
+          let rawBody = '';
+          ctx.req.setEncoding('utf8');
+
+          await new Promise<void>((resolve, reject) => {
+            ctx.req.on('data', (chunk) => (rawBody += chunk));
+            ctx.req.on('end', () => resolve());
+            ctx.req.on('error', reject);
+          });
+
+          console.log('[Request]', ctx.method, ctx.path, rawBody || '(empty)');
+
+          // expose parsed body for downstream if needed
+          try {
+            (ctx.request as any).body = rawBody ? JSON.parse(rawBody) : {};
+          } catch {
+            (ctx.request as any).body = rawBody;
+          }
+        }
+
+        await next();
+      });
       const controllers = this._modules.map((module) =>
         (module as OcpiModule).getController(),
       );

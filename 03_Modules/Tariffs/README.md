@@ -24,8 +24,8 @@ Chaque tarif est lié à un `Tenant` (notre plateforme) via `tenantId`. De plus,
 
 Cette distinction est essentielle pour :
 
-1. **Filtrage Sender** : le `GET /tariffs` (Sender Interface) ne retourne que les tarifs propres (`tenantPartnerId IS NULL`)
-2. **Filtrage Receiver** : le `GET /:cc/:pid/:tid` (Receiver Interface) retrouve un tarif par les identifiants du CPO partenaire (`TenantPartner.countryCode`/`TenantPartner.partyId`)
+1. **Filtrage Sender** : le `GET /cpo/:versionId/tariffs` (Sender Interface) ne retourne que les tarifs propres (`tenantPartnerId IS NULL`)
+2. **Filtrage Receiver** : le `GET /emsp/:versionId/tariffs/:cc/:pid/:tid` (Receiver Interface) retrouve un tarif par les identifiants du CPO partenaire (`TenantPartner.countryCode`/`TenantPartner.partyId`)
 3. **Broadcasting** : seuls les tarifs propres sont broadcastés aux partenaires eMSP ; les tarifs reçus d'un CPO ne sont jamais re-broadcastés
 
 ### Migration
@@ -50,12 +50,12 @@ Après exécution de la migration, il faut tracker dans Hasura :
 ```mermaid
 flowchart TD
     subgraph senderInterface ["Sender Interface (CPO)"]
-        SenderGET["GET /tariffs\n(liste paginée, tarifs propres uniquement)"]
+        SenderGET["GET /cpo/:version/tariffs\n(liste paginée, tarifs propres uniquement)"]
     end
     subgraph receiverInterface ["Receiver Interface (eMSP)"]
-        ReceiverGET["GET /:country_code/:party_id/:tariff_id\n(lookup via TenantPartner)"]
-        ReceiverPUT["PUT /:country_code/:party_id/:tariff_id\n(stocke avec tenantPartnerId)"]
-        ReceiverDELETE["DELETE /:country_code/:party_id/:tariff_id\n(lookup via TenantPartner)"]
+        ReceiverGET["GET /emsp/:version/tariffs/:country_code/:party_id/:tariff_id\n(lookup via TenantPartner)"]
+        ReceiverPUT["PUT /emsp/:version/tariffs/:country_code/:party_id/:tariff_id\n(stocke avec tenantPartnerId)"]
+        ReceiverDELETE["DELETE /emsp/:version/tariffs/:country_code/:party_id/:tariff_id\n(lookup via TenantPartner)"]
     end
     subgraph serviceLayer ["Service Layer"]
         TariffsService["TariffsService"]
@@ -89,19 +89,19 @@ flowchart TD
 
 ### Sender Interface (CPO)
 
-| Méthode | Route                 | Description                                                                                                              |
-| ------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `GET`   | `/:versionId/tariffs` | Liste paginée des tarifs propres du CPO (`tenantPartnerId IS NULL`). Supporte `date_from`, `date_to`, `offset`, `limit`. |
+| Méthode | Route                     | Description                                                                                                              |
+| ------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET`   | `/cpo/:versionId/tariffs` | Liste paginée des tarifs propres du CPO (`tenantPartnerId IS NULL`). Supporte `date_from`, `date_to`, `offset`, `limit`. |
 
 ### Receiver Interface (eMSP)
 
 Les `country_code`/`party_id` dans l'URL identifient le CPO source (l'émetteur du tarif), conformément à la spécification OCPI 2.2.1.
 
-| Méthode  | Route                                                    | Description                                                                                                                                                                         |
-| -------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/:versionId/tariffs/:country_code/:party_id/:tariff_id` | Récupère un tarif stocké localement, identifié par les identifiants du CPO source (`TenantPartner.countryCode`/`partyId`). Retourne `404` si non trouvé.                            |
-| `PUT`    | `/:versionId/tariffs/:country_code/:party_id/:tariff_id` | Crée ou met à jour un tarif reçu d'un CPO. Stocke le `tenantPartnerId` issu du contexte d'authentification. Les `country_code`/`party_id`/`tariff_id` de l'URL priment sur le body. |
-| `DELETE` | `/:versionId/tariffs/:country_code/:party_id/:tariff_id` | Supprime un tarif identifié par les identifiants du CPO source. Retourne une erreur si le tarif n'existe pas.                                                                       |
+| Méthode  | Route                                                         | Description                                                                                                                                                                         |
+| -------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/emsp/:versionId/tariffs/:country_code/:party_id/:tariff_id` | Récupère un tarif stocké localement, identifié par les identifiants du CPO source (`TenantPartner.countryCode`/`partyId`). Retourne `404` si non trouvé.                            |
+| `PUT`    | `/emsp/:versionId/tariffs/:country_code/:party_id/:tariff_id` | Crée ou met à jour un tarif reçu d'un CPO. Stocke le `tenantPartnerId` issu du contexte d'authentification. Les `country_code`/`party_id`/`tariff_id` de l'URL priment sur le body. |
+| `DELETE` | `/emsp/:versionId/tariffs/:country_code/:party_id/:tariff_id` | Supprime un tarif identifié par les identifiants du CPO source. Retourne une erreur si le tarif n'existe pas.                                                                       |
 
 ---
 
@@ -111,7 +111,7 @@ Les `country_code`/`party_id` dans l'URL identifient le CPO source (l'émetteur 
 
 **`03_Modules/Tariffs/src/module/TariffsModuleApi.ts`**
 
-Contrôleur principal enregistré sur `/:versionId/tariffs`. Implémente `ITariffsModuleApi`. Méthodes :
+Contrôleur principal enregistré sur `/:role(cpo|emsp)/:versionId/tariffs`. Implémente `ITariffsModuleApi`. Méthodes :
 
 - `getTariffs()` — Sender GET paginé avec `@Paginated()`, `@FunctionalEndpointParams()`
 - `getTariffById()` — Receiver GET, lookup via `TenantPartner` (`isPartnerLookup = true`)
@@ -244,7 +244,7 @@ npx jest --config jest.config.cjs --testPathPatterns="Tariff"
 ### Pull model (eMSP interroge le CPO)
 
 ```
-eMSP  →  GET /tariffs?date_from=...&limit=50  →  CPO
+eMSP  →  GET /cpo/:versionId/tariffs?date_from=...&limit=50  →  CPO
 eMSP  ←  PaginatedTariffResponse { data: TariffDTO[], total, offset, limit }
          (uniquement les tarifs propres du CPO, tenantPartnerId IS NULL)
 ```
@@ -258,7 +258,7 @@ eMSP  ←  PaginatedTariffResponse { data: TariffDTO[], total, offset, limit }
     →  TariffsModule.handleTariffInsert/Update
     →  Vérifie tenantPartnerId == null → OUI
     →  TariffsBroadcaster.broadcastPutTariff
-    →  TariffsClientApi.putTariff  →  eMSP PUT /:cc/:pid/:tid
+    →  TariffsClientApi.putTariff  →  eMSP PUT /emsp/:versionId/tariffs/:cc/:pid/:tid
 ```
 
 ```
@@ -277,13 +277,13 @@ eMSP  ←  PaginatedTariffResponse { data: TariffDTO[], total, offset, limit }
     →  TariffsModule.handleTariffDelete
     →  Vérifie tenantPartnerId == null → OUI
     →  TariffsBroadcaster.broadcastTariffDeletion
-    →  TariffsClientApi.deleteTariff  →  eMSP DELETE /:cc/:pid/:tid
+    →  TariffsClientApi.deleteTariff  →  eMSP DELETE /emsp/:versionId/tariffs/:cc/:pid/:tid
 ```
 
 ### Receiver (eMSP reçoit du CPO)
 
 ```
-CPO  →  PUT /:versionId/tariffs/:cc/:pid/:tid  →  TariffsModuleApi.putTariff
+CPO  →  PUT /emsp/:versionId/tariffs/:cc/:pid/:tid  →  TariffsModuleApi.putTariff
      →  Extrait tenantId et tenantPartnerId du contexte d'authentification
      →  TariffsService.createOrUpdateTariff(request, tenantId, tenantPartnerId)
      →  TariffMapper.mapFromOcpi → GraphQL upsert (avec tenantPartnerId) → TariffMapper.map
@@ -291,7 +291,7 @@ CPO  →  PUT /:versionId/tariffs/:cc/:pid/:tid  →  TariffsModuleApi.putTariff
 ```
 
 ```
-CPO  →  DELETE /:versionId/tariffs/:cc/:pid/:tid  →  TariffsModuleApi.deleteTariff
+CPO  →  DELETE /emsp/:versionId/tariffs/:cc/:pid/:tid  →  TariffsModuleApi.deleteTariff
      →  TariffsService.deleteTariff(cc, pid, tid, isPartnerLookup=true)
      →  Lookup via TenantPartner → GraphQL delete
      →  OcpiEmptyResponse

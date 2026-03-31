@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
 //
 // SPDX-License-Identifier: Apache-2.0
-
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { Service } from 'typedi';
+
 import type {
   LocationResponse,
   PaginatedLocationResponse,
@@ -25,12 +25,12 @@ import { buildOcpiErrorResponse } from '../model/OcpiErrorResponse.js';
 import { OcpiHeaders } from '../model/OcpiHeaders.js';
 import { NotFoundException } from '../exception/NotFoundException.js';
 import type {
+  GetLocationByOcpiIdQueryResult,
+  GetLocationByOcpiIdQueryVariables,
   GetConnectorByIdQueryResult,
   GetConnectorByIdQueryVariables,
   GetEvseByIdQueryResult,
   GetEvseByIdQueryVariables,
-  GetLocationByIdQueryResult,
-  GetLocationByIdQueryVariables,
   GetLocationsQueryResult,
   GetLocationsQueryVariables,
   Locations_Bool_Exp,
@@ -38,7 +38,7 @@ import type {
 import {
   GET_CONNECTOR_BY_ID_QUERY,
   GET_EVSE_BY_ID_QUERY,
-  GET_LOCATION_BY_ID_QUERY,
+  GET_LOCATION_BY_OCPID_ID_QUERY,
   GET_LOCATIONS_QUERY,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
@@ -119,11 +119,11 @@ export class LocationsService {
     this.logger.debug(`Getting location ${locationId}`);
 
     try {
-      const variables = { id: locationId };
+      const variables = { id: locationId.toString() };
       const response = await this.ocpiGraphqlClient.request<
-        GetLocationByIdQueryResult,
-        GetLocationByIdQueryVariables
-      >(GET_LOCATION_BY_ID_QUERY, variables);
+        GetLocationByOcpiIdQueryResult,
+        GetLocationByOcpiIdQueryVariables
+      >(GET_LOCATION_BY_OCPID_ID_QUERY, variables);
       // response.Locations is an array, so pick the first
       if (response.Locations && response.Locations.length > 1) {
         this.logger.warn(
@@ -131,7 +131,7 @@ export class LocationsService {
         );
       }
       const location = LocationMapper.fromGraphql(
-        response.Locations[0] as LocationDto,
+        response.Locations[0] as unknown as LocationDto,
       );
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
@@ -159,7 +159,11 @@ export class LocationsService {
     );
 
     try {
-      const variables = { locationId, stationId, evseId };
+      const variables = {
+        locationId: locationId,
+        stationId,
+        evseId,
+      };
       const response = await this.ocpiGraphqlClient.request<
         GetEvseByIdQueryResult,
         GetEvseByIdQueryVariables
@@ -192,7 +196,12 @@ export class LocationsService {
     );
 
     try {
-      const variables = { locationId, stationId, evseId, connectorId };
+      const variables = {
+        locationId: locationId,
+        stationId,
+        evseId,
+        connectorId,
+      };
       const response = await this.ocpiGraphqlClient.request<
         GetConnectorByIdQueryResult,
         GetConnectorByIdQueryVariables
@@ -208,7 +217,7 @@ export class LocationsService {
       }
       const connector = ConnectorMapper.fromGraphql(
         response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]
-          ?.connectors?.[0] as ConnectorDto,
+          ?.connectors?.[0] as unknown as ConnectorDto,
       );
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,

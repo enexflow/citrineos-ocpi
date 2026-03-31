@@ -59,7 +59,7 @@ const MOCK_CHARGING_PREFERENCES = await generateMockForSchema(
   ChargingPreferencesResponseSchemaName,
 );
 
-@JsonController(`/:${versionIdParam}/${ModuleId.Sessions}`)
+@JsonController(`/:role(cpo|emsp)/:${versionIdParam}/${ModuleId.Sessions}`)
 @Service()
 export class SessionsModuleApi
   extends BaseController
