@@ -12,7 +12,7 @@ export default {
       CREATE OR REPLACE FUNCTION "AuthorizationNotify"()
       RETURNS trigger AS $$
       DECLARE
-        requiredFields text[] := ARRAY['id', 'tenantId', 'updatedAt'];
+        requiredFields text[] := ARRAY['id', 'tenantId', 'updatedAt', 'idToken', 'tenantPartnerId'];
         requiredData jsonb;
         changedData jsonb;
         notificationData jsonb;
