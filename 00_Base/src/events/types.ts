@@ -30,6 +30,7 @@ export enum DtoEventObjectType {
   Transaction = 'Transaction',
   MeterValue = 'MeterValue',
   Tariff = 'Tariff',
+  Authorization = 'Authorization',
 }
 
 /**

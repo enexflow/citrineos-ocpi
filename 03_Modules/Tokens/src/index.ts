@@ -2,12 +2,22 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import type { AuthorizationDto } from '@citrineos/base';
 import { TokensModuleApi } from './module/TokensModuleApi.js';
-import type { OcpiConfig } from '@citrineos/ocpi-base';
+import {
+  AbstractDtoModule,
+  AsDtoEventHandler,
+  type IDtoEvent,
+  type OcpiConfig,
+} from '@citrineos/ocpi-base';
 import {
   CacheWrapper,
+  DtoEventObjectType,
+  DtoEventType,
   OcpiConfigToken,
   OcpiModule,
+  RabbitMqDtoReceiver,
+  TokenBroadcaster,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -17,14 +27,67 @@ export { TokensModuleApi } from './module/TokensModuleApi.js';
 export type { ITokensModuleApi } from './module/ITokensModuleApi.js';
 
 @Service()
-export class TokensModule implements OcpiModule {
+export class TokensModule extends AbstractDtoModule implements OcpiModule {
   constructor(
     @Inject(OcpiConfigToken) config: OcpiConfig,
+    readonly tokenBroadcaster: TokenBroadcaster,
     readonly cacheWrapper: CacheWrapper,
     readonly logger?: Logger<ILogObj>,
-  ) {}
+  ) {
+    super(config, new RabbitMqDtoReceiver(config, logger), logger);
+  }
 
   getController(): any {
     return TokensModuleApi;
+  }
+  async init(): Promise<void> {
+    await this._receiver.init();
+  }
+  async shutdown(): Promise<void> {
+    await super.shutdown();
+  }
+
+  @AsDtoEventHandler(
+    DtoEventType.INSERT,
+    DtoEventObjectType.Authorization,
+    'AuthorizationNotification',
+  )
+  async handleAuthorizationInsert(
+    event: IDtoEvent<AuthorizationDto>,
+  ): Promise<void> {
+    this._logger.debug(
+      `Handling Authorization Insert: ${JSON.stringify(event)}`,
+    );
+    const authorizationDto = event._payload;
+    const tenant = authorizationDto.tenant;
+    if (!tenant) {
+      this._logger.error(
+        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    await this.tokenBroadcaster.broadcastPutToken(tenant, authorizationDto);
+  }
+
+  @AsDtoEventHandler(
+    DtoEventType.UPDATE,
+    DtoEventObjectType.Authorization,
+    'AuthorizationNotification',
+  )
+  async handleAuthorizationUpdate(
+    event: IDtoEvent<Partial<AuthorizationDto>>,
+  ): Promise<void> {
+    this._logger.debug(
+      `Handling Authorization Update: ${JSON.stringify(event)}`,
+    );
+    const authorizationDto = event._payload;
+    const tenant = authorizationDto.tenant;
+    if (!tenant) {
+      this._logger.error(
+        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    await this.tokenBroadcaster.broadcastPatchToken(tenant, authorizationDto);
   }
 }
