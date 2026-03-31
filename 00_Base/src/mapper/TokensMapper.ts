@@ -48,6 +48,49 @@ export class TokensMapper {
     return tokenDto;
   }
 
+  public static toPartialDto(
+    auth: Partial<AuthorizationDto>,
+  ): Partial<TokenDTO> {
+    const out: Partial<TokenDTO> = {};
+
+    if (!auth.updatedAt)
+      throw new Error('Token PATCH requires updatedAt/last_updated');
+    out.last_updated = auth.updatedAt;
+
+    if (auth.idToken) out.uid = auth.idToken;
+    if (auth.idTokenType !== undefined) {
+      out.type = TokensMapper.mapOcppIdTokenTypeToOcpiTokenType(
+        auth.idTokenType ?? null,
+      );
+    }
+    if (auth.status)
+      out.valid = auth.status === AuthorizationStatusEnum.Accepted;
+    if (auth.realTimeAuth !== undefined)
+      out.whitelist = TokensMapper.mapRealTimeEnumType(auth.realTimeAuth);
+    if (auth.language1 !== undefined)
+      out.language = auth.language1 ?? undefined;
+    if (auth.groupAuthorization?.idToken)
+      out.group_id = auth.groupAuthorization.idToken;
+
+    const info = auth.additionalInfo ?? undefined;
+    if (Array.isArray(info)) {
+      const emaid = info.find(
+        (i) => i.type === OCPP2_0_1.IdTokenEnumType.eMAID,
+      )?.additionalIdToken;
+      if (emaid) out.contract_id = emaid;
+
+      const vn = info.find(
+        (i) => i.type === 'visual_number',
+      )?.additionalIdToken;
+      if (vn) out.visual_number = vn;
+
+      const issuer = info.find((i) => i.type === 'issuer')?.additionalIdToken;
+      if (issuer) out.issuer = issuer;
+    }
+
+    return out;
+  }
+
   public static mapOcpiTokenTypeToOcppIdTokenType(
     type: TokenType,
   ): IdTokenEnumType {
