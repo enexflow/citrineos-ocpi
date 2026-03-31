@@ -9,10 +9,7 @@ import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { ModuleId } from '../model/ModuleId.js';
 import { InterfaceRole } from '../model/InterfaceRole.js';
-import type {
-  AuthorizationDto,
-  TenantDto,
-} from '@citrineos/base';
+import type { AuthorizationDto, TenantDto } from '@citrineos/base';
 import { HttpMethod } from '@citrineos/base';
 import { TokensMapper } from '../mapper/index.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
