@@ -58,6 +58,7 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     this._logger.debug(
       `Handling Authorization Insert: ${JSON.stringify(event)}`,
     );
+    if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
     const tenant = authorizationDto.tenant;
     if (!tenant) {
@@ -80,6 +81,7 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     this._logger.debug(
       `Handling Authorization Update: ${JSON.stringify(event)}`,
     );
+    if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
     const tenant = authorizationDto.tenant;
     if (!tenant) {
@@ -89,5 +91,28 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
     await this.tokenBroadcaster.broadcastPatchToken(tenant, authorizationDto);
+  }
+
+  @AsDtoEventHandler(
+    DtoEventType.DELETE,
+    DtoEventObjectType.Authorization,
+    'AuthorizationNotification',
+  )
+  async handleAuthorizationDelete(
+    event: IDtoEvent<Partial<AuthorizationDto>>,
+  ): Promise<void> {
+    this._logger.debug(
+      `Handling Authorization Delete: ${JSON.stringify(event)}`,
+    );
+    if (event._payload.tenantPartnerId) return;
+    const authorizationDto = event._payload;
+    const tenant = authorizationDto.tenant;
+    if (!tenant) {
+      this._logger.error(
+        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    await this.tokenBroadcaster.broadcastDeleteToken(tenant, authorizationDto);
   }
 }

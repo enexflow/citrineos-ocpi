@@ -252,7 +252,7 @@ export class LocationReceiverService {
     tenantPartner: TenantPartnerDto,
   ): Promise<ConnectorResponse> {
     this.logger.debug(
-      `Getting location ${locationId} by country ${countryCode} and party ${partyId}`,
+      `Getting location ${locationId} ${evseUid} ${connectorId} by country ${countryCode} and party ${partyId}`,
     );
     try {
       if (!tenantPartner.id) {
@@ -284,6 +284,7 @@ export class LocationReceiverService {
         connector,
       ) as ConnectorResponse;
     } catch (e) {
+      this.logger.error(e);
       const statusCode =
         e instanceof NotFoundException
           ? OcpiResponseStatusCode.ClientUnknownLocation

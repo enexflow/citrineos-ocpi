@@ -42,6 +42,15 @@ export class TokenBroadcaster extends BaseBroadcaster {
     await this.broadcastToken(tenant, token, HttpMethod.Patch, path);
   }
 
+  async broadcastDeleteToken(
+    tenant: TenantDto,
+    tokenDto: Partial<AuthorizationDto>,
+  ): Promise<void> {
+    const token = ({valid: false, uid: tokenDto.idToken, last_updated: tokenDto.updatedAt});
+    const path = `/${tenant.countryCode}/${tenant.partyId}/${token.uid}`;
+    await this.broadcastToken(tenant, token, HttpMethod.Patch, path);
+  }
+
   private async broadcastToken(
     tenant: TenantDto,
     token: Partial<TokenDTO>,
@@ -53,7 +62,7 @@ export class TokenBroadcaster extends BaseBroadcaster {
         cpoCountryCode: tenant.countryCode!,
         cpoPartyId: tenant.partyId!,
         moduleId: ModuleId.Tokens,
-        interfaceRole: InterfaceRole.SENDER,
+        interfaceRole: InterfaceRole.RECEIVER,
         httpMethod: method,
         schema: OcpiEmptyResponseSchema,
         body: token,
