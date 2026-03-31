@@ -11,9 +11,7 @@ import { ModuleId } from '../model/ModuleId.js';
 import { InterfaceRole } from '../model/InterfaceRole.js';
 import type {
   AuthorizationDto,
-  MeterValueDto,
   TenantDto,
-  TransactionDto,
 } from '@citrineos/base';
 import { HttpMethod } from '@citrineos/base';
 import { TokensMapper } from '../mapper/index.js';
@@ -34,7 +32,6 @@ export class TokenBroadcaster extends BaseBroadcaster {
     tokenDto: AuthorizationDto,
   ): Promise<void> {
     const token = TokensMapper.toDto(tokenDto);
-    console.log('token', token);
     const path = `/${tenant.countryCode}/${tenant.partyId}/${token.uid}`;
     await this.broadcastToken(tenant, token, HttpMethod.Put, path);
   }
