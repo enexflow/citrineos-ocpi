@@ -98,7 +98,7 @@ function validateUrlMatchesTenantPartner(
   if (!ocpiCiEquals(cc, countryCode) || !ocpiCiEquals(pid, partyId)) {
     return buildOcpiErrorResponse(
       OcpiResponseStatusCode.ClientInvalidOrMissingParameters,
-      ' 1 country_code and party_id in URL must match the authenticated partner',
+      'country_code and party_id in URL must match the authenticated partner',
     ) as LocationResponse;
   }
   return undefined;
@@ -115,7 +115,7 @@ function validateLocationBodyMatchesUrl(
   ) {
     return buildOcpiErrorResponse(
       OcpiResponseStatusCode.ClientInvalidOrMissingParameters,
-      '2 country_code and party_id in URL must match the Location object',
+      'country_code and party_id in URL must match the Location object',
     ) as LocationResponse;
   }
   return undefined;
@@ -133,7 +133,7 @@ function validateLocationTenantPartnerMatchesUrl(
   ) {
     return buildOcpiErrorResponse(
       OcpiResponseStatusCode.ClientInvalidOrMissingParameters,
-      '3 country_code and party_id in URL must match the Location tenant',
+      'country_code and party_id in URL must match the Location tenant',
     ) as LocationResponse;
   }
   return undefined;
