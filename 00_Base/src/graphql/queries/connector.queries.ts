@@ -28,21 +28,6 @@ export const UPSERT_CONNECTOR_MUTATION = gql`
   }
 `;
 
-export const GET_CONNECTOR_OWNERSHIP_BY_ID = gql`
-  query GetConnectorOwnershipById($id: Int!) {
-    Connectors_by_pk(id: $id) {
-      id
-      ocpiId
-      stationId
-      chargingStation: ChargingStation {
-        location: Location {
-          ownerTenantPartnerId
-        }
-      }
-    }
-  }
-`;
-
 export const GET_PARTNER_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID = gql`
   query GetPartnerConnectorByOcpiIdAndEvseId(
     $partnerId: Int!

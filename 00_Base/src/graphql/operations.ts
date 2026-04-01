@@ -84,6 +84,7 @@ export type String_Comparison_Exp = {
 export type Tariffs_Insert_Input = any;
 export type Sessions_Insert_Input = any;
 export type Sessions_Set_Input = any;
+export type Evses_Insert_Input = any;
 export type ConnectorTariffs_Insert_Input = any;
 export type Connectors_Insert_Input = any;
 export type ChargingStations_Insert_Input = any;
@@ -91,7 +92,6 @@ export type Evses_Set_Input = any;
 export type Connectors_Set_Input = any;
 export type Locations_Insert_Input = any;
 export type Locations_Set_Input = any;
-export type Evses_Insert_Input = any;
 export type SessionDbRow = {
   id: number;
   ocpiSessionId: string;
@@ -238,24 +238,6 @@ export type UpsertConnectorMutationResult = {
   } | null
 };
 
-export type GetConnectorOwnershipByIdQueryVariables = Exact<{
-  id: Scalars['Int']['input'];
-}>;
-
-
-export type GetConnectorOwnershipByIdQueryResult = {
-  Connectors_by_pk?: {
-    id: number,
-    ocpiId?: string | null,
-    stationId: string,
-    chargingStation: {
-      location?: {
-        ownerTenantPartnerId?: number | null
-      } | null
-    }
-  } | null
-};
-
 export type GetPartnerConnectorByOcpiIdAndEvseIdQueryVariables = Exact<{
   partnerId: Scalars['Int']['input'];
   locationId: Scalars['String']['input'];
@@ -364,24 +346,6 @@ export type UpsertEvseMutationResult = {
   insert_Evses_one?: {
     id: number,
     ocpiUid?: string | null
-  } | null
-};
-
-export type GetEvseOwnershipByIdQueryVariables = Exact<{
-  id: Scalars['Int']['input'];
-}>;
-
-
-export type GetEvseOwnershipByIdQueryResult = {
-  Evses_by_pk?: {
-    id: number,
-    ocpiUid?: string | null,
-    stationId?: string | null,
-    chargingStation?: {
-      location?: {
-        ownerTenantPartnerId?: number | null
-      } | null
-    } | null
   } | null
 };
 
@@ -987,18 +951,6 @@ export type UpdateLocationPatchMutationResult = {
   update_Locations_by_pk?: {
     id: number,
     updatedAt: any
-  } | null
-};
-
-export type GetLocationOwnershipByIdQueryVariables = Exact<{
-  id: Scalars['Int']['input'];
-}>;
-
-
-export type GetLocationOwnershipByIdQueryResult = {
-  Locations_by_pk?: {
-    id: number,
-    ownerTenantPartnerId?: number | null
   } | null
 };
 

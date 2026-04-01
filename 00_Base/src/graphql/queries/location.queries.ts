@@ -528,12 +528,3 @@ export const UPDATE_LOCATION_PATCH_MUTATION = gql`
     }
   }
 `;
-
-export const GET_LOCATION_OWNERSHIP_BY_ID = gql`
-  query GetLocationOwnershipById($id: Int!) {
-    Locations_by_pk(id: $id) {
-      id
-      ownerTenantPartnerId
-    }
-  }
-`;

@@ -31,21 +31,6 @@ export const UPSERT_EVSE_MUTATION = gql`
   }
 `;
 
-export const GET_EVSE_OWNERSHIP_BY_ID = gql`
-  query GetEvseOwnershipById($id: Int!) {
-    Evses_by_pk(id: $id) {
-      id
-      ocpiUid
-      stationId
-      chargingStation: ChargingStation {
-        location: Location {
-          ownerTenantPartnerId
-        }
-      }
-    }
-  }
-`;
-
 export const GET_PARTNER_EVSE_BY_OCPI_ID = gql`
   query GetPartnerEvseByOcpiIds(
     $partnerId: Int!
