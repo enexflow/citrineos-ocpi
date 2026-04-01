@@ -29,12 +29,30 @@ import type {
   EvseDto,
   LocationDto,
   TenantDto,
-  TenantPartnerDto,
 } from '@citrineos/base';
 import { Inject, Service } from 'typedi';
 
 export { LocationsModuleApi } from './module/LocationsModuleApi.js';
 export type { ILocationsModuleApi } from './module/ILocationsModuleApi.js';
+
+type EvseNotifyPayload = Partial<EvseDto> & {
+  tenant?: TenantDto;
+  ownerTenantPartner?: {
+    id: number;
+    partyId?: string;
+    countryCode?: string;
+  };
+  ocpiUid?: string | null;
+};
+type ConnectorNotifyPayload = Partial<ConnectorDto> & {
+  tenant?: TenantDto;
+  ownerTenantPartner?: {
+    id: number;
+    partyId?: string;
+    countryCode?: string;
+  };
+  ocpiId?: string | null;
+};
 
 @Service()
 export class LocationsModule extends AbstractDtoModule implements OcpiModule {
@@ -175,18 +193,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     DtoEventObjectType.Evse,
     'EvseNotification',
   )
-  async handleEvseUpdate(
-    event: IDtoEvent<
-      Partial<EvseDto> & {
-        tenant?: TenantDto;
-        ownerTenantPartner?: {
-          id: number;
-          partyId?: string;
-          countryCode?: string;
-        };
-      }
-    >,
-  ): Promise<void> {
+  async handleEvseUpdate(event: IDtoEvent<EvseNotifyPayload>): Promise<void> {
     this._logger.debug(`Handling EVSE Update: ${JSON.stringify(event)}`);
     const evseDto = event._payload;
 
@@ -265,16 +272,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'ConnectorNotification',
   )
   async handleConnectorUpdate(
-    event: IDtoEvent<
-      Partial<ConnectorDto> & {
-        tenant?: TenantDto;
-        ownerTenantPartner?: {
-          id: number;
-          partyId?: string;
-          countryCode?: string;
-        };
-      }
-    >,
+    event: IDtoEvent<ConnectorNotifyPayload>,
   ): Promise<void> {
     this._logger.debug(`Handling Connector Update: ${JSON.stringify(event)}`);
     const connectorDto = event._payload;
