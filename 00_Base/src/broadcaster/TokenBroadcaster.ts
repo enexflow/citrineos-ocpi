@@ -46,7 +46,11 @@ export class TokenBroadcaster extends BaseBroadcaster {
     tenant: TenantDto,
     tokenDto: Partial<AuthorizationDto>,
   ): Promise<void> {
-    const token = ({valid: false, uid: tokenDto.idToken, last_updated: tokenDto.updatedAt});
+    const token = {
+      valid: false,
+      uid: tokenDto.idToken,
+      last_updated: tokenDto.updatedAt,
+    };
     const path = `/${tenant.countryCode}/${tenant.partyId}/${token.uid}`;
     await this.broadcastToken(tenant, token, HttpMethod.Patch, path);
   }

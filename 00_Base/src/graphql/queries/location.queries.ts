@@ -360,6 +360,10 @@ export const GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
         partyId
         countryCode
       }
+      ownerTenantPartner: OwnerTenantPartner {
+        partyId
+        countryCode
+      }
       operator
       suboperator
       owner

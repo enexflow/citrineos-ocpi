@@ -84,7 +84,6 @@ export type String_Comparison_Exp = {
 export type Tariffs_Insert_Input = any;
 export type Sessions_Insert_Input = any;
 export type Sessions_Set_Input = any;
-export type Evses_Insert_Input = any;
 export type ConnectorTariffs_Insert_Input = any;
 export type Connectors_Insert_Input = any;
 export type ChargingStations_Insert_Input = any;
@@ -92,6 +91,7 @@ export type Evses_Set_Input = any;
 export type Connectors_Set_Input = any;
 export type Locations_Insert_Input = any;
 export type Locations_Set_Input = any;
+export type Evses_Insert_Input = any;
 export type SessionDbRow = {
   id: number;
   ocpiSessionId: string;
@@ -857,6 +857,10 @@ export type GetLocationByOcpiIdAndPartnerIdQueryResult = {
       partyId?: string | null,
       countryCode?: string | null
     },
+    ownerTenantPartner?: {
+      partyId: string,
+      countryCode: string
+    } | null,
     chargingPool: Array<{
       id: string,
       isOnline?: boolean | null,
