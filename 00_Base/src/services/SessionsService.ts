@@ -182,7 +182,36 @@ export class SessionsService {
     tenantPartnerId: number,
     partial: Partial<Session>,
   ): Promise<Session> {
-    const set = ReceivedSessionMapper.mapPartialFromOcpi(partial);
+    // get the existing session to merge the charging_periods with the partial
+    const existing_session = await this.getSessionByOcpiId(
+      countryCode,
+      partyId,
+      sessionId,
+      tenantPartnerId,
+    );
+    if (!existing_session) {
+      throw new NotFoundException(
+        `Session ${sessionId} not found for ${countryCode}/${partyId}`,
+      );
+    }
+
+    const mergedPartial: Partial<Session> = { ...partial };
+
+    // if the partial has charging_periods, merge them with the existing charging_periods
+    if (
+      mergedPartial.charging_periods &&
+      mergedPartial.charging_periods.length > 0
+    ) {
+      mergedPartial.charging_periods = [
+        ...(existing_session.charging_periods ?? []),
+        ...mergedPartial.charging_periods,
+      ];
+    } else {
+      // if the partial does not have charging_periods we remove them from the partial to prevent any changes to the existing charging_periods
+      delete mergedPartial.charging_periods;
+    }
+
+    const set = ReceivedSessionMapper.mapPartialFromOcpi(mergedPartial);
     const result = await this.ocpiGraphqlClient.request<
       UpdateSessionMutationResult,
       UpdateSessionMutationVariables
