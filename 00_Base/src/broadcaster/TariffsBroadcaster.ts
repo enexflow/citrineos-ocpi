@@ -81,7 +81,7 @@ export class TariffsBroadcaster extends BaseBroadcaster {
       tariffDto.pricePerKwh = tariffResponse.Tariffs[0].pricePerKwh;
     }
 
-    const tariff = TariffMapper.map(tariffDto);
+    const tariff = TariffMapper.mapForSender(tariffDto);
     const path = `/${tenant.countryCode}/${tenant.partyId}/${tariff.id}`;
     await this.broadcast(tenant, HttpMethod.Put, path, tariff);
   }

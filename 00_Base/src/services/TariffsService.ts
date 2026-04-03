@@ -58,7 +58,7 @@ export class TariffsService {
     >(GET_TARIFF_BY_KEY_QUERY, key);
     const tariff = result.Tariffs?.[0];
     if (tariff) {
-      return TariffMapper.map(tariff as TariffMapInput);
+      return TariffMapper.mapForSender(tariff as TariffMapInput);
     }
     return undefined;
   }
@@ -92,7 +92,7 @@ export class TariffsService {
       });
       const tariff = result.Tariffs?.[0];
       if (tariff) {
-        return TariffMapper.map(tariff as TariffMapInput);
+        return TariffMapper.mapForReceiver(tariff as TariffMapInput);
       }
       return undefined;
     }
@@ -107,7 +107,7 @@ export class TariffsService {
     });
     const tariff = result.Tariffs?.[0];
     if (tariff) {
-      return TariffMapper.map(tariff as TariffMapInput);
+      return TariffMapper.mapForReceiver(tariff as TariffMapInput);
     }
     return undefined;
   }
@@ -148,7 +148,7 @@ export class TariffsService {
     >(GET_TARIFFS_QUERY, variables);
     const mappedTariffs: TariffDTO[] = [];
     for (const tariff of result.Tariffs) {
-      mappedTariffs.push(TariffMapper.map(tariff as TariffMapInput));
+      mappedTariffs.push(TariffMapper.mapForSender(tariff as TariffMapInput));
     }
     return {
       data: mappedTariffs,
@@ -171,10 +171,6 @@ export class TariffsService {
       ...coreTariff,
       TariffElements: {
         data: TariffElements,
-        on_conflict: {
-          constraint: 'TariffElements_pkey',
-          update_columns: ['priceComponents', 'restrictions', 'updatedAt'],
-        },
       },
     };
 
@@ -203,7 +199,9 @@ export class TariffsService {
           `Failed to create or update tariff ${tariffRequest.id}`,
         );
       }
-      return TariffMapper.map(result.insert_Tariffs_one as TariffMapInput);
+      return TariffMapper.mapForReceiver(
+        result.insert_Tariffs_one as TariffMapInput,
+      );
     }
 
     const result = await this.ocpiGraphqlClient.request<
@@ -213,7 +211,9 @@ export class TariffsService {
     if (!result.insert_Tariffs_one) {
       throw new Error(`Failed to create or update tariff ${tariffRequest.id}`);
     }
-    return TariffMapper.map(result.insert_Tariffs_one as TariffMapInput);
+    return TariffMapper.mapForSender(
+      result.insert_Tariffs_one as TariffMapInput,
+    );
   }
 
   async deleteTariff(

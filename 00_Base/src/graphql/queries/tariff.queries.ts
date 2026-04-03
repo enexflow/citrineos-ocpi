@@ -190,6 +190,11 @@ export const CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION = gql`
         priceComponents
         restrictions
       }
+      tenantPartner: TenantPartner {
+        id
+        countryCode
+        partyId
+      }
     }
   }
 `;

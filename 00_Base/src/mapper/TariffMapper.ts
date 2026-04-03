@@ -66,7 +66,42 @@ function toTariffType(v: string | null | undefined): TariffType | null {
 export class TariffMapper {
   constructor() {}
 
-  public static map(coreTariff: TariffMapInput): TariffDTO {
+  public static mapForSender(coreTariff: TariffMapInput): TariffDTO {
+    let tariffAltText: Array<{ language: string; text: string }> | undefined;
+    if (coreTariff.tariffAltText) {
+      if (typeof coreTariff.tariffAltText === 'string') {
+        try {
+          tariffAltText = JSON.parse(coreTariff.tariffAltText);
+        } catch {
+          tariffAltText = undefined;
+        }
+      } else if (Array.isArray(coreTariff.tariffAltText)) {
+        tariffAltText = coreTariff.tariffAltText as Array<{
+          language: string;
+          text: string;
+        }>;
+      }
+    }
+
+    return {
+      id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
+      country_code: coreTariff.tenant!.countryCode!,
+      party_id: coreTariff.tenant!.partyId!,
+      currency: coreTariff.currency!,
+      type: TariffType.AD_HOC_PAYMENT,
+      tariff_alt_text: tariffAltText,
+      tariff_alt_url: undefined,
+      min_price: undefined,
+      max_price: undefined,
+      elements: [TariffMapper.getTariffElement(coreTariff)],
+      energy_mix: undefined,
+      start_date_time: undefined,
+      end_date_time: undefined,
+      last_updated: toDate(coreTariff.updatedAt),
+    };
+  }
+
+  public static mapForReceiver(coreTariff: TariffMapInput): TariffDTO {
     let tariffAltText: Array<{ language: string; text: string }> | undefined;
     if (coreTariff.tariffAltText) {
       if (typeof coreTariff.tariffAltText === 'string') {
@@ -91,13 +126,21 @@ export class TariffMapper {
           }))
         : [TariffMapper.getTariffElement(coreTariff)];
 
+    const countryCode =
+      coreTariff.tenantPartner?.countryCode ?? coreTariff.tenant?.countryCode;
+    const partyId =
+      coreTariff.tenantPartner?.partyId ?? coreTariff.tenant?.partyId;
+
+    if (!countryCode || !partyId) {
+      throw new Error(
+        `Tariff ${coreTariff.id ?? coreTariff.ocpiTariffId} has neither tenantPartner nor tenant country/party identifiers`,
+      );
+    }
+
     return {
       id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
-      country_code:
-        coreTariff.tenantPartner?.countryCode ??
-        coreTariff.tenant?.countryCode!,
-      party_id:
-        coreTariff.tenantPartner?.partyId ?? coreTariff.tenant!.partyId!,
+      country_code: countryCode,
+      party_id: partyId,
       currency: coreTariff.currency!,
       type: toTariffType(coreTariff.tariffType),
       tariff_alt_text: tariffAltText,
