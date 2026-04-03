@@ -121,7 +121,7 @@ function validateLocationBodyMatchesUrl(
   return undefined;
 }
 
-function validateLocationTenantMatchesUrl(
+function validateLocationTenantPartnerMatchesUrl(
   tenant: { countryCode?: string | null; partyId?: string | null } | undefined,
   countryCode: string,
   partyId: string,
@@ -137,6 +137,15 @@ function validateLocationTenantMatchesUrl(
     ) as LocationResponse;
   }
   return undefined;
+}
+
+function hashToInt(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h | 0;
 }
 
 @Service()
@@ -226,6 +235,11 @@ export class LocationReceiverService {
         GetEvseByOcpiIdAndPartnerIdQueryResult,
         GetEvseByOcpiIdAndPartnerIdQueryVariables
       >(GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
+      if (!response.Evses[0]) {
+        throw new NotFoundException(
+          `Evse ${evseUid} not found for location ${locationId}`,
+        );
+      }
       const evse = EvseMapper.fromGraphqlReceiver(response.Evses[0]);
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
@@ -252,7 +266,7 @@ export class LocationReceiverService {
     tenantPartner: TenantPartnerDto,
   ): Promise<ConnectorResponse> {
     this.logger.debug(
-      `Getting location ${locationId} by country ${countryCode} and party ${partyId}`,
+      `Getting location ${locationId} ${evseUid} ${connectorId} by country ${countryCode} and party ${partyId}`,
     );
     try {
       if (!tenantPartner.id) {
@@ -284,6 +298,7 @@ export class LocationReceiverService {
         connector,
       ) as ConnectorResponse;
     } catch (e) {
+      this.logger.error(e);
       const statusCode =
         e instanceof NotFoundException
           ? OcpiResponseStatusCode.ClientUnknownLocation
@@ -432,6 +447,11 @@ export class LocationReceiverService {
         updatedAt: new Date(),
       },
     });
+    if (!response.insert_ChargingStations_one?.id) {
+      throw new Error(
+        `Failed to create virtual charging station for location ${locationId}`,
+      );
+    }
     return response;
   }
 
@@ -486,6 +506,11 @@ export class LocationReceiverService {
         updatedAt: new Date(),
       },
     });
+    if (!response.insert_ConnectorTariffs_one?.id) {
+      throw new Error(
+        `Failed to create or update connector tariff for connector ${connectorId} and tariff ${tariff}`,
+      );
+    }
     return response;
   }
 
@@ -499,6 +524,7 @@ export class LocationReceiverService {
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
+    const key = `${evseOcpiUid}:${connector.id}:${tenantPartner.id}`;
     const response = await this.ocpiGraphqlClient.request<
       UpsertConnectorMutationResult,
       UpsertConnectorMutationVariables
@@ -507,10 +533,7 @@ export class LocationReceiverService {
         ocpiId: connector.id,
         stationId,
         evseId: Number(evseId),
-        connectorId:
-          Number(evseId) * 1000 +
-          (Number(connector.id) || 1) +
-          tenantPartner.id,
+        connectorId: hashToInt(key),
         type: connector.standard,
         format: connector.format,
         powerType: connector.power_type ?? null,
@@ -524,13 +547,12 @@ export class LocationReceiverService {
         updatedAt: connector.last_updated ?? new Date(),
       },
     });
+    if (!response.insert_Connectors_one?.id) {
+      throw new Error(`Failed to create or update connector ${connector.id}`);
+    }
 
     const connectorOcpiId = response.insert_Connectors_one?.ocpiId;
     const connectorId = response.insert_Connectors_one?.id;
-
-    if (!response.insert_Connectors_one?.id) {
-      throw new Error('Failed to insert connector');
-    }
 
     if (!connectorOcpiId || !connectorId || !evseOcpiUid || !evseId) {
       throw new Error('Failed to get connector or evse');
@@ -642,8 +664,12 @@ export class LocationReceiverService {
     }
 
     const locRow = response.Locations[0];
-    const tenantErr = validateLocationTenantMatchesUrl(
-      locRow.tenant,
+    const ownerTenantPartner = locRow?.ownerTenantPartner;
+    const tenantErr = validateLocationTenantPartnerMatchesUrl(
+      {
+        countryCode: ownerTenantPartner?.countryCode,
+        partyId: ownerTenantPartner?.partyId,
+      },
       countryCode,
       partyId,
     );
@@ -690,13 +716,19 @@ export class LocationReceiverService {
       );
     }
 
-    await this.ocpiGraphqlClient.request<
+    // cascade timestamps to parents : location
+    const locationResponse = await this.ocpiGraphqlClient.request<
       UpdateLocationPatchMutationResult,
       UpdateLocationPatchMutationVariables
     >(UPDATE_LOCATION_PATCH_MUTATION, {
       id: location_id,
       changes: { updatedAt: evse.last_updated },
     });
+    if (!locationResponse.update_Locations_by_pk?.id) {
+      throw new Error(
+        `Failed to update field: 'last updated' for location ${location_id}`,
+      );
+    }
 
     return undefined;
   }
@@ -764,22 +796,30 @@ export class LocationReceiverService {
     );
 
     // cascade timestamps to parents : location and evse
-    await this.ocpiGraphqlClient.request<
+    const evseResponse = await this.ocpiGraphqlClient.request<
       UpdateEvsePatchMutationResult,
       UpdateEvsePatchMutationVariables
     >(UPDATE_EVSE_PATCH_MUTATION, {
       id: evse.id,
       changes: { updatedAt: ts },
     });
-
-    await this.ocpiGraphqlClient.request<
+    if (!evseResponse.update_Evses_by_pk?.id) {
+      throw new Error(
+        `Failed to update field: 'last updated' for evse ${evse.id}`,
+      );
+    }
+    const locationResponse = await this.ocpiGraphqlClient.request<
       UpdateLocationPatchMutationResult,
       UpdateLocationPatchMutationVariables
     >(UPDATE_LOCATION_PATCH_MUTATION, {
       id: location.id,
       changes: { updatedAt: ts },
     });
-
+    if (!locationResponse.update_Locations_by_pk?.id) {
+      throw new Error(
+        `Failed to update field: 'last updated' for location ${location.id}`,
+      );
+    }
     return undefined;
   }
 
@@ -871,13 +911,18 @@ export class LocationReceiverService {
 
     const dbLocationId = response.Locations[0].id;
     const locationPatch = this.mapLocationPatch(location);
-    await this.ocpiGraphqlClient.request<any, any>(
+    const locationResponse = await this.ocpiGraphqlClient.request<any, any>(
       UPDATE_LOCATION_PATCH_MUTATION,
       {
         id: dbLocationId,
         changes: locationPatch,
       },
     );
+    if (!locationResponse.update_Locations_by_pk?.id) {
+      throw new Error(
+        `Failed to update location ${dbLocationId} with patch ${JSON.stringify(locationPatch)}`,
+      );
+    }
 
     return undefined;
   }
@@ -977,23 +1022,31 @@ export class LocationReceiverService {
     const dbLocationId = lookupResponse.Locations[0].id;
     const evsePatch = this.mapEvsePatch(evse);
 
-    await this.ocpiGraphqlClient.request<
+    const evseResponse = await this.ocpiGraphqlClient.request<
       UpdateEvsePatchMutationResult,
       UpdateEvsePatchMutationVariables
     >(UPDATE_EVSE_PATCH_MUTATION, {
       id: dbEvseId,
       changes: evsePatch,
     });
-
+    if (!evseResponse.update_Evses_by_pk?.id) {
+      throw new Error(
+        `Failed to update evse ${dbEvseId} with patch ${JSON.stringify(evsePatch)}`,
+      );
+    }
     // cascade timestamps to parents : location
-    await this.ocpiGraphqlClient.request<
+    const locationResponse = await this.ocpiGraphqlClient.request<
       UpdateLocationPatchMutationResult,
       UpdateLocationPatchMutationVariables
     >(UPDATE_LOCATION_PATCH_MUTATION, {
       id: dbLocationId,
       changes: { updatedAt: new Date(evse.last_updated as any) },
     });
-
+    if (!locationResponse.update_Locations_by_pk?.id) {
+      throw new Error(
+        `Failed to update location field: 'last updated' for location ${dbLocationId}`,
+      );
+    }
     return undefined;
   }
 
@@ -1102,12 +1155,15 @@ export class LocationReceiverService {
       // if there is other tariffs for this connector, delete them
       await this.deleteOcpiConnectorTariff(dbConnectorId, connectorId);
       for (const tariff of connector.tariff_ids) {
-        await this.upsertTariffForPartnerAndConnector(
+        const tariffResponse = await this.upsertTariffForPartnerAndConnector(
           tenantPartner,
           tariff,
           connectorId,
           dbConnectorId,
         );
+        if (!tariffResponse.insert_ConnectorTariffs_one?.id) {
+          throw new Error(`Failed to create or update tariff ${tariff}`);
+        }
       }
     }
 

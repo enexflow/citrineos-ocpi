@@ -9,11 +9,64 @@ import type { TariffElement } from '../model/TariffElement.js';
 import { TariffType } from '../model/TariffType.js';
 import { MINUTES_IN_HOUR } from '../util/Consts.js';
 import type { TariffDto } from '@citrineos/base';
+import type { Price } from '../model/Price.js';
+import type { EnergyMix } from '../model/EnergyMix.js';
+
+export type TariffMapInput = {
+  id?: number;
+  ocpiTariffId?: string | null;
+  stationId?: string | null;
+  authorizationAmount?: unknown;
+  paymentFee?: unknown;
+  pricePerKwh?: unknown;
+  pricePerMin?: unknown;
+  pricePerSession?: unknown;
+  taxRate?: unknown;
+  currency?: string;
+  tariffAltText?: string | Record<string, unknown> | null | unknown[];
+  tariffAltUrl?: string | null;
+  minPrice?: unknown;
+  maxPrice?: unknown;
+  energyMix?: unknown;
+  startDateTime?: string | Date | null;
+  endDateTime?: string | Date | null;
+  tenantPartnerId?: number | null;
+  tenantId?: number;
+  tenant?: { countryCode?: string | null; partyId?: string | null } | null;
+  tenantPartner?: {
+    countryCode?: string | null;
+    partyId?: string | null;
+  } | null;
+  TariffElements?: Array<{
+    priceComponents: unknown;
+    restrictions?: unknown | null;
+  }>;
+  tariffType?: string | null;
+  updatedAt?: string | Date;
+  createdAt?: string | Date;
+};
+
+function toOptionalDate(v: string | Date | null | undefined): Date | undefined {
+  if (v == null) return undefined;
+  return v instanceof Date ? v : new Date(v);
+}
+
+function toDate(v: string | Date | null | undefined): Date {
+  if (v == null) return new Date();
+  return v instanceof Date ? v : new Date(v);
+}
+
+function toTariffType(v: string | null | undefined): TariffType | null {
+  if (v != null && (Object.values(TariffType) as string[]).includes(v)) {
+    return v as unknown as TariffType;
+  }
+  return null;
+}
 
 export class TariffMapper {
   constructor() {}
 
-  public static map(coreTariff: Partial<TariffDto>): TariffDTO {
+  public static mapForSender(coreTariff: TariffMapInput): TariffDTO {
     let tariffAltText: Array<{ language: string; text: string }> | undefined;
     if (coreTariff.tariffAltText) {
       if (typeof coreTariff.tariffAltText === 'string') {
@@ -44,37 +97,104 @@ export class TariffMapper {
       energy_mix: undefined,
       start_date_time: undefined,
       end_date_time: undefined,
-      last_updated: coreTariff.updatedAt!,
+      last_updated: toDate(coreTariff.updatedAt),
     };
   }
 
-  private static getTariffElement(
-    coreTariff: Partial<TariffDto>,
-  ): TariffElement {
+  public static mapForReceiver(coreTariff: TariffMapInput): TariffDTO {
+    let tariffAltText: Array<{ language: string; text: string }> | undefined;
+    if (coreTariff.tariffAltText) {
+      if (typeof coreTariff.tariffAltText === 'string') {
+        try {
+          tariffAltText = JSON.parse(coreTariff.tariffAltText);
+        } catch {
+          tariffAltText = undefined;
+        }
+      } else if (Array.isArray(coreTariff.tariffAltText)) {
+        tariffAltText = coreTariff.tariffAltText as Array<{
+          language: string;
+          text: string;
+        }>;
+      }
+    }
+
+    const elements: TariffElement[] =
+      (coreTariff as any).TariffElements?.length > 0
+        ? (coreTariff as any).TariffElements.map((el: any) => ({
+            price_components: el.priceComponents,
+            restrictions: el.restrictions ?? undefined,
+          }))
+        : [TariffMapper.getTariffElement(coreTariff)];
+
+    const countryCode =
+      coreTariff.tenantPartner?.countryCode ?? coreTariff.tenant?.countryCode;
+    const partyId =
+      coreTariff.tenantPartner?.partyId ?? coreTariff.tenant?.partyId;
+
+    if (!countryCode || !partyId) {
+      throw new Error(
+        `Tariff ${coreTariff.id ?? coreTariff.ocpiTariffId} has neither tenantPartner nor tenant country/party identifiers`,
+      );
+    }
+
+    return {
+      id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
+      country_code: countryCode,
+      party_id: partyId,
+      currency: coreTariff.currency!,
+      type: toTariffType(coreTariff.tariffType),
+      tariff_alt_text: tariffAltText,
+      tariff_alt_url: coreTariff?.tariffAltUrl ?? undefined,
+      min_price: coreTariff.minPrice as Price | undefined,
+      max_price: coreTariff.maxPrice as Price | undefined,
+      elements: elements,
+      energy_mix: coreTariff.energyMix as EnergyMix | undefined,
+
+      start_date_time: toOptionalDate(coreTariff.startDateTime),
+      end_date_time: toOptionalDate(coreTariff.endDateTime),
+      last_updated: toDate(coreTariff.updatedAt),
+    };
+  }
+
+  private static getTariffElement(coreTariff: TariffMapInput): TariffElement {
+    const pricePerKwh = Number(coreTariff.pricePerKwh ?? 0);
+    const pricePerMinRaw = coreTariff.pricePerMin;
+    const pricePerSessionRaw = coreTariff.pricePerSession;
+    const taxRateRaw = coreTariff.taxRate;
+    const pricePerMin =
+      pricePerMinRaw != null && pricePerMinRaw !== ''
+        ? Number(pricePerMinRaw)
+        : undefined;
+    const pricePerSession =
+      pricePerSessionRaw != null && pricePerSessionRaw !== ''
+        ? Number(pricePerSessionRaw)
+        : undefined;
+    const taxRate =
+      taxRateRaw != null && taxRateRaw !== '' ? Number(taxRateRaw) : undefined;
     return {
       price_components: [
         {
           type: TariffDimensionType.ENERGY,
-          price: coreTariff.pricePerKwh!,
-          vat: coreTariff.taxRate,
+          price: pricePerKwh,
+          vat: taxRate,
           step_size: 1,
         },
-        ...(coreTariff.pricePerMin
+        ...(pricePerMin != null && !Number.isNaN(pricePerMin)
           ? [
               {
                 type: TariffDimensionType.TIME,
-                price: coreTariff.pricePerMin * MINUTES_IN_HOUR,
-                vat: coreTariff.taxRate,
+                price: pricePerMin * MINUTES_IN_HOUR,
+                vat: taxRate,
                 step_size: 1,
               },
             ]
           : []),
-        ...(coreTariff.pricePerSession
+        ...(pricePerSession != null && !Number.isNaN(pricePerSession)
           ? [
               {
                 type: TariffDimensionType.FLAT,
-                price: coreTariff.pricePerSession,
-                vat: coreTariff.taxRate,
+                price: pricePerSession,
+                vat: taxRate,
                 step_size: 1,
               },
             ]
@@ -85,9 +205,9 @@ export class TariffMapper {
   }
 
   public static mapElementsToCoreTariff(
-    tariffElements: TariffElement[],
+    TariffElements: TariffElement[],
   ): Partial<TariffDto> {
-    const tariffElement = tariffElements[0];
+    const tariffElement = TariffElements[0];
     const priceComponents = tariffElement?.price_components ?? [];
     const pricePerKwh =
       priceComponents.find((pc) => pc.type === TariffDimensionType.ENERGY)
@@ -112,20 +232,40 @@ export class TariffMapper {
     tariff: PutTariffRequest,
     tenantId?: number,
     tenantPartnerId?: number,
-  ): Partial<TariffDto> & { ocpiTariffId?: string } {
+  ): {
+    coreTariff: Partial<TariffDto> & { ocpiTariffId?: string };
+    TariffElements: Array<{ priceComponents: any; restrictions: any }>;
+  } {
     const coreFields = TariffMapper.mapElementsToCoreTariff(tariff.elements);
     const now = new Date().toISOString();
-    return {
+
+    const coreTariff = {
       ocpiTariffId: tariff.id,
       currency: tariff.currency,
+      tariffType: tariff.type ?? null,
       tariffAltText: tariff.tariff_alt_text
         ? JSON.stringify(tariff.tariff_alt_text)
-        : (undefined as any),
+        : undefined,
+      tariffAltUrl: tariff.tariff_alt_url ?? null,
+      minPrice: tariff.min_price ?? null,
+      maxPrice: tariff.max_price ?? null,
+      energyMix: tariff.energy_mix ?? null,
+      startDateTime: tariff.start_date_time ?? null,
+      endDateTime: tariff.end_date_time ?? null,
       createdAt: now,
       updatedAt: now,
       ...(tenantId !== undefined && { tenantId }),
       ...(tenantPartnerId !== undefined && { tenantPartnerId }),
       ...coreFields,
     } as Partial<TariffDto> & { ocpiTariffId?: string };
+
+    const TariffElements = tariff.elements.map((el) => ({
+      priceComponents: el.price_components,
+      restrictions: el.restrictions ?? null,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    return { coreTariff, TariffElements };
   }
 }

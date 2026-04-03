@@ -26,7 +26,7 @@ export class TokensClientApi extends BaseClientApi {
   getUrl(partnerProfile: PartnerProfile): string {
     const url = partnerProfile.endpoints?.find(
       (value: Endpoint) =>
-        value.identifier === EndpointIdentifier.TOKENS_SENDER,
+        value.identifier === EndpointIdentifier.TOKENS_RECEIVER,
     )?.url;
     if (!url) {
       throw new Error(

@@ -353,10 +353,15 @@ export const GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
       parkingType
       postalCode
       publishUpstream
+      publishAllowedTo
       state
       timeZone
       updatedAt
       tenant: Tenant {
+        partyId
+        countryCode
+      }
+      ownerTenantPartner: OwnerTenantPartner {
         partyId
         countryCode
       }
@@ -521,15 +526,6 @@ export const UPDATE_LOCATION_PATCH_MUTATION = gql`
     update_Locations_by_pk(pk_columns: { id: $id }, _set: $changes) {
       id
       updatedAt
-    }
-  }
-`;
-
-export const GET_LOCATION_OWNERSHIP_BY_ID = gql`
-  query GetLocationOwnershipById($id: Int!) {
-    Locations_by_pk(id: $id) {
-      id
-      ownerTenantPartnerId
     }
   }
 `;

@@ -13,21 +13,12 @@ import {
   DtoEventObjectType,
   DtoEventType,
   GET_CHARGING_STATION_BY_ID_QUERY,
-  GET_CONNECTOR_OWNERSHIP_BY_ID,
-  GET_EVSE_OWNERSHIP_BY_ID,
-  GET_LOCATION_OWNERSHIP_BY_ID,
   LocationsBroadcaster,
   OcpiConfigToken,
   OcpiGraphqlClient,
   OcpiModule,
   RabbitMqDtoReceiver,
 } from '@citrineos/ocpi-base';
-import type {
-  GetEvseOwnershipByIdQueryResult,
-  GetEvseOwnershipByIdQueryVariables,
-  GetConnectorOwnershipByIdQueryResult,
-  GetConnectorOwnershipByIdQueryVariables,
-} from '../../../00_Base/src/graphql/index.js';
 
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -37,11 +28,31 @@ import type {
   ConnectorDto,
   EvseDto,
   LocationDto,
+  TenantDto,
 } from '@citrineos/base';
 import { Inject, Service } from 'typedi';
 
 export { LocationsModuleApi } from './module/LocationsModuleApi.js';
 export type { ILocationsModuleApi } from './module/ILocationsModuleApi.js';
+
+type EvseNotifyPayload = Partial<EvseDto> & {
+  tenant?: TenantDto;
+  ownerTenantPartner?: {
+    id: number;
+    partyId?: string;
+    countryCode?: string;
+  };
+  ocpiUid?: string | null;
+};
+type ConnectorNotifyPayload = Partial<ConnectorDto> & {
+  tenant?: TenantDto;
+  ownerTenantPartner?: {
+    id: number;
+    partyId?: string;
+    countryCode?: string;
+  };
+  ocpiId?: string | null;
+};
 
 @Service()
 export class LocationsModule extends AbstractDtoModule implements OcpiModule {
@@ -96,11 +107,17 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'LocationNotification',
   )
   async handleLocationUpdate(
-    event: IDtoEvent<Partial<LocationDto>>,
+    event: IDtoEvent<
+      Partial<LocationDto> & {
+        tenant?: TenantDto;
+        ownerTenantPartnerId?: number;
+      }
+    >,
   ): Promise<void> {
     this._logger.debug(`Handling Location Update: ${JSON.stringify(event)}`);
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
+
     if (!tenant) {
       this._logger.error(
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${locationDto.id}, cannot broadcast.`,
@@ -109,20 +126,11 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     // if the location is owned by a tenant partner, don't broadcast
-    if ((locationDto as any).ownerTenantPartnerId != null) return;
-
-    //sometimes we won't get the full object so we need to check if the location is owned by a tenant partner by looking at the database
-    const locationDbId = Number(locationDto.id);
-    if (!Number.isInteger(locationDbId)) return;
-    const locationOwnership = await this.ocpiGraphqlClient.request<any, any>(
-      GET_LOCATION_OWNERSHIP_BY_ID,
-      { id: locationDbId },
-    );
-    const fullLocation = locationOwnership?.Locations_by_pk;
-    if (!fullLocation) return;
-    if (fullLocation.ownerTenantPartnerId != null) {
+    if (
+      locationDto.ownerTenantPartnerId != null ||
+      event._payload?.ownerTenantPartnerId != null
+    )
       return;
-    }
 
     // if the location is not owned by a tenant partner, we can broadcast the update
     await this.locationsBroadcaster.broadcastPatchLocation(tenant, locationDto);
@@ -185,27 +193,17 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     DtoEventObjectType.Evse,
     'EvseNotification',
   )
-  async handleEvseUpdate(event: IDtoEvent<Partial<EvseDto>>): Promise<void> {
+  async handleEvseUpdate(event: IDtoEvent<EvseNotifyPayload>): Promise<void> {
     this._logger.debug(`Handling EVSE Update: ${JSON.stringify(event)}`);
     const evseDto = event._payload;
 
     // if the evse is owned by a tenant partner, don't broadcast
-    if ((evseDto as any).ocpiUid != null) return;
-    // sometime we won't get the full object so we neef to check if the evse is owned by a tenant partner by looking at the database
-    const evseDbId = Number(evseDto.id);
-    if (!Number.isInteger(evseDbId)) return;
-    const evseOwnership = await this.ocpiGraphqlClient.request<
-      GetEvseOwnershipByIdQueryResult,
-      GetEvseOwnershipByIdQueryVariables
-    >(GET_EVSE_OWNERSHIP_BY_ID, { id: evseDbId });
-    const fullEvse = evseOwnership?.Evses_by_pk;
-    if (!fullEvse) return;
     if (
-      fullEvse.ocpiUid != null ||
-      fullEvse?.chargingStation?.location?.ownerTenantPartnerId != null
-    ) {
+      evseDto.ocpiUid != null ||
+      event._payload?.ownerTenantPartner?.id != null
+    )
       return;
-    }
+
     // if the evse is not owned by a tenant partner, we can broadcast the update
     const tenant = evseDto.tenant;
     if (!tenant) {
@@ -274,32 +272,18 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'ConnectorNotification',
   )
   async handleConnectorUpdate(
-    event: IDtoEvent<Partial<ConnectorDto>>,
+    event: IDtoEvent<ConnectorNotifyPayload>,
   ): Promise<void> {
     this._logger.debug(`Handling Connector Update: ${JSON.stringify(event)}`);
     const connectorDto = event._payload;
 
-    // if the connector is owned by a tenant partner, don't broadcast so we need to check if the connector is owned by a tenant partner by looking at the database
-    if ((connectorDto as any).ocpiId != null) return;
-
-    // sometime we won't get the full object so we neef to check if the connector is owned by a tenant partner by looking at the database
-    const connectorDbId = Number(connectorDto.id);
-    if (!Number.isInteger(connectorDbId)) return;
-
-    const connectorOwnership = await this.ocpiGraphqlClient.request<
-      GetConnectorOwnershipByIdQueryResult,
-      GetConnectorOwnershipByIdQueryVariables
-    >(GET_CONNECTOR_OWNERSHIP_BY_ID, { id: connectorDbId });
-
-    const fullConnector = connectorOwnership?.Connectors_by_pk;
-    if (!fullConnector) return;
-
+    // if the connector is owned by a tenant partner, don't broadcast
     if (
-      fullConnector.ocpiId != null ||
-      fullConnector?.chargingStation?.location?.ownerTenantPartnerId != null
-    ) {
+      connectorDto.ocpiId != null ||
+      event._payload?.ownerTenantPartner?.id != null
+    )
       return;
-    }
+
     // if the connector is not owned by a tenant partner, we can broadcast the update
     const tenant = connectorDto.tenant;
     if (!tenant) {
