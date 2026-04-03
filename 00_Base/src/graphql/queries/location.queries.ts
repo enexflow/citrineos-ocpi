@@ -353,6 +353,7 @@ export const GET_LOCATION_BY_OCPI_ID_AND_PARTNER_ID_QUERY = gql`
       parkingType
       postalCode
       publishUpstream
+      publishAllowedTo
       state
       timeZone
       updatedAt

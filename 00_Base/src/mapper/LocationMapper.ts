@@ -46,6 +46,7 @@ import type { Hours } from '../model/Hours.js';
 import { ImageType } from '../model/ImageType.js';
 import { ImageCategory } from '../model/ImageCategory.js';
 import type { ImageDTO } from '../model/DTO/ImageDTO.js';
+import type { PublishTokenType } from '../model/PublishTokenType.js';
 
 import type {
   GetLocationByOcpiIdAndPartnerIdQueryResult,
@@ -71,7 +72,7 @@ export class LocationMapper {
             category: details.logo.category as ImageCategory,
             width: details.logo.width ?? undefined,
             height: details.logo.height ?? undefined,
-            thumbnail: undefined,
+            thumbnail: details.logo.thumbnail ?? undefined,
           }
         : undefined,
     };
@@ -148,6 +149,9 @@ export class LocationMapper {
       operator: LocationMapper.mapBusinessDetails(location.operator),
       suboperator: LocationMapper.mapBusinessDetails(location.suboperator),
       owner: LocationMapper.mapBusinessDetails(location.owner),
+      publish_allowed_to: location.publishAllowedTo as
+        | PublishTokenType[]
+        | null,
       last_updated: location.updatedAt!,
     };
   }
@@ -362,12 +366,14 @@ export class EvseMapper {
             url: string;
             type: string;
             category: string;
+            thumbnail?: string | null;
             width?: number | null;
             height?: number | null;
           }) => ({
             url: i.url,
             type: i.type as ImageType,
             category: i.category as ImageCategory,
+            thumbnail: i.thumbnail ?? undefined,
             width: i.width ?? undefined,
             height: i.height ?? undefined,
           }),

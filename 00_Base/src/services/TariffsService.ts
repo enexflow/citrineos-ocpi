@@ -37,10 +37,11 @@ import {
   GET_TARIFFS_QUERY,
   GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY,
   OcpiGraphqlClient,
+  GET_TARIFF_ID_BY_OCPI_ID_QUERY,
+  DELETE_TARIFF_ELEMENTS_MUTATION,
 } from '../graphql/index.js';
-import { TariffMapper } from '../mapper/index.js';
 import { NotFoundException } from '../exception/NotFoundException.js';
-import type { TariffDto } from '@citrineos/base';
+import { TariffMapper, type TariffMapInput } from '../mapper/index.js';
 
 @Service()
 export class TariffsService {
@@ -57,7 +58,7 @@ export class TariffsService {
     >(GET_TARIFF_BY_KEY_QUERY, key);
     const tariff = result.Tariffs?.[0];
     if (tariff) {
-      return TariffMapper.map(tariff as TariffDto);
+      return TariffMapper.map(tariff as TariffMapInput);
     }
     return undefined;
   }
@@ -91,7 +92,7 @@ export class TariffsService {
       });
       const tariff = result.Tariffs?.[0];
       if (tariff) {
-        return TariffMapper.map(tariff as TariffDto);
+        return TariffMapper.map(tariff as TariffMapInput);
       }
       return undefined;
     }
@@ -106,7 +107,7 @@ export class TariffsService {
     });
     const tariff = result.Tariffs?.[0];
     if (tariff) {
-      return TariffMapper.map(tariff as TariffDto);
+      return TariffMapper.map(tariff as TariffMapInput);
     }
     return undefined;
   }
@@ -147,7 +148,7 @@ export class TariffsService {
     >(GET_TARIFFS_QUERY, variables);
     const mappedTariffs: TariffDTO[] = [];
     for (const tariff of result.Tariffs) {
-      mappedTariffs.push(TariffMapper.map(tariff as TariffDto));
+      mappedTariffs.push(TariffMapper.map(tariff as TariffMapInput));
     }
     return {
       data: mappedTariffs,
@@ -160,33 +161,59 @@ export class TariffsService {
     tenantId?: number,
     tenantPartnerId?: number,
   ): Promise<TariffDTO> {
-    const coreObject = TariffMapper.mapFromOcpi(
+    const { coreTariff, TariffElements } = TariffMapper.mapFromOcpi(
       tariffRequest,
       tenantId,
       tenantPartnerId,
     );
 
+    const object = {
+      ...coreTariff,
+      TariffElements: {
+        data: TariffElements,
+        on_conflict: {
+          constraint: 'TariffElements_pkey',
+          update_columns: ['priceComponents', 'restrictions', 'updatedAt'],
+        },
+      },
+    };
+
+    if (tenantPartnerId !== undefined) {
+      // Delete existing elements first to avoid accumulation on repeated PUTs
+      const existing = await this.ocpiGraphqlClient.request<any, any>(
+        GET_TARIFF_ID_BY_OCPI_ID_QUERY,
+        { ocpiTariffId: tariffRequest.id, tenantPartnerId },
+      );
+      const existingId = existing?.Tariffs?.[0]?.id;
+      if (existingId) {
+        await this.ocpiGraphqlClient.request<any, any>(
+          DELETE_TARIFF_ELEMENTS_MUTATION,
+          { tariffId: existingId },
+        );
+      }
+    }
+
     if (tenantPartnerId !== undefined) {
       const result = await this.ocpiGraphqlClient.request<
         CreateOrUpdatePartnerTariffMutationResult,
         CreateOrUpdatePartnerTariffMutationVariables
-      >(CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION, { object: coreObject });
+      >(CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION, { object });
       if (!result.insert_Tariffs_one) {
         throw new Error(
           `Failed to create or update tariff ${tariffRequest.id}`,
         );
       }
-      return TariffMapper.map(result.insert_Tariffs_one as TariffDto);
+      return TariffMapper.map(result.insert_Tariffs_one as TariffMapInput);
     }
 
     const result = await this.ocpiGraphqlClient.request<
       CreateOrUpdateTariffMutationResult,
       CreateOrUpdateTariffMutationVariables
-    >(CREATE_OR_UPDATE_TARIFF_MUTATION, { object: coreObject });
+    >(CREATE_OR_UPDATE_TARIFF_MUTATION, { object });
     if (!result.insert_Tariffs_one) {
       throw new Error(`Failed to create or update tariff ${tariffRequest.id}`);
     }
-    return TariffMapper.map(result.insert_Tariffs_one as TariffDto);
+    return TariffMapper.map(result.insert_Tariffs_one as TariffMapInput);
   }
 
   async deleteTariff(

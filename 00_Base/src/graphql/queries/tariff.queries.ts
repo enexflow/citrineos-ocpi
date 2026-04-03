@@ -84,6 +84,14 @@ export const CREATE_OR_UPDATE_TARIFF_MUTATION = gql`
           pricePerSession
           stationId
           tariffAltText
+          tariffType
+          tariffType
+          tariffAltUrl
+          minPrice
+          maxPrice
+          energyMix
+          startDateTime
+          endDateTime
           taxRate
           tenantPartnerId
           updatedAt
@@ -104,7 +112,19 @@ export const CREATE_OR_UPDATE_TARIFF_MUTATION = gql`
       tariffAltText
       tenantPartnerId
       updatedAt
+      tariffType
+      tariffAltUrl
+      minPrice
+      maxPrice
+      energyMix
+      startDateTime
+      endDateTime
       tenant: Tenant {
+        countryCode
+        partyId
+      }
+      tenantPartner: TenantPartner {
+        id
         countryCode
         partyId
       }
@@ -128,6 +148,13 @@ export const CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION = gql`
           pricePerSession
           stationId
           tariffAltText
+          tariffType
+          tariffAltUrl
+          minPrice
+          maxPrice
+          energyMix
+          startDateTime
+          endDateTime
           taxRate
           updatedAt
         ]
@@ -145,11 +172,23 @@ export const CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION = gql`
       stationId
       taxRate
       tariffAltText
+      tariffType
+      tariffAltUrl
+      minPrice
+      maxPrice
+      energyMix
+      startDateTime
+      endDateTime
       tenantPartnerId
       updatedAt
       tenant: Tenant {
         countryCode
         partyId
+      }
+      TariffElements {
+        id
+        priceComponents
+        restrictions
       }
     }
   }
@@ -207,11 +246,28 @@ export const GET_TARIFF_BY_OCPI_ID_QUERY = gql`
       stationId
       taxRate
       tariffAltText
+      tariffType
+      tariffAltUrl
+      minPrice
+      maxPrice
+      energyMix
+      startDateTime
+      endDateTime
       tenantPartnerId
       updatedAt
       tenant: Tenant {
         countryCode
         partyId
+      }
+      tenantPartner: TenantPartner {
+        id
+        countryCode
+        partyId
+      }
+      TariffElements {
+        id
+        priceComponents
+        restrictions
       }
     }
   }
@@ -238,12 +294,50 @@ export const GET_TARIFF_BY_PARTNER_QUERY = gql`
       stationId
       taxRate
       tariffAltText
+      tariffType
+      tariffAltUrl
+      minPrice
+      maxPrice
+      energyMix
+      startDateTime
+      endDateTime
       tenantPartnerId
       updatedAt
       tenant: Tenant {
         countryCode
         partyId
       }
+      tenantPartner: TenantPartner {
+        id
+        countryCode
+        partyId
+      }
+      TariffElements {
+        id
+        priceComponents
+        restrictions
+      }
+    }
+  }
+`;
+
+export const DELETE_TARIFF_ELEMENTS_MUTATION = gql`
+  mutation DeleteTariffElements($tariffId: Int!) {
+    delete_TariffElements(where: { tariffId: { _eq: $tariffId } }) {
+      affected_rows
+    }
+  }
+`;
+
+export const GET_TARIFF_ID_BY_OCPI_ID_QUERY = gql`
+  query GetTariffIdByOcpiId($ocpiTariffId: String!, $tenantPartnerId: Int!) {
+    Tariffs(
+      where: {
+        ocpiTariffId: { _eq: $ocpiTariffId }
+        tenantPartnerId: { _eq: $tenantPartnerId }
+      }
+    ) {
+      id
     }
   }
 `;

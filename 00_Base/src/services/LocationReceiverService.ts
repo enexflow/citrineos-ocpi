@@ -235,6 +235,11 @@ export class LocationReceiverService {
         GetEvseByOcpiIdAndPartnerIdQueryResult,
         GetEvseByOcpiIdAndPartnerIdQueryVariables
       >(GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY, variables);
+      if (!response.Evses[0]) {
+        throw new NotFoundException(
+          `Evse ${evseUid} not found for location ${locationId}`,
+        );
+      }
       const evse = EvseMapper.fromGraphqlReceiver(response.Evses[0]);
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
