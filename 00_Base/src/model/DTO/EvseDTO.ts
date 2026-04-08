@@ -36,7 +36,7 @@ export const EvseDTOSchema = z.object({
   status: z.nativeEnum(EvseStatus),
   status_schedule: z.array(EvseStatusScheduleSchema).nullable().optional(),
   capabilities: z.array(z.nativeEnum(Capability)).nullable().optional(),
-  connectors: z.array(ConnectorDTOSchema).min(1),
+  connectors: z.array(z.lazy(() => ConnectorDTOSchema)).min(1),
   floor_level: z.string().max(4).nullable().optional(),
   coordinates: GeoLocationSchema.nullable().optional(),
   physical_reference: z.string().max(16).nullable().optional(),
