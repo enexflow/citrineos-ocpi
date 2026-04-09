@@ -105,7 +105,8 @@ export class AuthMiddleware
             OcpiHttpHeader.OcpiToPartyId,
           );
 
-          const hasRoutingHeaders = fromCountryCode && fromPartyId && toCountryCode && toPartyId;
+          const hasRoutingHeaders =
+            fromCountryCode && fromPartyId && toCountryCode && toPartyId;
           if (hasRoutingHeaders) {
             if (
               tenantPartner.countryCode !== fromCountryCode ||
@@ -126,19 +127,24 @@ export class AuthMiddleware
             );
             const countryCode = match?.[1];
             const partyId = match?.[2];
-          
-        
+
             if (countryCode && partyId) {
               if (
                 tenantPartner.countryCode !== countryCode ||
                 tenantPartner.partyId !== partyId
               ) {
                 logger.debug(`URL params mismatch with token tenant partner`);
-                throw new UnauthorizedException('Credentials not found for given token');
+                throw new UnauthorizedException(
+                  'Credentials not found for given token',
+                );
               }
             } else {
-              logger.debug(`No URL params found for ${context.request.method} ${context.request.url}`);
-              throw new UnauthorizedException('Credentials not found for given token');
+              logger.debug(
+                `No URL params found for ${context.request.method} ${context.request.url}`,
+              );
+              throw new UnauthorizedException(
+                'Credentials not found for given token',
+              );
             }
           }
         }
