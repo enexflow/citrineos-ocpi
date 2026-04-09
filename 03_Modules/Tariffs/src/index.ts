@@ -21,6 +21,7 @@ import {
   getTenantPartnerId,
   isPartnerReceivedTariff,
 } from './tariffPartnerNotification.js';
+import { DB_BROADCAST_LOG_PREFIX } from '@citrineos/ocpi-base';
 
 export { TariffsModuleApi } from './module/TariffsModuleApi.js';
 export type { ITariffsModuleApi } from './module/ITariffsModuleApi.js';
@@ -56,7 +57,9 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     'TariffNotification',
   )
   async handleTariffInsert(event: IDtoEvent<TariffDto>): Promise<void> {
-    this._logger.debug(`Handling Tariff Insert: ${JSON.stringify(event)}`);
+    this._logger.debug(
+      `${DB_BROADCAST_LOG_PREFIX} Handling Tariff Insert: ${JSON.stringify(event)}`,
+    );
     const tariffDto = event._payload;
 
     if (isPartnerReceivedTariff(tariffDto)) {
@@ -85,7 +88,9 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
   async handleTariffUpdate(
     event: IDtoEvent<Partial<TariffDto>>,
   ): Promise<void> {
-    this._logger.debug(`Handling Tariff Update: ${JSON.stringify(event)}`);
+    this._logger.debug(
+      `${DB_BROADCAST_LOG_PREFIX} Handling Tariff Update: ${JSON.stringify(event)}`,
+    );
     const tariffDto = event._payload;
 
     if (isPartnerReceivedTariff(tariffDto)) {
@@ -112,7 +117,9 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     'TariffNotification',
   )
   async handleTariffDelete(event: IDtoEvent<TariffDto>): Promise<void> {
-    this._logger.debug(`Handling Tariff Delete: ${JSON.stringify(event)}`);
+    this._logger.debug(
+      `${DB_BROADCAST_LOG_PREFIX} Handling Tariff Delete: ${JSON.stringify(event)}`,
+    );
     const tariffDto = event._payload;
 
     if (isPartnerReceivedTariff(tariffDto)) {

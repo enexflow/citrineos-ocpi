@@ -531,3 +531,5 @@ export {
   PaginatedCdrResponseSchema,
   PaginatedCdrResponseSchemaName,
 } from './model/Cdr.js';
+
+export const DB_BROADCAST_LOG_PREFIX = '[db-broadcast]' as const;
