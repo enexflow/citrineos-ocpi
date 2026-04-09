@@ -104,18 +104,42 @@ export class AuthMiddleware
             context,
             OcpiHttpHeader.OcpiToPartyId,
           );
-          if (
-            tenantPartner.countryCode !== fromCountryCode ||
-            tenantPartner.partyId !== fromPartyId ||
-            tenantPartner.tenant.countryCode !== toCountryCode ||
-            tenantPartner.tenant.partyId !== toPartyId
-          ) {
-            logger.debug(
-              `String token matched tenantPartner with incorrect routing headers - ${tenantPartner.countryCode}:${fromCountryCode}, ${tenantPartner.partyId}:${fromPartyId}, ${tenantPartner.tenant.countryCode}:${toCountryCode}, ${tenantPartner.tenant.partyId}:${toPartyId}`,
+
+          const hasRoutingHeaders = fromCountryCode && fromPartyId && toCountryCode && toPartyId;
+          if (hasRoutingHeaders) {
+            if (
+              tenantPartner.countryCode !== fromCountryCode ||
+              tenantPartner.partyId !== fromPartyId ||
+              tenantPartner.tenant.countryCode !== toCountryCode ||
+              tenantPartner.tenant.partyId !== toPartyId
+            ) {
+              logger.debug(
+                `String token matched tenantPartner with incorrect routing headers - ${tenantPartner.countryCode}:${fromCountryCode}, ${tenantPartner.partyId}:${fromPartyId}, ${tenantPartner.tenant.countryCode}:${toCountryCode}, ${tenantPartner.tenant.partyId}:${toPartyId}`,
+              );
+              throw new UnauthorizedException(
+                'Credentials not found for given token',
+              );
+            }
+          } else {
+            const match = (context.request.path as string).match(
+              /\/ocpi\/(?:cpo|emsp)\/[\d.]+\/\w+\/([A-Z]{2})\/([A-Z]{2,3})/i,
             );
-            throw new UnauthorizedException(
-              'Credentials not found for given token',
-            );
+            const countryCode = match?.[1];
+            const partyId = match?.[2];
+          
+        
+            if (countryCode && partyId) {
+              if (
+                tenantPartner.countryCode !== countryCode ||
+                tenantPartner.partyId !== partyId
+              ) {
+                logger.debug(`URL params mismatch with token tenant partner`);
+                throw new UnauthorizedException('Credentials not found for given token');
+              }
+            } else {
+              logger.debug(`No URL params found for ${context.request.method} ${context.request.url}`);
+              throw new UnauthorizedException('Credentials not found for given token');
+            }
           }
         }
 
