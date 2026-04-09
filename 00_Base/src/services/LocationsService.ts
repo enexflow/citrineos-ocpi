@@ -64,12 +64,7 @@ import type {
   LocationDto,
 } from '@citrineos/base';
 import { HttpMethod } from '@citrineos/base';
-
-import { PaginatedLocationResponseSchema } from '../model/DTO/LocationDTO.js';
 import { z } from 'zod';
-// import {
-//   PaginatedLocationResponseSchema,
-// } from '@citrineos/ocpi-base';
 
 @Service()
 export class LocationsService {
@@ -266,102 +261,93 @@ export class LocationsService {
       date_to,
     } = body;
 
-    {
-      this.logger.info(
-        'pullPartnerLocations',
+    this.logger.info(
+      'pullPartnerLocations',
+      ourCountryCode,
+      ourPartyId,
+      cpoCountryCode,
+      cpoPartyId,
+    );
+
+    const tenantPartner = await this.ocpiGraphqlClient.request<
+      GetTenantPartnerByCpoClientAndModuleIdQueryResult,
+      GetTenantPartnerByCpoClientAndModuleIdQueryVariables
+    >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
+      cpoCountryCode: ourCountryCode,
+      cpoPartyId: ourPartyId,
+      clientCountryCode: cpoCountryCode,
+      clientPartyId: cpoPartyId,
+    });
+
+    const partnerRow = tenantPartner.TenantPartners[0];
+    if (!partnerRow?.partnerProfileOCPI) {
+      throw new Error('Tenant partner missing partnerProfileOCPI');
+    }
+    const partner = partnerRow as TenantPartnerDto;
+
+    const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
+      .endpoints as Endpoint[];
+    const url = endpoints.find(
+      (e: Endpoint) => e.identifier === 'locations_SENDER',
+    )?.url;
+
+    if (!url) {
+      throw new Error('No locations URL found');
+    }
+
+    const paginated = buildPaginatedParams(
+      offset,
+      limit,
+      date_from != null ? new Date(date_from) : undefined,
+      date_to != null ? new Date(date_to) : undefined,
+    );
+
+    let currentOffset = offset;
+    let hasMore = true;
+
+    while (hasMore) {
+      const resp = await this.locationsClientApi.request(
         ourCountryCode,
         ourPartyId,
         cpoCountryCode,
         cpoPartyId,
+        HttpMethod.Get,
+        z.any(),
+        tenantPartner.TenantPartners[0].partnerProfileOCPI!,
+        true,
+        url,
+        undefined,
+        { ...paginated, offset: currentOffset },
       );
 
-      const tenantPartner = await this.ocpiGraphqlClient.request<
-        GetTenantPartnerByCpoClientAndModuleIdQueryResult,
-        GetTenantPartnerByCpoClientAndModuleIdQueryVariables
-      >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
-        cpoCountryCode: ourCountryCode,
-        cpoPartyId: ourPartyId,
-        clientCountryCode: cpoCountryCode,
-        clientPartyId: cpoPartyId,
-      });
-
-      const partnerRow = tenantPartner.TenantPartners[0];
-      if (!partnerRow?.partnerProfileOCPI) {
-        throw new Error('Tenant partner missing partnerProfileOCPI');
-      }
-      const partner = partnerRow as TenantPartnerDto;
-
-      // tenantPartner.partnerProfileOCPI.endpoints.find(e => e.identifier === 'locations_RECEIVER').url
-
-      console.log('tenantPartner! ', tenantPartner);
-
-      const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
-        .endpoints as Endpoint[];
-      const url = endpoints.find(
-        (e: Endpoint) => e.identifier === 'locations_SENDER',
-      )?.url;
-
-      if (!url) {
-        throw new Error('No locations URL found');
-      }
-      console.log('url', url);
-
-      const paginated = buildPaginatedParams(
-        offset,
-        limit,
-        date_from != null ? new Date(date_from) : undefined,
-        date_to != null ? new Date(date_to) : undefined,
-      );
-      
-      let currentOffset = offset;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const resp = await this.locationsClientApi.request(
-          ourCountryCode,
-          ourPartyId,
-          cpoCountryCode,
-          cpoPartyId,
-          HttpMethod.Get,
-          z.any(),
-          tenantPartner.TenantPartners[0].partnerProfileOCPI!,
-          true,
-          url,
-          undefined,
-          { ...paginated, offset: currentOffset },
-        );
-      
-        for (const item of (resp as any).data) {
-          if (item == null || typeof item !== 'object' || !('id' in item)) {
-            continue;
-          }
-          const location = item as LocationDTO;
-          try {
-            await this.locationReceiverService.upsertLocationForPartner(
-              location,
-              String(location.id),
-              partner,
-            );
-            this.logger.info(
-              `pullPartnerLocations: upserted location ${String(location.id)}`,
-            );
-          } catch (err) {
-            this.logger.error(
-              `pullPartnerLocations: failed for location ${String(location.id)}`,
-              err,
-            );
-          }
+      for (const item of (resp as any).data) {
+        if (item == null || typeof item !== 'object' || !('id' in item)) {
+          continue;
         }
-      
-        const nextOffset: number | undefined = (resp as any).offset;
-        if (nextOffset != null) {
-          currentOffset = nextOffset;
-        } else {
-          hasMore = false;
+        const location = item as LocationDTO;
+        try {
+          await this.locationReceiverService.upsertLocationForPartner(
+            location,
+            String(location.id),
+            partner,
+          );
+          this.logger.info(
+            `pullPartnerLocations: upserted location ${String(location.id)}`,
+          );
+        } catch (err) {
+          this.logger.error(
+            `pullPartnerLocations: failed for location ${String(location.id)}`,
+            err,
+          );
         }
       }
 
-
+      const nextOffset: number | undefined = (resp as any).offset;
+      if (nextOffset != null) {
+        currentOffset = nextOffset;
+      } else {
+        hasMore = false;
+      }
     }
   }
 }

@@ -255,7 +255,7 @@ export abstract class BaseClientApi {
     }
     return 0;
   }
-  
+
   public async broadcastToClients<T extends ZodTypeAny>(
     params: BroadcastParams<T>,
   ): Promise<T[]> {
