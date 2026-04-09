@@ -425,7 +425,22 @@ export class OcpiServer extends KoaServer {
             ctx.req.on('error', reject);
           });
 
-          console.log('[Request]', ctx.method, ctx.path, rawBody || '(empty)');
+          this.logger.info('[Headers for Request]', {
+            authorization: ctx.get('authorization') ? '[redacted]' : undefined,
+            ocpiFromCountryCode: ctx.get('ocpi-from-country-code'),
+            ocpiFromPartyId: ctx.get('ocpi-from-party-id'),
+            ocpiToCountryCode: ctx.get('ocpi-to-country-code'),
+            ocpiToPartyId: ctx.get('ocpi-to-party-id'),
+            xRequestId: ctx.get('x-request-id'),
+            xCorrelationId: ctx.get('x-correlation-id'),
+            contentType: ctx.get('content-type'),
+          });
+          this.logger.info(
+            '[Request]',
+            ctx.method,
+            ctx.path,
+            rawBody || '(empty)',
+          );
 
           // expose parsed body for downstream if needed
           try {
