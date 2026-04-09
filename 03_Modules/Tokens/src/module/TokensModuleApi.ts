@@ -127,7 +127,7 @@ export class TokensModuleApi
    * Sender Interface: GET /tokens (paginated list)
    */
   @Get()
-  @AsOcpiFunctionalEndpoint()
+  @AsOcpiFunctionalEndpoint({ skipTenantPartnerUrlValidation: true })
   @ResponseSchema(
     PaginatedTokenResponseSchema,
     PaginatedTokenResponseSchemaName,

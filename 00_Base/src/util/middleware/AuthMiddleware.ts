@@ -139,12 +139,14 @@ export class AuthMiddleware
                 );
               }
             } else {
-              logger.debug(
-                `No URL params found for ${context.request.method} ${context.request.url}`,
-              );
-              throw new UnauthorizedException(
-                'Credentials not found for given token',
-              );
+              if (!context.state.skipTenantPartnerUrlValidation) {
+                logger.debug(
+                  `No URL params found for ${context.request.method} ${context.request.url}`,
+                );
+                throw new UnauthorizedException(
+                  'Credentials not found for given token',
+                );
+              }
             }
           }
         }
