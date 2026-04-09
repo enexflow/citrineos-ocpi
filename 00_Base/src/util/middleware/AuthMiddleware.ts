@@ -23,7 +23,6 @@ import {
 
 const permittedRoutes: string[] = ['/docs', '/docs/spec', '/favicon.png'];
 const registrationModules: string[] = ['versions', 'credentials'];
-const RoutesWithoutTenantPartner: string[] = ['/tokens'];
 
 /**
  * AuthMiddleware is applied via the {@link AsOcpiEndpoint} and {@link AsOcpiOpenRoutingEndpoint} decorators. Endpoints
@@ -154,10 +153,6 @@ export class AuthMiddleware
 
         context.state.tenantPartner = tenantPartner;
       } catch (error: any) {
-        logger.debug(
-          `Authorization error: ${error?.message ?? '(no message)'} | ${error?.stack ?? JSON.stringify(error)}`,
-        );
-
         logger.debug(`Authorization error: ${error.message}`);
         return this.throwError(context);
       }
