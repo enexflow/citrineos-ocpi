@@ -25,6 +25,7 @@ import { Logger } from 'tslog';
 import { Inject, Service } from 'typedi';
 import { SessionsModuleApi } from './module/SessionsModuleApi.js';
 import type { MeterValueDto, TransactionDto } from '@citrineos/base';
+import { DB_BROADCAST_LOG_PREFIX } from '@citrineos/ocpi-base';
 
 export { SessionsModuleApi } from './module/SessionsModuleApi.js';
 export type { ISessionsModuleApi } from './module/ISessionsModuleApi.js';
@@ -64,7 +65,7 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
   async handleTransactionInsert(
     event: IDtoEvent<TransactionDto>,
   ): Promise<void> {
-    this._logger.debug(`Handling Transaction Insert: ${JSON.stringify(event)}`);
+    this._logger.debug(`${DB_BROADCAST_LOG_PREFIX} Handling Transaction Insert: ${JSON.stringify(event)}`);
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
     if (!tenant) {
@@ -84,7 +85,7 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
   async handleTransactionUpdate(
     event: IDtoEvent<Partial<TransactionDto>>,
   ): Promise<void> {
-    this._logger.debug(`Handling Transaction Update: ${JSON.stringify(event)}`);
+    this._logger.debug(`${DB_BROADCAST_LOG_PREFIX} Handling Transaction Update: ${JSON.stringify(event)}`);
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
     if (!tenant) {
@@ -123,7 +124,7 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     'MeterValueNotification',
   )
   async handleMeterValueInsert(event: IDtoEvent<MeterValueDto>): Promise<void> {
-    this._logger.debug(`Handling Meter Value Insert: ${JSON.stringify(event)}`);
+    this._logger.debug(`${DB_BROADCAST_LOG_PREFIX} Handling Meter Value Insert: ${JSON.stringify(event)}`);
     const meterValueDto = event._payload;
     const tenant = meterValueDto.tenant;
     if (!tenant) {

@@ -15,6 +15,7 @@ import {
 import { Inject } from 'typedi';
 import type { OcpiConfig } from '../../config/ocpi.types.js';
 import { OcpiConfigToken } from '../../config/ocpi.types.js';
+import { DB_BROADCAST_LOG_PREFIX } from '../../index.js';
 
 /**
  * Implementation of a {@link IEventHandler} using RabbitMQ as the underlying transport.
@@ -212,7 +213,7 @@ export class RabbitMqDtoReceiver
     if (message) {
       try {
         this._logger.debug(
-          '_onEvent:Received message:',
+          `${DB_BROADCAST_LOG_PREFIX} _onEvent:Received message:`,
           message.properties,
           message.content.toString(),
         );
