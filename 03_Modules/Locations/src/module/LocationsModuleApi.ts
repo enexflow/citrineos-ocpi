@@ -10,7 +10,6 @@ import {
   Patch,
   Post,
   Ctx,
-  QueryParam,
 } from 'routing-controllers';
 import {
   BodyWithSchema,
