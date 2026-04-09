@@ -434,8 +434,13 @@ export class OcpiServer extends KoaServer {
             xRequestId: ctx.get('x-request-id'),
             xCorrelationId: ctx.get('x-correlation-id'),
             contentType: ctx.get('content-type'),
-          });          
-          this.logger.info('[Request]', ctx.method, ctx.path, rawBody || '(empty)');
+          });
+          this.logger.info(
+            '[Request]',
+            ctx.method,
+            ctx.path,
+            rawBody || '(empty)',
+          );
 
           // expose parsed body for downstream if needed
           try {
