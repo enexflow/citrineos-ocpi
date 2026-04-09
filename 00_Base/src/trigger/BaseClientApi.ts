@@ -241,14 +241,21 @@ export abstract class BaseClientApi {
   }
 
   protected getOffsetFromLink(link: string): number {
-    const url = new URL(link);
-    const offset = url.searchParams.get('offset');
-    if (offset) {
-      return parseInt(offset, 10);
+    try {
+      const url = new URL(link);
+      const offset = url.searchParams.get('offset');
+      if (offset) {
+        return parseInt(offset, 10);
+      }
+    } catch {
+      const match = link.match(/[?&]offset=(\d+)/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
     }
     return 0;
   }
-
+  
   public async broadcastToClients<T extends ZodTypeAny>(
     params: BroadcastParams<T>,
   ): Promise<T[]> {

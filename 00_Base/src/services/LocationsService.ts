@@ -312,45 +312,56 @@ export class LocationsService {
         date_from != null ? new Date(date_from) : undefined,
         date_to != null ? new Date(date_to) : undefined,
       );
-
-      console.log('paginated', paginated);
-      // try {
-
-      const resp = await this.locationsClientApi.request(
-        ourCountryCode,
-        ourPartyId,
-        cpoCountryCode,
-        cpoPartyId,
-        HttpMethod.Get,
-        z.any(),
-        tenantPartner.TenantPartners[0].partnerProfileOCPI!,
-        true,
-        url,
-        undefined,
-        paginated,
-      );
-
-      for (const item of (resp as any).data) {
-        if (item == null || typeof item !== 'object' || !('id' in item)) {
-          continue;
+      
+      let currentOffset = offset;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const resp = await this.locationsClientApi.request(
+          ourCountryCode,
+          ourPartyId,
+          cpoCountryCode,
+          cpoPartyId,
+          HttpMethod.Get,
+          z.any(),
+          tenantPartner.TenantPartners[0].partnerProfileOCPI!,
+          true,
+          url,
+          undefined,
+          { ...paginated, offset: currentOffset },
+        );
+      
+        for (const item of (resp as any).data) {
+          if (item == null || typeof item !== 'object' || !('id' in item)) {
+            continue;
+          }
+          const location = item as LocationDTO;
+          try {
+            await this.locationReceiverService.upsertLocationForPartner(
+              location,
+              String(location.id),
+              partner,
+            );
+            this.logger.info(
+              `pullPartnerLocations: upserted location ${String(location.id)}`,
+            );
+          } catch (err) {
+            this.logger.error(
+              `pullPartnerLocations: failed for location ${String(location.id)}`,
+              err,
+            );
+          }
         }
-        const location = item as LocationDTO;
-        try {
-          await this.locationReceiverService.upsertLocationForPartner(
-            location,
-            String(location.id),
-            partner,
-          );
-          this.logger.info(
-            `pullPartnerLocations: upserted location ${String(location.id)}`,
-          );
-        } catch (err) {
-          this.logger.error(
-            `pullPartnerLocations: failed for location ${String(location.id)}`,
-            err,
-          );
+      
+        const nextOffset: number | undefined = (resp as any).offset;
+        if (nextOffset != null) {
+          currentOffset = nextOffset;
+        } else {
+          hasMore = false;
         }
       }
+
+
     }
   }
 }
