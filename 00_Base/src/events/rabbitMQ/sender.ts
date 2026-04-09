@@ -82,7 +82,10 @@ export class RabbitMqDtoSender
     });*/
     const channel = this._channel;
 
-    this._logger.debug(`${DB_BROADCAST_LOG_PREFIX} Publishing to ${exchange}:`, event);
+    this._logger.debug(
+      `${DB_BROADCAST_LOG_PREFIX} Publishing to ${exchange}:`,
+      event,
+    );
 
     const success = channel.publish(
       exchange || '',

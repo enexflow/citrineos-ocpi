@@ -89,7 +89,9 @@ export abstract class AbstractDtoModule implements IDtoModule {
         AS_DTO_EVENT_HANDLER_METADATA,
         this.constructor,
       ) as Array<IDtoEventHandlerDefinition>;
-      this._logger.info(`${DB_BROADCAST_LOG_PREFIX} message._context ${JSON.stringify(message._context)}`);
+      this._logger.info(
+        `${DB_BROADCAST_LOG_PREFIX} message._context ${JSON.stringify(message._context)}`,
+      );
       const handlerDefinition = metadata
         .filter(
           (h) =>
