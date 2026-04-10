@@ -108,6 +108,7 @@ export class AuthMiddleware
 
           const hasRoutingHeaders =
             fromCountryCode && fromPartyId && toCountryCode && toPartyId;
+
           if (hasRoutingHeaders) {
             if (
               tenantPartner.countryCode !== fromCountryCode ||
@@ -135,6 +136,22 @@ export class AuthMiddleware
                 tenantPartner.partyId !== partyId
               ) {
                 logger.debug(`URL params mismatch with token tenant partner`);
+                throw new UnauthorizedException(
+                  'Credentials not found for given token',
+                );
+              }
+            } else if (
+              context.request.body.country_code &&
+              context.request.body.party_id
+            ) {
+              if (
+                tenantPartner.countryCode !==
+                  context.request.body.country_code ||
+                tenantPartner.partyId !== context.request.body.party_id
+              ) {
+                logger.debug(
+                  `Body attributes mismatch with token tenant partner`,
+                );
                 throw new UnauthorizedException(
                   'Credentials not found for given token',
                 );

@@ -7,7 +7,7 @@ import { Service } from 'typedi';
 import { CdrsClientApi } from '../trigger/CdrsClientApi.js';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
-import type { Cdr } from '../model/Cdr.js';
+import type { CdrDTO } from '../model/DTO/CdrDTO.js';
 import { ModuleId } from '../model/ModuleId.js';
 import { InterfaceRole } from '../model/InterfaceRole.js';
 import type { TransactionDto } from '@citrineos/base';
@@ -26,7 +26,7 @@ export class CdrBroadcaster extends BaseBroadcaster {
   }
 
   async broadcastPostCdr(transactionDto: TransactionDto): Promise<void> {
-    const cdrs: Cdr[] = await this.cdrMapper.mapTransactionsToCdrs([
+    const cdrs: CdrDTO[] = await this.cdrMapper.mapTransactionsToCdrs([
       transactionDto,
     ]);
     if (cdrs.length === 0) {

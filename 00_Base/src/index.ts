@@ -321,7 +321,13 @@ export { TariffMapper } from './mapper/TariffMapper.js';
 export { OcpiHttpHeader } from './util/OcpiHttpHeader.js';
 
 export { CdrsService } from './services/CdrsService.js';
-export type { PaginatedCdrResponse } from './model/Cdr.js';
+export type { CdrDTO, PaginatedCdrResponse } from './model/DTO/CdrDTO.js';
+export {
+  CdrDTOSchema,
+  CdrDTOSchemaName,
+  PaginatedCdrResponseSchema,
+  PaginatedCdrResponseSchemaName,
+} from './model/DTO/CdrDTO.js';
 export { BaseBroadcaster } from './broadcaster/BaseBroadcaster.js';
 export type {
   PaginatedTariffResponse,
@@ -526,10 +532,3 @@ export {
 } from './model/CommandResponse.js';
 export { ChargingProfileResponseSchemaName } from './model/ChargingProfileResponse.js';
 export { ChargingProfileResponseSchema } from './model/ChargingProfileResponse.js';
-
-export {
-  PaginatedCdrResponseSchema,
-  PaginatedCdrResponseSchemaName,
-} from './model/Cdr.js';
-
-export const DB_BROADCAST_LOG_PREFIX = '[db-broadcast]' as const;
