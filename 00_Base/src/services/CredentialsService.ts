@@ -135,8 +135,6 @@ export class CredentialsService {
       throw new NotRegisteredException();
     }
 
-    const newServerToken = uuidv4();
-    tenantPartner.partnerProfileOCPI!.serverCredentials.token = newServerToken;
     tenantPartner.partnerProfileOCPI!.credentials = {
       versionsUrl: credentials.url,
       token: credentials.token,
@@ -145,6 +143,13 @@ export class CredentialsService {
       (value: CredentialsRoleDTO) =>
         RegistrationMapper.toCredentialsRole(value),
     );
+
+    const versionUrl =
+      tenantPartner.partnerProfileOCPI!.credentials.versionsUrl;
+    tenantPartner = await this.getVersionDetails(tenantPartner, versionUrl);
+
+    const newServerToken = uuidv4();
+    tenantPartner.partnerProfileOCPI!.serverCredentials.token = newServerToken;
 
     await this.ocpiGraphqlClient.request<
       UpdateTenantPartnerProfileMutationResult,
@@ -271,14 +276,23 @@ export class CredentialsService {
         clientCountryCode: credentialsRequest.mspCountryCode,
         clientPartyId: credentialsRequest.mspPartyId,
       });
-      const tenantPartner = response.TenantPartners[0] as TenantPartnerDto;
+      if (!response.TenantPartners.length) {
+        throw new NotFoundError('TenantPartner not found');
+      }
+      let tenantPartner = response.TenantPartners[0] as TenantPartnerDto;
+
+      tenantPartner.partnerProfileOCPI!.version.version =
+        RegistrationMapper.toOCPIVersionNumber(versionNumber);
+
+      const versionsUrl =
+        tenantPartner.partnerProfileOCPI?.credentials?.versionsUrl;
+      tenantPartner = await this.getVersionDetails(tenantPartner, versionsUrl);
+
       const newCredentialsToken = uuidv4();
       tenantPartner.partnerProfileOCPI!.serverCredentials.versionsUrl =
         credentialsRequest.url;
       tenantPartner.partnerProfileOCPI!.serverCredentials.token =
         newCredentialsToken;
-      tenantPartner.partnerProfileOCPI!.version.version =
-        RegistrationMapper.toOCPIVersionNumber(versionNumber);
       const newCredentialsDto =
         RegistrationMapper.tenantPartnerToCredentialsDto(tenantPartner);
 

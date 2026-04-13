@@ -37,7 +37,7 @@ import {
   VersionNumberParam,
 } from '@citrineos/ocpi-base';
 import type { TenantPartnerDto } from '@citrineos/base';
-import { HttpStatus } from '@citrineos/base';
+import { HttpStatus, UnauthorizedException } from '@citrineos/base';
 import { Service } from 'typedi';
 import type { ICredentialsModuleApi } from './ICredentialsModuleApi.js';
 import {
@@ -145,6 +145,17 @@ export class CredentialsModuleApi
   ): Promise<CredentialsResponse> {
     this.logger.info('putCredentials', version, credentials);
     const tenantPartner = ctx!.state!.tenantPartner as TenantPartnerDto;
+    if (!tenantPartner) {
+      throw new UnauthorizedException('Credentials not found for given token');
+    }
+    const matchingRole = credentials.roles.find(
+      (r) =>
+        r.country_code === tenantPartner.countryCode &&
+        r.party_id === tenantPartner.partyId,
+    );
+    if (!matchingRole) {
+      throw new UnauthorizedException('Credentials not found for given token');
+    }
     const serverCredentials = await this.credentialsService?.putCredentials(
       tenantPartner,
       credentials,
