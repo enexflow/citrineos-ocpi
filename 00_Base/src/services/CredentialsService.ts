@@ -131,6 +131,7 @@ export class CredentialsService {
     tenantPartner: TenantPartnerDto,
     credentials: CredentialsDTO,
   ): Promise<CredentialsDTO> {
+    console.log('tenantPartner !!!', tenantPartner);
     if (!tenantPartner.partnerProfileOCPI?.credentials) {
       throw new NotRegisteredException();
     }
@@ -276,6 +277,9 @@ export class CredentialsService {
         clientCountryCode: credentialsRequest.mspCountryCode,
         clientPartyId: credentialsRequest.mspPartyId,
       });
+      if (!response.TenantPartners.length) {
+        throw new NotFoundError('TenantPartner not found');
+      }
       let tenantPartner = response.TenantPartners[0] as TenantPartnerDto;
 
       tenantPartner.partnerProfileOCPI!.version.version =
@@ -290,7 +294,6 @@ export class CredentialsService {
         credentialsRequest.url;
       tenantPartner.partnerProfileOCPI!.serverCredentials.token =
         newCredentialsToken;
-
       const newCredentialsDto =
         RegistrationMapper.tenantPartnerToCredentialsDto(tenantPartner);
 
@@ -350,7 +353,6 @@ export class CredentialsService {
       tenantPartner.partnerProfileOCPI!,
       versionsUrl,
     );
-
     if (!versions?.data) {
       throw new NotFoundError(
         'Versions list response was null or did not have expected data',
@@ -372,7 +374,6 @@ export class CredentialsService {
       tenantPartner.partnerProfileOCPI!,
       version.url,
     );
-    console.log('versionDetails !!!', versionDetails);
     if (!versionDetails?.data) {
       throw new NotFoundError('Matching version details not found');
     }
