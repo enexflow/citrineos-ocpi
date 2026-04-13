@@ -227,6 +227,11 @@ export {
   PaginatedLocationResponseSchemaName,
 } from './model/DTO/LocationDTO.js';
 export type { EvseDTO, EvseResponse } from './model/DTO/EvseDTO.js';
+export type { PullPartnerLocationsBody } from './model/DTO/PullPartnerLocationsBody.js';
+export {
+  PullPartnerLocationsBodySchema,
+  PullPartnerLocationsBodySchemaName,
+} from './model/DTO/PullPartnerLocationsBody.js';
 export {
   UID_FORMAT,
   EXTRACT_EVSE_ID,

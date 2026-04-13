@@ -8,6 +8,7 @@ import {
   Param,
   Put,
   Patch,
+  Post,
   Ctx,
 } from 'routing-controllers';
 import {
@@ -24,6 +25,10 @@ import {
   ConnectorDTOSchemaName,
   ConnectorPatchSchema,
   ConnectorPatchSchemaName,
+  AsAdminEndpoint,
+  PullPartnerLocationsBodySchema,
+  PullPartnerLocationsBodySchemaName,
+  type PullPartnerLocationsBody,
 } from '@citrineos/ocpi-base';
 import type { ILocationsModuleApi } from './ILocationsModuleApi.js';
 import type {
@@ -455,5 +460,24 @@ export class LocationsModuleApi
       Number(evseId),
       Number(connectorId),
     );
+  }
+
+  /**
+   * ADMIN ENDPOINTS
+   */
+  @Post('/pull-partner-locations')
+  @AsAdminEndpoint()
+  async pullPartnerLocations(
+    @BodyWithSchema(
+      PullPartnerLocationsBodySchema,
+      PullPartnerLocationsBodySchemaName,
+    )
+    body: PullPartnerLocationsBody,
+  ) {
+    this.logger.info('pullPartnerLocations', body);
+
+    await this.locationsService.pullPartnerLocations(body);
+
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
   }
 }
