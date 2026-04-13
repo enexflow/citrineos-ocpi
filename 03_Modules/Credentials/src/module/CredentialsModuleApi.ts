@@ -148,7 +148,10 @@ export class CredentialsModuleApi
     if (!tenantPartner) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
-    if(tenantPartner.countryCode !== credentials.roles[0].country_code || tenantPartner.partyId !== credentials.roles[0].party_id) {
+    if (
+      tenantPartner.countryCode !== credentials.roles[0].country_code ||
+      tenantPartner.partyId !== credentials.roles[0].party_id
+    ) {
       throw new UnauthorizedException('Credentials not found for given token');
     }
     const serverCredentials = await this.credentialsService?.putCredentials(
