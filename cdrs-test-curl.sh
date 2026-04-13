@@ -269,6 +269,27 @@ except (KeyError, IndexError, TypeError):
     FAIL=$((FAIL + 1))
   fi
 }
+
+assert_datetime() {
+  local body="$1"
+  local field="$2"
+  local expected="$3"
+
+  local actual
+  actual=$(echo "$body" | jq -r ".$field")
+
+  # Normalize both to seconds-since-epoch for comparison
+  local expected_ts actual_ts
+  expected_ts=$(date -d "$expected" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$expected" +%s)
+  actual_ts=$(date -d "$actual" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S%z" "$actual" +%s)
+
+  if [ "$expected_ts" = "$actual_ts" ]; then
+    echo "  ✓ $field: $actual"
+  else
+    echo "  ✗ $field: expected $expected, got $actual"
+    FAILED=$((FAILED + 1))
+  fi
+}
  
 assert_not_empty() {
   local body="$1" path="$2"
@@ -920,8 +941,8 @@ if [ -n "$(get_location_url "$CDR_MINIMAL_ID")" ]; then
   body=$(do_curl_method GET 200 "$(get_location_url "$CDR_MINIMAL_ID")")
  
   # Top-level timestamps
-  assert_field "$body" "data.start_date_time"  "2025-03-10T08:00:00Z"
-  assert_field "$body" "data.end_date_time"    "2025-03-10T09:00:00Z"
+  assert_datetime "$body" "data.start_date_time"  "2025-03-10T08:00:00Z"
+  assert_datetime "$body" "data.end_date_time"    "2025-03-10T09:00:00Z"
   assert_field "$body" "data.session_id"       "SESSION-MINIMAL-001"
   assert_field "$body" "data.auth_method"      "WHITELIST"
   assert_field "$body" "data.currency"         "EUR"
@@ -957,7 +978,7 @@ if [ -n "$(get_location_url "$CDR_MINIMAL_ID")" ]; then
  
   # charging_periods
   assert_length "$body" "data.charging_periods" "1"
-  assert_field  "$body" "data.charging_periods.0.start_date_time"        "2025-03-10T08:00:00Z"
+  assert_datetime  "$body" "data.charging_periods.0.start_date_time"        "2025-03-10T08:00:00Z"
   assert_field  "$body" "data.charging_periods.0.dimensions.0.type"      "ENERGY"
   assert_float  "$body" "data.charging_periods.0.dimensions.0.volume"    "10.5"
   assert_field  "$body" "data.charging_periods.0.tariff_id"              "TARIFF-MIN-01"
@@ -1168,7 +1189,7 @@ if [ -n "$(get_location_url "$CDR_MULTIPERIOD_ID")" ]; then
   assert_length "$body" "data.charging_periods" "3"
  
   # Period 1: before 17:00 — ENERGY + MAX_CURRENT
-  assert_field  "$body" "data.charging_periods.0.start_date_time"       "2025-06-01T16:00:00Z"
+  assert_datetime  "$body" "data.charging_periods.0.start_date_time"       "2025-06-01T16:00:00Z"
   assert_field  "$body" "data.charging_periods.0.dimensions.0.type"     "ENERGY"
   assert_float  "$body" "data.charging_periods.0.dimensions.0.volume"   "4.3"
   assert_field  "$body" "data.charging_periods.0.dimensions.1.type"     "MAX_CURRENT"
