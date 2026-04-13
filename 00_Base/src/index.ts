@@ -532,3 +532,4 @@ export {
 } from './model/CommandResponse.js';
 export { ChargingProfileResponseSchemaName } from './model/ChargingProfileResponse.js';
 export { ChargingProfileResponseSchema } from './model/ChargingProfileResponse.js';
+export { DB_BROADCAST_LOG_PREFIX, logDbBroadcast } from './util/logging.js';
