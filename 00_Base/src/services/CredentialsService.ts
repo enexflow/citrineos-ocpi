@@ -131,7 +131,6 @@ export class CredentialsService {
     tenantPartner: TenantPartnerDto,
     credentials: CredentialsDTO,
   ): Promise<CredentialsDTO> {
-    console.log('tenantPartner !!!', tenantPartner);
     if (!tenantPartner.partnerProfileOCPI?.credentials) {
       throw new NotRegisteredException();
     }
@@ -317,7 +316,7 @@ export class CredentialsService {
 
       tenantPartner.partnerProfileOCPI!.credentials = {
         versionsUrl: putCredentialsResponse!.data!.url!,
-        token: putCredentialsResponse!.data!.token,
+        token: putCredentialsResponse?.data?.token,
       };
       tenantPartner.partnerProfileOCPI!.roles =
         putCredentialsResponse?.data?.roles.map((value: CredentialsRoleDTO) =>
