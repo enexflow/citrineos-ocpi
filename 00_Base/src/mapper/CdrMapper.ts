@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Service } from 'typedi';
-import type { Cdr } from '../model/Cdr.js';
 import type { Session } from '../model/Session.js';
 import { SessionMapper } from './SessionMapper.js';
 import type { CdrLocation } from '../model/CdrLocation.js';
@@ -17,6 +16,7 @@ import { Logger } from 'tslog';
 import { OcpiGraphqlClient } from '../graphql/index.js';
 import { LocationsService } from '../services/LocationsService.js';
 import type { TariffDto, TransactionDto } from '@citrineos/base';
+import type { CdrDTO, CdrEntity } from '../model/DTO/CdrDTO.js';
 
 @Service()
 export class CdrMapper extends BaseTransactionMapper {
@@ -31,7 +31,7 @@ export class CdrMapper extends BaseTransactionMapper {
 
   public async mapTransactionsToCdrs(
     transactions: TransactionDto[],
-  ): Promise<Cdr[]> {
+  ): Promise<CdrDTO[]> {
     try {
       const validTransactions = this.getCompletedTransactions(transactions);
 
@@ -75,7 +75,7 @@ export class CdrMapper extends BaseTransactionMapper {
     transactionIdToLocationMap: Map<string, LocationDTO>,
     transactionIdToTariffMap: Map<string, TariffDto>,
     transactionIdToOcpiTariffMap: Map<string, OcpiTariff>,
-  ): Promise<Cdr[]> {
+  ): Promise<CdrDTO[]> {
     return Promise.all(
       sessions
         .filter((session) => transactionIdToTariffMap.has(session.id))
@@ -95,7 +95,7 @@ export class CdrMapper extends BaseTransactionMapper {
     location: LocationDTO,
     tariff: TariffDto,
     ocpiTariff: OcpiTariff,
-  ): Promise<Cdr> {
+  ): Promise<CdrDTO> {
     return {
       country_code: session.country_code,
       party_id: session.party_id,
@@ -288,5 +288,92 @@ export class CdrMapper extends BaseTransactionMapper {
     transactions: TransactionDto[],
   ): TransactionDto[] {
     return transactions.filter((transaction) => !transaction.isActive);
+  }
+
+  private optional<T>(value: T | null | undefined): T | undefined {
+    return value ?? undefined;
+  }
+
+  public mapCdrReceiver(entity: CdrEntity): CdrDTO {
+    return {
+      country_code: entity.countryCode,
+      party_id: entity.partyId,
+      id: entity.ocpiCdrId,
+      start_date_time: entity.startDateTime,
+      end_date_time: entity.endDateTime,
+      session_id: this.optional(entity.sessionId),
+
+      cdr_token: {
+        country_code: entity.cdrToken.country_code,
+        party_id: entity.cdrToken.party_id,
+        uid: entity.cdrToken.uid,
+        type: entity.cdrToken.type,
+        contract_id: entity.cdrToken.contract_id,
+      },
+
+      auth_method: entity.authMethod,
+
+      authorization_reference: this.optional(entity.authorizationReference),
+
+      cdr_location: {
+        id: entity.cdrLocation.id,
+        name: this.optional(entity.cdrLocation.name),
+        address: entity.cdrLocation.address,
+        city: entity.cdrLocation.city,
+        postal_code: this.optional(entity.cdrLocation.postal_code),
+        state: this.optional(entity.cdrLocation.state),
+        country: entity.cdrLocation.country,
+        coordinates: {
+          latitude: entity.cdrLocation.coordinates.latitude,
+          longitude: entity.cdrLocation.coordinates.longitude,
+        },
+        evse_uid: entity.cdrLocation.evse_uid,
+        evse_id: entity.cdrLocation.evse_id,
+        connector_id: entity.cdrLocation.connector_id,
+        connector_standard: entity.cdrLocation.connector_standard,
+        connector_format: entity.cdrLocation.connector_format,
+        connector_power_type: entity.cdrLocation.connector_power_type,
+      },
+
+      meter_id: this.optional(entity.meterId),
+      currency: entity.currency,
+
+      tariffs: entity.tariffs.map((t) => ({
+        country_code: t.country_code,
+        party_id: t.party_id,
+        id: t.id,
+        currency: t.currency,
+        elements: t.elements,
+        last_updated: new Date(t.last_updated),
+      })),
+
+      charging_periods: entity.chargingPeriods.map((cp) => ({
+        start_date_time: cp.start_date_time,
+        dimensions: cp.dimensions,
+        tariff_id: this.optional(cp.tariff_id),
+      })),
+
+      signed_data: this.optional(entity.signedData),
+
+      total_cost: entity.totalCost,
+      total_fixed_cost: this.optional(entity.totalFixedCost),
+      total_energy: entity.totalEnergy,
+      total_energy_cost: this.optional(entity.totalEnergyCost),
+      total_time: entity.totalTime,
+      total_time_cost: this.optional(entity.totalTimeCost),
+      total_parking_time: this.optional(entity.totalParkingTime),
+      total_parking_cost: this.optional(entity.totalParkingCost),
+      total_reservation_cost: this.optional(entity.totalReservationCost),
+
+      remark: this.optional(entity.remark),
+      invoice_reference_id: this.optional(entity.invoiceReferenceId),
+      credit: this.optional(entity.credit),
+      credit_reference_id: this.optional(entity.creditReferenceId),
+      home_charging_compensation: this.optional(
+        entity.homeChargingCompensation,
+      ),
+
+      last_updated: entity.lastUpdated,
+    };
   }
 }

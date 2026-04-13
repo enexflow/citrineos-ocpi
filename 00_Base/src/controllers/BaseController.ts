@@ -4,7 +4,7 @@
 
 import { generate, registerFormat } from 'json-schema-faker';
 import { getAllSchemas } from '../openapi-spec-helper/schemas.js';
-import type { PaginatedCdrResponse } from '../model/Cdr.js';
+import type { PaginatedCdrResponse } from '../model/DTO/CdrDTO.js';
 import { PaginatedParams } from './param/PaginatedParams.js';
 import { DEFAULT_LIMIT, DEFAULT_OFFSET } from '../model/PaginatedResponse.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';

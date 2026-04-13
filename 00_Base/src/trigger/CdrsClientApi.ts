@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BaseClientApi } from './BaseClientApi.js';
-import type { Cdr, CdrResponse } from '../model/Cdr.js';
-import { CdrResponseSchema } from '../model/Cdr.js';
+import type { CdrDTO, CdrResponse } from '../model/DTO/CdrDTO.js';
+import { CdrResponseSchema } from '../model/DTO/CdrDTO.js';
 import { Service } from 'typedi';
 import type { OcpiEmptyResponse } from '../model/OcpiEmptyResponse.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
@@ -60,7 +60,7 @@ export class CdrsClientApi extends BaseClientApi {
     toCountryCode: string,
     toPartyId: string,
     partnerProfile: PartnerProfile,
-    body: Cdr,
+    body: CdrDTO,
   ): Promise<OcpiEmptyResponse> {
     return this.request(
       fromCountryCode,

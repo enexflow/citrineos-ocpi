@@ -14,7 +14,8 @@ import type {
   IDtoPayload,
 } from './types.js';
 import { DtoEventObjectType, DtoEventType } from './types.js';
-import { type OcpiConfig, DB_BROADCAST_LOG_PREFIX } from '../index.js';
+import { type OcpiConfig } from '../index.js';
+import { logDbBroadcast } from '../util/logging.js';
 
 export abstract class AbstractDtoModule implements IDtoModule {
   protected _config: OcpiConfig;
@@ -89,8 +90,11 @@ export abstract class AbstractDtoModule implements IDtoModule {
         AS_DTO_EVENT_HANDLER_METADATA,
         this.constructor,
       ) as Array<IDtoEventHandlerDefinition>;
-      this._logger.info(
-        `${DB_BROADCAST_LOG_PREFIX} message._context ${JSON.stringify(message._context)}`,
+      logDbBroadcast(
+        this._logger,
+        'info',
+        'message._context',
+        message._context,
       );
       const handlerDefinition = metadata
         .filter(

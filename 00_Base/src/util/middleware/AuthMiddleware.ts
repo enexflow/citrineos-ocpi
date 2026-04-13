@@ -107,6 +107,7 @@ export class AuthMiddleware
 
           const hasRoutingHeaders =
             fromCountryCode && fromPartyId && toCountryCode && toPartyId;
+
           if (hasRoutingHeaders) {
             if (
               tenantPartner.countryCode !== fromCountryCode ||
@@ -138,6 +139,22 @@ export class AuthMiddleware
                   'Credentials not found for given token',
                 );
               }
+            } else if (
+              context.request.body.country_code &&
+              context.request.body.party_id
+            ) {
+              if (
+                tenantPartner.countryCode !==
+                  context.request.body.country_code ||
+                tenantPartner.partyId !== context.request.body.party_id
+              ) {
+                logger.debug(
+                  `Body attributes mismatch with token tenant partner`,
+                );
+                throw new UnauthorizedException(
+                  'Credentials not found for given token',
+                );
+              }
             } else {
               if (!context.state.skipTenantPartnerUrlValidation) {
                 logger.debug(
@@ -153,6 +170,10 @@ export class AuthMiddleware
 
         context.state.tenantPartner = tenantPartner;
       } catch (error: any) {
+        logger.debug(
+          `Authorization error: ${error?.message ?? '(no message)'} | ${error?.stack ?? JSON.stringify(error)}`,
+        );
+
         logger.debug(`Authorization error: ${error.message}`);
         return this.throwError(context);
       }

@@ -22,8 +22,7 @@ import {
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { Inject, Service } from 'typedi';
-import { DB_BROADCAST_LOG_PREFIX } from '@citrineos/ocpi-base';
-
+import { logDbBroadcast } from '@citrineos/ocpi-base';
 export { TokensModuleApi } from './module/TokensModuleApi.js';
 export type { ITokensModuleApi } from './module/ITokensModuleApi.js';
 
@@ -56,8 +55,11 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
   async handleAuthorizationInsert(
     event: IDtoEvent<AuthorizationDto>,
   ): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling Authorization Insert: ${JSON.stringify(event)}`,
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Authorization Insert:',
+      event,
     );
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
@@ -79,8 +81,11 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
   async handleAuthorizationUpdate(
     event: IDtoEvent<Partial<AuthorizationDto>>,
   ): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling Authorization Update: ${JSON.stringify(event)}`,
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Authorization Update:',
+      event,
     );
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
@@ -102,8 +107,11 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
   async handleAuthorizationDelete(
     event: IDtoEvent<Partial<AuthorizationDto>>,
   ): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling Authorization Delete: ${JSON.stringify(event)}`,
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Authorization Delete:',
+      event,
     );
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;

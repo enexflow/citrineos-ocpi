@@ -31,6 +31,7 @@ import type {
   TenantDto,
 } from '@citrineos/base';
 import { Inject, Service } from 'typedi';
+import { logDbBroadcast } from '@citrineos/ocpi-base';
 
 export { LocationsModuleApi } from './module/LocationsModuleApi.js';
 export type { ILocationsModuleApi } from './module/ILocationsModuleApi.js';
@@ -53,7 +54,6 @@ type ConnectorNotifyPayload = Partial<ConnectorDto> & {
   };
   ocpiId?: string | null;
 };
-import { DB_BROADCAST_LOG_PREFIX } from '@citrineos/ocpi-base';
 @Service()
 export class LocationsModule extends AbstractDtoModule implements OcpiModule {
   constructor(
@@ -86,9 +86,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'LocationNotification',
   )
   async handleLocationInsert(event: IDtoEvent<LocationDto>): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling Location Insert: ${JSON.stringify(event)}`,
-    );
+    logDbBroadcast(this._logger, 'debug', 'Handling Location Insert:', event);
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
     if (!tenant) {
@@ -116,9 +114,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       }
     >,
   ): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling Location Update: ${JSON.stringify(event)}`,
-    );
+    logDbBroadcast(this._logger, 'debug', 'Handling Location Update:', event);
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
 
@@ -148,8 +144,11 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
   async handleChargingStationUpdate(
     event: IDtoEvent<Partial<ChargingStationDto>>,
   ): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling Charging Station Update: ${JSON.stringify(event)}`,
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Charging Station Update:',
+      event,
     );
     // Updates are Location/Evse PATCH requests
     // await this.locationsBroadcaster.broadcastPatchEvse(event._payload); // todo
@@ -161,9 +160,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'EvseNotification',
   )
   async handleEvseInsert(event: IDtoEvent<EvseDto>): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling EVSE Insert: ${JSON.stringify(event)}`,
-    );
+    logDbBroadcast(this._logger, 'debug', 'Handling EVSE Insert:', event);
     const evseDto = event._payload;
     if ((evseDto as any).ocpiUid != null) return;
     const tenant = evseDto.tenant;
@@ -200,9 +197,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'EvseNotification',
   )
   async handleEvseUpdate(event: IDtoEvent<EvseNotifyPayload>): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling EVSE Update: ${JSON.stringify(event)}`,
-    );
+    logDbBroadcast(this._logger, 'debug', 'Handling EVSE Update:', event);
     const evseDto = event._payload;
 
     // if the evse is owned by a tenant partner, don't broadcast
@@ -247,9 +242,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'ConnectorNotification',
   )
   async handleConnectorInsert(event: IDtoEvent<ConnectorDto>): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling Connector Insert: ${JSON.stringify(event)}`,
-    );
+    logDbBroadcast(this._logger, 'debug', 'Handling Connector Insert:', event);
     const connectorDto = event._payload;
     const tenant = connectorDto.tenant;
     if ((connectorDto as any).ocpiId != null) return;
@@ -284,9 +277,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
   async handleConnectorUpdate(
     event: IDtoEvent<ConnectorNotifyPayload>,
   ): Promise<void> {
-    this._logger.debug(
-      `${DB_BROADCAST_LOG_PREFIX} Handling Connector Update: ${JSON.stringify(event)}`,
-    );
+    logDbBroadcast(this._logger, 'debug', 'Handling Connector Update:', event);
     const connectorDto = event._payload;
 
     // if the connector is owned by a tenant partner, don't broadcast

@@ -4,9 +4,17 @@
 
 import type { ICdrsModuleApi } from './ICdrsModuleApi.js';
 
-import { Get, JsonController } from 'routing-controllers';
+import { Ctx, Get, JsonController, Param, Post } from 'routing-controllers';
 import { HttpStatus } from '@citrineos/base';
-import type { PaginatedCdrResponse } from '@citrineos/ocpi-base';
+import type { TenantPartnerDto } from '@citrineos/base';
+import type { OcpiErrorResponse } from '@citrineos/ocpi-base';
+
+import type {
+  PaginatedCdrResponse,
+  VersionNumber,
+  OcpiEmptyResponse,
+  CdrDTO,
+} from '@citrineos/ocpi-base';
 import {
   AsOcpiFunctionalEndpoint,
   BaseController,
@@ -21,6 +29,12 @@ import {
   PaginatedParams,
   ResponseSchema,
   versionIdParam,
+  VersionNumberParam,
+  OcpiResponseStatusCode,
+  buildOcpiEmptyResponse,
+  CdrDTOSchema,
+  CdrDTOSchemaName,
+  BodyWithSchema,
 } from '@citrineos/ocpi-base';
 
 import { Service } from 'typedi';
@@ -31,12 +45,14 @@ const MOCK_PAGINATED_CDRS = await generateMockOcpiPaginatedResponse(
   new PaginatedParams(),
 );
 
-@JsonController(`/cpo/:${versionIdParam}/${ModuleId.Cdrs}`)
+@JsonController(`/:role(cpo|emsp)/:${versionIdParam}/${ModuleId.Cdrs}`)
 @Service()
 export class CdrsModuleApi extends BaseController implements ICdrsModuleApi {
   constructor(readonly cdrsService: CdrsService) {
     super();
   }
+
+  //-- Sender Interface ------------------------------------------------------//
 
   @Get()
   @AsOcpiFunctionalEndpoint()
@@ -61,5 +77,39 @@ export class CdrsModuleApi extends BaseController implements ICdrsModuleApi {
       paginationParams?.offset,
       paginationParams?.limit,
     );
+  }
+
+  //-- Receiver Interface (OCPI 2.2.1) ------------//
+
+  @Get('/:cdr_id')
+  @AsOcpiFunctionalEndpoint({ skipTenantPartnerUrlValidation: true })
+  async getCdrById(@Param('cdr_id') cdrId: number, @Ctx() ctx: any) {
+    const tenantPartner = ctx.state.tenantPartner as TenantPartnerDto;
+    return this.cdrsService.getCdrById(cdrId, tenantPartner);
+  }
+
+  @Post('/')
+  @AsOcpiFunctionalEndpoint()
+  async putConnectorByCountryParty(
+    @VersionNumberParam() version: VersionNumber,
+    @Ctx() ctx: any,
+    @BodyWithSchema(CdrDTOSchema, CdrDTOSchemaName)
+    cdr: CdrDTO,
+  ): Promise<OcpiErrorResponse | OcpiEmptyResponse> {
+    this.logger.info(`POST receiver CDR`);
+    const tenantPartner = ctx.state.tenantPartner as TenantPartnerDto;
+
+    const cdrId = await this.cdrsService.putCdrForTenantPartner(
+      cdr,
+      tenantPartner,
+    );
+
+    const baseUrl = `${ctx.request.protocol}://${ctx.request.host}`;
+    ctx.response.set(
+      'Location',
+      `${baseUrl}/ocpi/emsp/${version}/cdrs/${cdrId}`,
+    );
+
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
   }
 }

@@ -92,6 +92,54 @@ export type Evses_Set_Input = any;
 export type Connectors_Set_Input = any;
 export type Locations_Insert_Input = any;
 export type Locations_Set_Input = any;
+export type Cdrs_Insert_Input = any;
+export type Cdrs_Set_Input = any;
+export type CdrDbRow = {
+  id: number;
+  ocpiCdrId: string;
+  countryCode: string;
+  partyId: string;
+  startDateTime: any;
+  endDateTime: any;
+  sessionId?: string | null;
+  cdrToken: any;
+  authMethod: string;
+  authorizationReference?: string | null;
+  cdrLocation: any;
+  meterId?: string | null;
+  currency: string;
+  tariffs?: any | null;
+  chargingPeriods: any;
+  signedData?: any | null;
+  totalCost: any;
+  totalFixedCost?: any | null;
+  totalEnergy: any;
+  totalEnergyCost?: any | null;
+  totalTime: any;
+  totalTimeCost?: any | null;
+  totalParkingTime?: any | null;
+  totalParkingCost?: any | null;
+  totalReservationCost?: any | null;
+  remark?: string | null;
+  invoiceReferenceId?: string | null;
+  credit?: boolean | null;
+  creditReferenceId?: string | null;
+  homeChargingCompensation?: boolean | null;
+  lastUpdated: any;
+  tenantId: number;
+  tenantPartnerId: number;
+  createdAt?: any;
+  updatedAt?: any;
+};
+export type Cdrs_Bool_Exp = {
+  countryCode?: InputMaybe<String_Comparison_Exp>;
+  partyId?: InputMaybe<String_Comparison_Exp>;
+  ocpiCdrId?: InputMaybe<String_Comparison_Exp>;
+  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
+  lastUpdated?: InputMaybe<Timestamptz_Comparison_Exp>;
+  Tenant?: InputMaybe<Tenants_Bool_Exp>;
+};
 export type SessionDbRow = {
   id: number;
   ocpiSessionId: string;
@@ -117,6 +165,146 @@ export type SessionDbRow = {
   createdAt?: any;
   updatedAt?: any;
 };
+export type GetCdrByiIdQueryVariables = Exact<{
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+  id: Scalars['Int']['input'];
+  tenantPartnerId: Scalars['Int']['input'];
+}>;
+
+
+export type GetCdrByiIdQueryResult = {
+  Cdrs: Array<{
+    id: number,
+    ocpiCdrId: string,
+    countryCode: string,
+    partyId: string,
+    startDateTime: any,
+    endDateTime: any,
+    sessionId?: string | null,
+    cdrToken: any,
+    authMethod: string,
+    authorizationReference?: string | null,
+    cdrLocation: any,
+    meterId?: string | null,
+    currency: string,
+    tariffs?: any | null,
+    chargingPeriods: any,
+    signedData?: any | null,
+    totalCost: any,
+    totalFixedCost?: any | null,
+    totalEnergy: any,
+    totalEnergyCost?: any | null,
+    totalTime: any,
+    totalTimeCost?: any | null,
+    totalParkingTime?: any | null,
+    totalParkingCost?: any | null,
+    totalReservationCost?: any | null,
+    remark?: string | null,
+    invoiceReferenceId?: string | null,
+    credit?: boolean | null,
+    creditReferenceId?: string | null,
+    homeChargingCompensation?: boolean | null,
+    lastUpdated: any,
+    tenantId: number,
+    tenantPartnerId: number,
+    createdAt?: any | null,
+    updatedAt?: any | null
+  }>
+};
+
+export type GetCdrsPaginatedQueryVariables = Exact<{
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  where: Cdrs_Bool_Exp;
+}>;
+
+
+export type GetCdrsPaginatedQueryResult = {
+  Cdrs: Array<{
+    id: number,
+    ocpiCdrId: string,
+    countryCode: string,
+    partyId: string,
+    startDateTime: any,
+    endDateTime: any,
+    sessionId?: string | null,
+    cdrToken: any,
+    authMethod: string,
+    authorizationReference?: string | null,
+    cdrLocation: any,
+    meterId?: string | null,
+    currency: string,
+    tariffs?: any | null,
+    chargingPeriods: any,
+    signedData?: any | null,
+    totalCost: any,
+    totalFixedCost?: any | null,
+    totalEnergy: any,
+    totalEnergyCost?: any | null,
+    totalTime: any,
+    totalTimeCost?: any | null,
+    totalParkingTime?: any | null,
+    totalParkingCost?: any | null,
+    totalReservationCost?: any | null,
+    remark?: string | null,
+    invoiceReferenceId?: string | null,
+    credit?: boolean | null,
+    creditReferenceId?: string | null,
+    homeChargingCompensation?: boolean | null,
+    lastUpdated: any,
+    tenantId: number,
+    tenantPartnerId: number,
+    createdAt?: any | null,
+    updatedAt?: any | null
+  }>
+};
+
+export type InsertCdrMutationVariables = Exact<{
+  object: Cdrs_Insert_Input;
+}>;
+
+
+export type InsertCdrMutationResult = {
+  insert_Cdrs_one?: {
+    id: number,
+    ocpiCdrId: string,
+    countryCode: string,
+    partyId: string,
+    startDateTime: any,
+    endDateTime: any,
+    sessionId?: string | null,
+    cdrToken: any,
+    authMethod: string,
+    authorizationReference?: string | null,
+    cdrLocation: any,
+    meterId?: string | null,
+    currency: string,
+    tariffs?: any | null,
+    chargingPeriods: any,
+    signedData?: any | null,
+    totalCost: any,
+    totalFixedCost?: any | null,
+    totalEnergy: any,
+    totalEnergyCost?: any | null,
+    totalTime: any,
+    totalTimeCost?: any | null,
+    totalParkingTime?: any | null,
+    totalParkingCost?: any | null,
+    totalReservationCost?: any | null,
+    remark?: string | null,
+    invoiceReferenceId?: string | null,
+    credit?: boolean | null,
+    creditReferenceId?: string | null,
+    homeChargingCompensation?: boolean | null,
+    lastUpdated: any,
+    tenantId: number,
+    tenantPartnerId: number,
+    createdAt?: any | null,
+    updatedAt?: any | null
+  } | null
+};
+
 export type GetChargingStationByIdQueryVariables = Exact<{
   id: Scalars['String']['input'];
 }>;
@@ -1234,7 +1422,12 @@ export type CreateOrUpdatePartnerTariffMutationResult = {
       id: number,
       priceComponents: any,
       restrictions?: any | null
-    }>
+    }>,
+    tenantPartner?: {
+      id: number,
+      countryCode: string,
+      partyId: string
+    } | null
   } | null
 };
 
