@@ -26,9 +26,9 @@ import {
   ConnectorPatchSchema,
   ConnectorPatchSchemaName,
   AsAdminEndpoint,
-  PullPartnerLocationsBodySchema,
-  PullPartnerLocationsBodySchemaName,
-  type PullPartnerLocationsBody,
+  PullPartnerModulesBodySchema,
+  PullPartnerModulesBodySchemaName,
+  type PullPartnerModulesBody,
 } from '@citrineos/ocpi-base';
 import type { ILocationsModuleApi } from './ILocationsModuleApi.js';
 import type {
@@ -467,16 +467,16 @@ export class LocationsModuleApi
    */
   @Post('/pull-partner-locations')
   @AsAdminEndpoint()
-  async pullPartnerLocations(
+  async PullPartnerLocations(
     @BodyWithSchema(
-      PullPartnerLocationsBodySchema,
-      PullPartnerLocationsBodySchemaName,
+      PullPartnerModulesBodySchema,
+      PullPartnerModulesBodySchemaName,
     )
-    body: PullPartnerLocationsBody,
+    body: PullPartnerModulesBody,
   ) {
-    this.logger.info('pullPartnerLocations', body);
+    this.logger.info('PullPartnerLocations', body);
 
-    await this.locationsService.pullPartnerLocations(body);
+    await this.locationsService.PullPartnerLocations(body);
 
     return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
   }

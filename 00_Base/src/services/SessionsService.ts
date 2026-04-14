@@ -4,6 +4,7 @@
 
 import { Service } from 'typedi';
 import type { Session } from '../model/Session.js';
+import { Logger, type ILogObj } from 'tslog';
 import { DEFAULT_LIMIT, DEFAULT_OFFSET } from '../model/PaginatedResponse.js';
 import type {
   GetSessionByOcpiIdQueryResult,
@@ -18,6 +19,8 @@ import type {
   UpdateSessionMutationVariables,
   UpsertSessionMutationResult,
   UpsertSessionMutationVariables,
+  GetTenantPartnerByCpoClientAndModuleIdQueryVariables,
+  GetTenantPartnerByCpoClientAndModuleIdQueryResult,
 } from '../graphql/index.js';
 import {
   GET_SESSION_BY_OCPI_ID,
@@ -26,17 +29,26 @@ import {
   OcpiGraphqlClient,
   UPDATE_SESSION_MUTATION,
   UPSERT_SESSION_MUTATION,
+  GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT,
 } from '../graphql/index.js';
 import { ReceivedSessionMapper, SessionMapper } from '../mapper/index.js';
 import type { TransactionDto } from '@citrineos/base';
 import type { OcpiHeaders } from '../model/OcpiHeaders.js';
 import type { PaginatedParams } from '../controllers/param/PaginatedParams.js';
 import { NotFoundException } from '../exception/NotFoundException.js';
+import { SessionsClientApi } from '../trigger/SessionsClientApi.js';
+import type { PullPartnerModulesBody } from '../model/DTO/PullPartnerModulesBody.js';
+import type { TenantPartnerDto, Endpoint } from '@citrineos/base';
+import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
+import { HttpMethod } from '@citrineos/base';
+import { z } from 'zod';
 
 @Service()
 export class SessionsService {
   constructor(
     private readonly ocpiGraphqlClient: OcpiGraphqlClient,
+    private readonly logger: Logger<ILogObj>,
+    private readonly sessionsClientApi: SessionsClientApi,
     private readonly sessionMapper: SessionMapper,
   ) {}
 
@@ -230,5 +242,105 @@ export class SessionsService {
       );
     }
     return ReceivedSessionMapper.mapToOcpi(updated);
+  }
+
+  async pullPartnerSessions(body: PullPartnerModulesBody): Promise<void> {
+    const {
+      ourCountryCode,
+      ourPartyId,
+      cpoCountryCode,
+      cpoPartyId,
+      offset,
+      limit,
+      date_from,
+      date_to,
+    } = body;
+
+    this.logger.info(
+      'PullPartnerSessions',
+      ourCountryCode,
+      ourPartyId,
+      cpoCountryCode,
+      cpoPartyId,
+    );
+
+    const tenantPartner = await this.ocpiGraphqlClient.request<
+      GetTenantPartnerByCpoClientAndModuleIdQueryResult,
+      GetTenantPartnerByCpoClientAndModuleIdQueryVariables
+    >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
+      cpoCountryCode: ourCountryCode,
+      cpoPartyId: ourPartyId,
+      clientCountryCode: cpoCountryCode,
+      clientPartyId: cpoPartyId,
+    });
+
+    const partnerRow = tenantPartner.TenantPartners[0];
+    if (!partnerRow?.partnerProfileOCPI) {
+      throw new Error('Tenant partner missing partnerProfileOCPI');
+    }
+    const partner = partnerRow as TenantPartnerDto;
+
+    const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
+      .endpoints as Endpoint[];
+    const url = endpoints.find(
+      (e: Endpoint) => e.identifier === 'sessions_RECEIVER',
+    )?.url;
+
+    if (!url) {
+      throw new Error('No sessions URL found');
+    }
+
+    const paginated = buildPaginatedParams(
+      offset,
+      limit,
+      date_from != null ? new Date(date_from) : undefined,
+      date_to != null ? new Date(date_to) : undefined,
+    );
+
+    let currentOffset = offset;
+    let hasMore = true;
+
+    while (hasMore) {
+      const resp = await this.sessionsClientApi.request(
+        ourCountryCode,
+        ourPartyId,
+        cpoCountryCode,
+        cpoPartyId,
+        HttpMethod.Get,
+        z.any(),
+        tenantPartner.TenantPartners[0].partnerProfileOCPI!,
+        true,
+        url,
+        undefined,
+        { ...paginated, offset: currentOffset },
+      );
+
+      for (const item of (resp as any).data) {
+        if (item == null || typeof item !== 'object' || !('id' in item)) {
+          continue;
+        }
+        const session = item as Session;
+        console.log('session', session);
+        console.log('partner', partner);
+        try {
+          await this.upsertSession(session, partner.tenantId!, partner.id!);
+          this.logger.info(
+            `PullPartnerSessions: upserted session ${String(session.id)}`,
+          );
+        } catch (err) {
+          this.logger.error(
+            `PullPartnerSessions: failed for session ${String(session.id)}`,
+            err,
+          );
+        }
+      }
+
+      const nextOffset: number | undefined = (resp as any).offset;
+      if (nextOffset != null) {
+        currentOffset = nextOffset;
+      } else {
+        hasMore = false;
+      }
+    }
   }
 }

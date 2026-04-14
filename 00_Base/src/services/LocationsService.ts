@@ -6,7 +6,7 @@ import { Logger } from 'tslog';
 import { Service } from 'typedi';
 import { LocationsClientApi } from '../trigger/LocationsClientApi.js';
 import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
-import type { PullPartnerLocationsBody } from '../model/DTO/PullPartnerLocationsBody.js';
+import type { PullPartnerModulesBody } from '../model/DTO/PullPartnerModulesBody.js';
 
 import type { TenantPartnerDto } from '@citrineos/base';
 import type { LocationDTO } from '../model/DTO/LocationDTO.js';
@@ -249,7 +249,7 @@ export class LocationsService {
     }
   }
 
-  async pullPartnerLocations(body: PullPartnerLocationsBody): Promise<void> {
+  async PullPartnerLocations(body: PullPartnerModulesBody): Promise<void> {
     const {
       ourCountryCode,
       ourPartyId,
@@ -262,7 +262,7 @@ export class LocationsService {
     } = body;
 
     this.logger.info(
-      'pullPartnerLocations',
+      'PullPartnerLocations',
       ourCountryCode,
       ourPartyId,
       cpoCountryCode,
@@ -332,11 +332,11 @@ export class LocationsService {
             partner,
           );
           this.logger.info(
-            `pullPartnerLocations: upserted location ${String(location.id)}`,
+            `PullPartnerLocations: upserted location ${String(location.id)}`,
           );
         } catch (err) {
           this.logger.error(
-            `pullPartnerLocations: failed for location ${String(location.id)}`,
+            `PullPartnerLocations: failed for location ${String(location.id)}`,
             err,
           );
         }

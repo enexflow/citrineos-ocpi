@@ -7,7 +7,10 @@ import type { ICdrsModuleApi } from './ICdrsModuleApi.js';
 import { Ctx, Get, JsonController, Param, Post } from 'routing-controllers';
 import { HttpStatus } from '@citrineos/base';
 import type { TenantPartnerDto } from '@citrineos/base';
-import type { OcpiErrorResponse } from '@citrineos/ocpi-base';
+import type {
+  OcpiErrorResponse,
+  PullPartnerModulesBody,
+} from '@citrineos/ocpi-base';
 
 import type {
   PaginatedCdrResponse,
@@ -35,6 +38,9 @@ import {
   CdrDTOSchema,
   CdrDTOSchemaName,
   BodyWithSchema,
+  PullPartnerModulesBodySchemaName,
+  PullPartnerModulesBodySchema,
+  AsAdminEndpoint,
 } from '@citrineos/ocpi-base';
 
 import { Service } from 'typedi';
@@ -109,6 +115,25 @@ export class CdrsModuleApi extends BaseController implements ICdrsModuleApi {
       'Location',
       `${baseUrl}/ocpi/emsp/${version}/cdrs/${cdrId}`,
     );
+
+    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+  }
+
+  /**
+   * ADMIN ENDPOINTS
+   */
+  @Post('/pull-partner-cdrs')
+  @AsAdminEndpoint()
+  async PullPartnerCdrs(
+    @BodyWithSchema(
+      PullPartnerModulesBodySchema,
+      PullPartnerModulesBodySchemaName,
+    )
+    body: PullPartnerModulesBody,
+  ) {
+    this.logger.info('PullPartnerCdrs', body);
+
+    await this.cdrsService.pullPartnerCdrs(body);
 
     return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
   }
