@@ -35,7 +35,10 @@ import type { CdrEntity } from '../model/DTO/CdrDTO.js';
 import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
 import { MissingParamException } from '../exception/MissingParamException.js';
 import { InvalidParamException } from '../exception/InvalidParamException.js';
-import type { PullPartnerModulesBody } from '../model/DTO/PullPartnerModulesBody.js';
+import type {
+  PullPartnerModulesBody,
+  PullSummary,
+} from '../model/DTO/PullPartnerModulesBody.js';
 import type { Endpoint } from '@citrineos/base';
 import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
 import type { CdrDTO } from '../model/DTO/CdrDTO.js';
@@ -222,7 +225,7 @@ export class CdrsService {
     }
   }
 
-  async pullPartnerCdrs(body: PullPartnerModulesBody): Promise<void> {
+  async pullPartnerCdrs(body: PullPartnerModulesBody): Promise<PullSummary> {
     const {
       ourCountryCode,
       ourPartyId,
@@ -265,7 +268,7 @@ export class CdrsService {
     )?.url;
 
     if (!url) {
-      throw new Error('No sessions URL found');
+      throw new Error('No Cdrs URL found');
     }
 
     const paginated = buildPaginatedParams(
@@ -277,6 +280,10 @@ export class CdrsService {
 
     let currentOffset = offset;
     let hasMore = true;
+    let processedCdrs = 0;
+    let upsertSucceededCdrs = 0;
+    let upsertFailedCdrs = 0;
+    let skippedInvalidCdrs = 0;
 
     while (hasMore) {
       const resp = await this.cdrsClientApi.request(
@@ -294,14 +301,18 @@ export class CdrsService {
       );
 
       for (const item of (resp as any).data) {
+        processedCdrs++;
         if (item == null || typeof item !== 'object' || !('id' in item)) {
+          skippedInvalidCdrs++;
           continue;
         }
         const cdr = item as CdrDTO;
         try {
           await this.insertCdr(partner, cdr);
+          upsertSucceededCdrs++;
           this.logger.info(`PullPartnerCdrs: inserted cdr ${String(cdr.id)}`);
         } catch (err) {
+          upsertFailedCdrs++;
           if (err instanceof InvalidParamException) {
             this.logger.debug(
               `PullPartnerCdrs: cdr ${String(cdr.id)} already exists, skipping`,
@@ -322,5 +333,12 @@ export class CdrsService {
         hasMore = false;
       }
     }
+    return {
+      module: 'cdrs',
+      processed: processedCdrs,
+      upsertSucceeded: upsertSucceededCdrs,
+      upsertFailed: upsertFailedCdrs,
+      skippedInvalid: skippedInvalidCdrs,
+    };
   }
 }

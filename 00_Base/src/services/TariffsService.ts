@@ -51,7 +51,10 @@ import {
 } from '../graphql/index.js';
 import { NotFoundException } from '../exception/NotFoundException.js';
 import { TariffMapper, type TariffMapInput } from '../mapper/index.js';
-import type { PullPartnerModulesBody } from '../model/DTO/PullPartnerModulesBody.js';
+import type {
+  PullPartnerModulesBody,
+  PullSummary,
+} from '../model/DTO/PullPartnerModulesBody.js';
 import { TariffsClientApi } from '../trigger/TariffsClientApi.js';
 
 @Service()
@@ -276,7 +279,7 @@ export class TariffsService {
     }
   }
 
-  async pullPartnerTariffs(body: PullPartnerModulesBody): Promise<void> {
+  async pullPartnerTariffs(body: PullPartnerModulesBody): Promise<PullSummary> {
     const {
       ourCountryCode,
       ourPartyId,
@@ -331,6 +334,10 @@ export class TariffsService {
 
     let currentOffset = offset;
     let hasMore = true;
+    let processedTariffs = 0;
+    let upsertSucceededTariffs = 0;
+    let upsertFailedTariffs = 0;
+    let skippedInvalidTariffs = 0;
 
     while (hasMore) {
       const resp = await this.tariffsClientApi.request(
@@ -348,7 +355,9 @@ export class TariffsService {
       );
 
       for (const item of (resp as any).data) {
+        processedTariffs++;
         if (item == null || typeof item !== 'object' || !('id' in item)) {
+          skippedInvalidTariffs++;
           continue;
         }
         const tariff = item as TariffDTO;
@@ -359,10 +368,12 @@ export class TariffsService {
             partner.tenantId!,
             partner.id!,
           );
+          upsertSucceededTariffs++;
           this.logger.info(
             `PullPartnerModules: upserted tariff ${String(tariff.id)}`,
           );
         } catch (err) {
+          upsertFailedTariffs++;
           this.logger.error(
             `PullPartnerModules: failed for tariff ${String(tariff.id)}`,
             err,
@@ -377,5 +388,12 @@ export class TariffsService {
         hasMore = false;
       }
     }
+    return {
+      module: 'tariffs',
+      processed: processedTariffs,
+      upsertSucceeded: upsertSucceededTariffs,
+      upsertFailed: upsertFailedTariffs,
+      skippedInvalid: skippedInvalidTariffs,
+    };
   }
 }

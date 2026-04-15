@@ -24,3 +24,19 @@ export const PullPartnerModulesBodySchemaName = 'PullPartnerModulesBodySchema';
 export type PullPartnerModulesBody = z.infer<
   typeof PullPartnerModulesBodySchema
 >;
+
+export type PullSummary = {
+  module: string;
+  processed: number;
+  upsertSucceeded: number;
+  upsertFailed: number;
+  skippedInvalid: number;
+};
+
+export const PullSummarySchema = z.object({
+  module: z.string(),
+  processed: z.number(),
+  upsertSucceeded: z.number(),
+  upsertFailed: z.number(),
+  skippedInvalid: z.number(),
+});

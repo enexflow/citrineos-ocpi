@@ -29,6 +29,7 @@ import {
   PullPartnerModulesBodySchema,
   PullPartnerModulesBodySchemaName,
   type PullPartnerModulesBody,
+  buildOcpiResponse,
 } from '@citrineos/ocpi-base';
 import type { ILocationsModuleApi } from './ILocationsModuleApi.js';
 import type {
@@ -476,8 +477,11 @@ export class LocationsModuleApi
   ) {
     this.logger.info('PullPartnerLocations', body);
 
-    await this.locationsService.PullPartnerLocations(body);
+    const summary = await this.locationsService.PullPartnerLocations(body);
 
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    return buildOcpiResponse(
+      OcpiResponseStatusCode.GenericSuccessCode,
+      summary,
+    );
   }
 }

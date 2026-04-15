@@ -6,7 +6,10 @@ import { Logger } from 'tslog';
 import { Service } from 'typedi';
 import { LocationsClientApi } from '../trigger/LocationsClientApi.js';
 import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
-import type { PullPartnerModulesBody } from '../model/DTO/PullPartnerModulesBody.js';
+import type {
+  PullPartnerModulesBody,
+  PullSummary,
+} from '../model/DTO/PullPartnerModulesBody.js';
 
 import type { TenantPartnerDto } from '@citrineos/base';
 import type { LocationDTO } from '../model/DTO/LocationDTO.js';
@@ -249,7 +252,9 @@ export class LocationsService {
     }
   }
 
-  async PullPartnerLocations(body: PullPartnerModulesBody): Promise<void> {
+  async PullPartnerLocations(
+    body: PullPartnerModulesBody,
+  ): Promise<PullSummary> {
     const {
       ourCountryCode,
       ourPartyId,
@@ -304,6 +309,10 @@ export class LocationsService {
 
     let currentOffset = offset;
     let hasMore = true;
+    let processedLocations = 0;
+    let upsertSucceededLocations = 0;
+    let upsertFailedLocations = 0;
+    let skippedInvalidLocations = 0;
 
     while (hasMore) {
       const resp = await this.locationsClientApi.request(
@@ -321,7 +330,9 @@ export class LocationsService {
       );
 
       for (const item of (resp as any).data) {
+        processedLocations++;
         if (item == null || typeof item !== 'object' || !('id' in item)) {
+          skippedInvalidLocations++;
           continue;
         }
         const location = item as LocationDTO;
@@ -331,10 +342,12 @@ export class LocationsService {
             String(location.id),
             partner,
           );
+          upsertSucceededLocations++;
           this.logger.info(
             `PullPartnerLocations: upserted location ${String(location.id)}`,
           );
         } catch (err) {
+          upsertFailedLocations++;
           this.logger.error(
             `PullPartnerLocations: failed for location ${String(location.id)}`,
             err,
@@ -349,5 +362,13 @@ export class LocationsService {
         hasMore = false;
       }
     }
+
+    return {
+      module: 'locations',
+      processed: processedLocations,
+      upsertSucceeded: upsertSucceededLocations,
+      upsertFailed: upsertFailedLocations,
+      skippedInvalid: skippedInvalidLocations,
+    };
   }
 }

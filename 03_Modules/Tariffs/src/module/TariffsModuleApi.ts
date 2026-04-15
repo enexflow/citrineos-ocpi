@@ -199,8 +199,11 @@ export class TariffsModuleApi
   ) {
     this.logger.info('PullPartnerTariffs', body);
 
-    await this.tariffService.pullPartnerTariffs(body);
+    const summary = await this.tariffService.pullPartnerTariffs(body);
 
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    return buildOcpiResponse(
+      OcpiResponseStatusCode.GenericSuccessCode,
+      summary,
+    );
   }
 }

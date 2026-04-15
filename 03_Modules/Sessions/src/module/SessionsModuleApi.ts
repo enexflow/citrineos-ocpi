@@ -268,9 +268,10 @@ export class SessionsModuleApi
     body: PullPartnerModulesBody,
   ) {
     this.logger.info('PullPartnerSessions', body);
-
-    await this.sessionsService.pullPartnerSessions(body);
-
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    const summary = await this.sessionsService.pullPartnerSessions(body);
+    return buildOcpiResponse(
+      OcpiResponseStatusCode.GenericSuccessCode,
+      summary,
+    );
   }
 }

@@ -39,6 +39,7 @@ import { NotFoundException } from '../exception/NotFoundException.js';
 import { SessionsClientApi } from '../trigger/SessionsClientApi.js';
 import type { PullPartnerModulesBody } from '../model/DTO/PullPartnerModulesBody.js';
 import type { TenantPartnerDto, Endpoint } from '@citrineos/base';
+import type { PullSummary } from '../model/DTO/PullPartnerModulesBody.js';
 import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
 import { HttpMethod } from '@citrineos/base';
 import { z } from 'zod';
@@ -244,7 +245,9 @@ export class SessionsService {
     return ReceivedSessionMapper.mapToOcpi(updated);
   }
 
-  async pullPartnerSessions(body: PullPartnerModulesBody): Promise<void> {
+  async pullPartnerSessions(
+    body: PullPartnerModulesBody,
+  ): Promise<PullSummary> {
     const {
       ourCountryCode,
       ourPartyId,
@@ -283,7 +286,7 @@ export class SessionsService {
     const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
       .endpoints as Endpoint[];
     const url = endpoints.find(
-      (e: Endpoint) => e.identifier === 'sessions_RECEIVER',
+      (e: Endpoint) => e.identifier === 'sessions_SENDER',
     )?.url;
 
     if (!url) {
@@ -297,8 +300,14 @@ export class SessionsService {
       date_to != null ? new Date(date_to) : undefined,
     );
 
+    console.log('paginated', paginated);
+
     let currentOffset = offset;
     let hasMore = true;
+    let processedSessions = 0;
+    let upsertSucceededSessions = 0;
+    let upsertFailedSessions = 0;
+    let skippedInvalidSessions = 0;
 
     while (hasMore) {
       const resp = await this.sessionsClientApi.request(
@@ -316,7 +325,9 @@ export class SessionsService {
       );
 
       for (const item of (resp as any).data) {
+        processedSessions++;
         if (item == null || typeof item !== 'object' || !('id' in item)) {
+          skippedInvalidSessions++;
           continue;
         }
         const session = item as Session;
@@ -324,10 +335,12 @@ export class SessionsService {
         console.log('partner', partner);
         try {
           await this.upsertSession(session, partner.tenantId!, partner.id!);
+          upsertSucceededSessions++;
           this.logger.info(
             `PullPartnerSessions: upserted session ${String(session.id)}`,
           );
         } catch (err) {
+          upsertFailedSessions++;
           this.logger.error(
             `PullPartnerSessions: failed for session ${String(session.id)}`,
             err,
@@ -342,5 +355,13 @@ export class SessionsService {
         hasMore = false;
       }
     }
+
+    return {
+      module: 'sessions',
+      processed: processedSessions,
+      upsertSucceeded: upsertSucceededSessions,
+      upsertFailed: upsertFailedSessions,
+      skippedInvalid: skippedInvalidSessions,
+    };
   }
 }

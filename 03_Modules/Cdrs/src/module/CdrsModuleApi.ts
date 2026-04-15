@@ -41,6 +41,7 @@ import {
   PullPartnerModulesBodySchemaName,
   PullPartnerModulesBodySchema,
   AsAdminEndpoint,
+  buildOcpiResponse,
 } from '@citrineos/ocpi-base';
 
 import { Service } from 'typedi';
@@ -133,8 +134,11 @@ export class CdrsModuleApi extends BaseController implements ICdrsModuleApi {
   ) {
     this.logger.info('PullPartnerCdrs', body);
 
-    await this.cdrsService.pullPartnerCdrs(body);
+    const summary = await this.cdrsService.pullPartnerCdrs(body);
 
-    return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+    return buildOcpiResponse(
+      OcpiResponseStatusCode.GenericSuccessCode,
+      summary,
+    );
   }
 }
