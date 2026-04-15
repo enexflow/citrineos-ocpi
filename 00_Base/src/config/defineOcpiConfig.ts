@@ -111,7 +111,7 @@ function mergeOcpiConfigFromEnvVars<T extends Record<string, any>>(
           currentConfigKeyMap,
           finalPart,
         );
-        if (finalKey !== undefined) {
+        if (finalKey) {
           const raw = currentConfigKeyMap[finalKey];
           const propertyName = typeof raw === 'string' ? raw : finalKey;
           currentConfigPart[propertyName] = parseEnvValue(value);
