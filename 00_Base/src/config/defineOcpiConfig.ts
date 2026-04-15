@@ -111,9 +111,12 @@ function mergeOcpiConfigFromEnvVars<T extends Record<string, any>>(
           currentConfigKeyMap,
           finalPart,
         );
-        if (finalKey) {
-          currentConfigPart[finalKey] = parseEnvValue(value);
-        } else {
+        if (finalKey !== undefined) {
+          const raw = currentConfigKeyMap[finalKey];
+          const propertyName = typeof raw === 'string' ? raw : finalKey;
+          currentConfigPart[propertyName] = parseEnvValue(value);
+        }
+        else {
           errors.push(
             `Invalid environment variable key: ${fullEnvKey} (final part: ${finalPart})`,
           );

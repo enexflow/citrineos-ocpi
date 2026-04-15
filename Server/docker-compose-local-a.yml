@@ -38,16 +38,19 @@ services:
     build:
       context: ../../
       dockerfile: ./citrineos-ocpi/Server/local.Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       APP_NAME: 'all'
       APP_ENV: 'docker'
       DB_HOST: 'ocpp-db'
       AMQP_URL: 'amqp://guest:guest@amqp-broker:5672'
       AMQP_EXCHANGE: 'citrineos'
-      CITRINEOS_OCPI_GRAPHQL_ENDPOINT: 'http://172.17.0.1:8090/v1/graphql'
+      CITRINEOS_OCPI_GRAPHQL_ENDPOINT: 'http://172.17.0.1:8491/v1/graphql'
       CITRINEOS_OCPI_GRAPHQL_HEADERS: '{"x-hasura-admin-secret":"password"}'
-      CITRINEOS_OCPI_OIDC_JWKSURI: 'http://keycloak:8180/auth/realms/patterm/protocol/openid-connect/certs'
-      CITRINEOS_OCPI_OIDC_ISSUER: 'http://keycloak:8180/auth/realms/patterm'
+
+      CITRINEOS_OCPI_OIDC_JWKSURI: "http://host.docker.internal:8180/auth/realms/patterm/protocol/openid-connect/certs"
+      CITRINEOS_OCPI_OIDC_ISSUER:  "http://localhost:8180/auth/realms/patterm"
       CITRINEOS_OCPI_OIDC_AUDIENCE: 'citrineos-ocpi'
       CITRINEOS_OCPI_OIDC_RATELIMIT: 'true'
     # depends_on:
