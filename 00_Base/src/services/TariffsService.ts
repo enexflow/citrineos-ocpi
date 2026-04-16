@@ -361,7 +361,6 @@ export class TariffsService {
           continue;
         }
         const tariff = item as TariffDTO;
-        console.log('tariff', tariff);
         try {
           await this.createOrUpdateTariff(
             tariff as PutTariffRequest,
