@@ -318,7 +318,7 @@ export class TariffsService {
     const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
       .endpoints as Endpoint[];
     const url = endpoints.find(
-      (e: Endpoint) => e.identifier === 'tariffs_RECEIVER',
+      (e: Endpoint) => e.identifier === 'tariffs_SENDER',
     )?.url;
 
     if (!url) {

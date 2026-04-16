@@ -264,7 +264,7 @@ export class CdrsService {
     const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
       .endpoints as Endpoint[];
     const url = endpoints.find(
-      (e: Endpoint) => e.identifier === 'cdrs_RECEIVER',
+      (e: Endpoint) => e.identifier === 'cdrs_SENDER',
     )?.url;
 
     if (!url) {
