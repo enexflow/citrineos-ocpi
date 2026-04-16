@@ -18,6 +18,7 @@ import {
   OcpiGraphqlClient,
   OcpiModule,
   RabbitMqDtoReceiver,
+  Role,
 } from '@citrineos/ocpi-base';
 
 import type { ILogObj } from 'tslog';
@@ -289,9 +290,15 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
 
     // if the connector is not owned by a tenant partner, we can broadcast the update
     const tenant = connectorDto.tenant;
-    if (!tenant) {
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
       this._logger.error(
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${connectorDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
+      this._logger.info(
+        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${connectorDto.id}, should not be broadcasted.`,
       );
       return;
     }
