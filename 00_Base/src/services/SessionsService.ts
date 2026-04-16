@@ -300,8 +300,6 @@ export class SessionsService {
       date_to != null ? new Date(date_to) : undefined,
     );
 
-    console.log('paginated', paginated);
-
     let currentOffset = offset;
     let hasMore = true;
     let processedSessions = 0;
@@ -331,8 +329,6 @@ export class SessionsService {
           continue;
         }
         const session = item as Session;
-        console.log('session', session);
-        console.log('partner', partner);
         try {
           await this.upsertSession(session, partner.tenantId!, partner.id!);
           upsertSucceededSessions++;

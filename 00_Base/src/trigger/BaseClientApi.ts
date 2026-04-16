@@ -176,10 +176,6 @@ export abstract class BaseClientApi {
     switch (httpMethod) {
       case HttpMethod.Get:
         this.logger.debug(`Sending GET request to ${url}`);
-        this.logger.debug(`Options: ${JSON.stringify(options)}`);
-        this.logger.debug(
-          `Query Parameters: ${JSON.stringify(queryParameters)}`,
-        );
         return this.getRaw<T>(url, options).then((response) =>
           this.handleResponse(schema, response),
         );
