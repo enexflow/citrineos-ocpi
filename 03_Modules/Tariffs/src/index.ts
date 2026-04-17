@@ -148,7 +148,7 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
         'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
       );
-        return;
+      return;
     }
     if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
       logDbBroadcast(
