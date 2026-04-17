@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import { logDbBroadcast, Role, type IDtoEventContext } from '../index.js';
 import type { TenantDto } from '@citrineos/base';
 import { Logger } from 'tslog';
