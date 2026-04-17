@@ -11,6 +11,7 @@ import {
   OcpiModule,
   RabbitMqDtoReceiver,
   Role,
+  shouldBroadcast,
   TariffsBroadcaster,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
@@ -68,23 +69,18 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, should not be broadcasted.`,
-      );
-      return;
-    }
-    await this.tariffsBroadcaster.broadcastPutTariff(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastPutTariff(tenant!, tariffDto);
   }
 
   @AsDtoEventHandler(
@@ -106,23 +102,18 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, should not be broadcasted.`,
-      );
-      return;
-    }
-    await this.tariffsBroadcaster.broadcastPutTariff(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastPutTariff(tenant!, tariffDto);
   }
 
   @AsDtoEventHandler(
@@ -142,22 +133,17 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, should not be broadcasted.`,
-      );
-      return;
-    }
-    await this.tariffsBroadcaster.broadcastTariffDeletion(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastTariffDeletion(tenant!, tariffDto);
   }
 }

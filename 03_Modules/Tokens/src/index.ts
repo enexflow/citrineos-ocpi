@@ -8,6 +8,7 @@ import {
   AbstractDtoModule,
   AsDtoEventHandler,
   Role,
+  shouldBroadcast,
   type IDtoEvent,
   type OcpiConfig,
 } from '@citrineos/ocpi-base';
@@ -65,23 +66,18 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
     const tenant = authorizationDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.EMSP,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
-      );
+        String(authorizationDto.id),
+      )
+    ) {
       return;
     }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.EMSP) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not an EMSP in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, should not be broadcasted.`,
-      );
-      return;
-    }
-    await this.tokenBroadcaster.broadcastPutToken(tenant, authorizationDto);
+    await this.tokenBroadcaster.broadcastPutToken(tenant!, authorizationDto);
   }
 
   @AsDtoEventHandler(
@@ -101,23 +97,18 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
     const tenant = authorizationDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.EMSP,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
-      );
+        String(authorizationDto.id),
+      )
+    ) {
       return;
     }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.EMSP) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not an EMSP in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, should not be broadcasted.`,
-      );
-      return;
-    }
-    await this.tokenBroadcaster.broadcastPatchToken(tenant, authorizationDto);
+    await this.tokenBroadcaster.broadcastPatchToken(tenant!, authorizationDto);
   }
 
   @AsDtoEventHandler(
@@ -137,22 +128,17 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
     const tenant = authorizationDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.EMSP,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
-      );
+        String(authorizationDto.id),
+      )
+    ) {
       return;
     }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.EMSP) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not an EMSP in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, should not be broadcasted.`,
-      );
-      return;
-    }
-    await this.tokenBroadcaster.broadcastDeleteToken(tenant, authorizationDto);
+    await this.tokenBroadcaster.broadcastDeleteToken(tenant!, authorizationDto);
   }
 }

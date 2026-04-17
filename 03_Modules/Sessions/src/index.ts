@@ -21,6 +21,7 @@ import {
   RabbitMqDtoReceiver,
   SessionBroadcaster,
   Role,
+  shouldBroadcast,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -74,23 +75,18 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     );
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, cannot broadcast.`,
-      );
+        String(transactionDto.id),
+      )
+    ) {
       return;
     }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, should not be broadcasted.`,
-      );
-      return;
-    }
-    await this.sessionBroadcaster.broadcastPutSession(tenant, transactionDto);
+    await this.sessionBroadcaster.broadcastPutSession(tenant!, transactionDto);
   }
 
   @AsDtoEventHandler(
@@ -109,23 +105,21 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     );
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, cannot broadcast.`,
-      );
+        String(transactionDto.id),
+      )
+    ) {
       return;
     }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, should not be broadcasted.`,
-      );
-      return;
-    }
-    await this.sessionBroadcaster.broadcastPatchSession(tenant, transactionDto);
+    await this.sessionBroadcaster.broadcastPatchSession(
+      tenant!,
+      transactionDto,
+    );
     if (transactionDto.isActive === false) {
       this._logger.debug(`Transaction is no longer active: ${event._eventId}`);
 
@@ -163,20 +157,15 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     );
     const meterValueDto = event._payload;
     const tenant = meterValueDto.tenant;
-    if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      logDbBroadcast(
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
         this._logger,
-        'error',
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${meterValueDto.id}, cannot broadcast.`,
-      );
-      return;
-    }
-    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      logDbBroadcast(
-        this._logger,
-        'info',
-        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${meterValueDto.id}, should not be broadcasted.`,
-      );
+        String(meterValueDto.id),
+      )
+    ) {
       return;
     }
     if (meterValueDto.transactionDatabaseId) {
@@ -191,7 +180,7 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
       }
 
       await this.sessionBroadcaster.broadcastPatchSessionChargingPeriod(
-        tenant,
+        tenant!,
         meterValueDto,
       );
     }
