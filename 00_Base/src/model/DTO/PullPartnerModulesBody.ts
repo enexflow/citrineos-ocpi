@@ -8,7 +8,7 @@ import { DEFAULT_LIMIT, DEFAULT_OFFSET } from '../PaginatedResponse.js';
 /**
  * Admin trigger body: OCPI identity + optional GET List pagination (Sender 8.2.1.1).
  */
-export const PullPartnerLocationsBodySchema = z.object({
+export const PullPartnerModulesBodySchema = z.object({
   ourCountryCode: z.string().min(2).max(2),
   ourPartyId: z.string().min(1).max(3),
   cpoCountryCode: z.string().min(2).max(2),
@@ -19,9 +19,24 @@ export const PullPartnerLocationsBodySchema = z.object({
   date_to: z.union([z.coerce.date(), z.string()]).optional(),
 });
 
-export const PullPartnerLocationsBodySchemaName =
-  'PullPartnerLocationsBodySchema';
+export const PullPartnerModulesBodySchemaName = 'PullPartnerModulesBodySchema';
 
-export type PullPartnerLocationsBody = z.infer<
-  typeof PullPartnerLocationsBodySchema
+export type PullPartnerModulesBody = z.infer<
+  typeof PullPartnerModulesBodySchema
 >;
+
+export type PullSummary = {
+  module: string;
+  processed: number;
+  upsertSucceeded: number;
+  upsertFailed: number;
+  skippedInvalid: number;
+};
+
+export const PullSummarySchema = z.object({
+  module: z.string(),
+  processed: z.number(),
+  upsertSucceeded: z.number(),
+  upsertFailed: z.number(),
+  skippedInvalid: z.number(),
+});

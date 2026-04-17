@@ -16,7 +16,11 @@ import type {
   Transactions_Bool_Exp,
   GetCdrByiIdQueryResult,
   GetCdrByiIdQueryVariables,
+  GetTenantPartnerByCpoClientAndModuleIdQueryResult,
+  GetTenantPartnerByCpoClientAndModuleIdQueryVariables,
 } from '../graphql/index.js';
+import { HttpMethod } from '@citrineos/base';
+import { GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT } from '../graphql/index.js';
 import { GET_TRANSACTIONS_QUERY, OcpiGraphqlClient } from '../graphql/index.js';
 import { CdrMapper } from '../mapper/index.js';
 import type { TenantPartnerDto, TransactionDto } from '@citrineos/base';
@@ -31,6 +35,15 @@ import type { CdrEntity } from '../model/DTO/CdrDTO.js';
 import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
 import { MissingParamException } from '../exception/MissingParamException.js';
 import { InvalidParamException } from '../exception/InvalidParamException.js';
+import type {
+  PullPartnerModulesBody,
+  PullSummary,
+} from '../model/DTO/PullPartnerModulesBody.js';
+import type { Endpoint } from '@citrineos/base';
+import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
+import type { CdrDTO } from '../model/DTO/CdrDTO.js';
+import { z } from 'zod';
+import { CdrsClientApi } from '../trigger/CdrsClientApi.js';
 
 function extractConstraintField(message: string): string {
   const match = message.match(/null value in column "(\w+)"/);
@@ -43,6 +56,7 @@ export class CdrsService {
     private readonly logger: Logger<ILogObj>,
     private readonly ocpiGraphqlClient: OcpiGraphqlClient,
     private readonly cdrMapper: CdrMapper,
+    private readonly cdrsClientApi: CdrsClientApi,
   ) {}
 
   public async getCdrs(
@@ -209,5 +223,122 @@ export class CdrsService {
           : OcpiResponseStatusCode.ClientGenericError;
       return buildOcpiErrorResponse(statusCode, (e as Error).message);
     }
+  }
+
+  async pullPartnerCdrs(body: PullPartnerModulesBody): Promise<PullSummary> {
+    const {
+      ourCountryCode,
+      ourPartyId,
+      cpoCountryCode,
+      cpoPartyId,
+      offset,
+      limit,
+      date_from,
+      date_to,
+    } = body;
+
+    this.logger.info(
+      'PullPartnerCdrs',
+      ourCountryCode,
+      ourPartyId,
+      cpoCountryCode,
+      cpoPartyId,
+    );
+
+    const tenantPartner = await this.ocpiGraphqlClient.request<
+      GetTenantPartnerByCpoClientAndModuleIdQueryResult,
+      GetTenantPartnerByCpoClientAndModuleIdQueryVariables
+    >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
+      cpoCountryCode: ourCountryCode,
+      cpoPartyId: ourPartyId,
+      clientCountryCode: cpoCountryCode,
+      clientPartyId: cpoPartyId,
+    });
+
+    const partnerRow = tenantPartner.TenantPartners[0];
+    if (!partnerRow?.partnerProfileOCPI) {
+      throw new Error('Tenant partner missing partnerProfileOCPI');
+    }
+    const partner = partnerRow as TenantPartnerDto;
+
+    const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
+      .endpoints as Endpoint[];
+    const url = endpoints.find(
+      (e: Endpoint) => e.identifier === 'cdrs_SENDER',
+    )?.url;
+
+    if (!url) {
+      throw new Error('No Cdrs URL found');
+    }
+
+    const paginated = buildPaginatedParams(
+      offset,
+      limit,
+      date_from != null ? new Date(date_from) : undefined,
+      date_to != null ? new Date(date_to) : undefined,
+    );
+
+    let currentOffset = offset;
+    let hasMore = true;
+    let processedCdrs = 0;
+    let upsertSucceededCdrs = 0;
+    let upsertFailedCdrs = 0;
+    let skippedInvalidCdrs = 0;
+
+    while (hasMore) {
+      const resp = await this.cdrsClientApi.request(
+        ourCountryCode,
+        ourPartyId,
+        cpoCountryCode,
+        cpoPartyId,
+        HttpMethod.Get,
+        z.any(),
+        tenantPartner.TenantPartners[0].partnerProfileOCPI!,
+        true,
+        url,
+        undefined,
+        { ...paginated, offset: currentOffset },
+      );
+
+      for (const item of (resp as any).data) {
+        processedCdrs++;
+        if (item == null || typeof item !== 'object' || !('id' in item)) {
+          skippedInvalidCdrs++;
+          continue;
+        }
+        const cdr = item as CdrDTO;
+        try {
+          await this.insertCdr(partner, cdr);
+          upsertSucceededCdrs++;
+          this.logger.info(`PullPartnerCdrs: inserted cdr ${String(cdr.id)}`);
+        } catch (err) {
+          upsertFailedCdrs++;
+          if (err instanceof InvalidParamException) {
+            this.logger.debug(
+              `PullPartnerCdrs: cdr ${String(cdr.id)} already exists, skipping`,
+            );
+          } else {
+            this.logger.error(
+              `PullPartnerCdrs: failed for cdr ${String(cdr.id)}`,
+              err,
+            );
+          }
+        }
+      }
+
+      const nextOffset: number | undefined = (resp as any).offset;
+      if (nextOffset != null) {
+        currentOffset = nextOffset;
+      } else {
+        hasMore = false;
+      }
+    }
+    return {
+      module: 'cdrs',
+      processed: processedCdrs,
+      upsertSucceeded: upsertSucceededCdrs,
+      upsertFailed: upsertFailedCdrs,
+      skippedInvalid: skippedInvalidCdrs,
+    };
   }
 }
