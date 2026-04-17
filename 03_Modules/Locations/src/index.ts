@@ -90,8 +90,10 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     logDbBroadcast(this._logger, 'debug', 'Handling Location Insert:', event);
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${locationDto.id}, cannot broadcast.`,
       );
       return;
@@ -119,13 +121,22 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
 
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${locationDto.id}, cannot broadcast.`,
       );
       return;
     }
-
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${locationDto.id}, should not be broadcasted.`,
+      );
+      return;
+    }
     // if the location is owned by a tenant partner, don't broadcast
     if (
       locationDto.ownerTenantPartnerId != null ||
@@ -165,13 +176,22 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const evseDto = event._payload;
     if ((evseDto as any).ocpiUid != null) return;
     const tenant = evseDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${evseDto.id}, cannot broadcast.`,
       );
       return;
     }
-
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${evseDto.id}, should not be broadcasted.`,
+      );
+      return;
+    }
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
       GetChargingStationByIdQueryVariables
@@ -210,9 +230,19 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
 
     // if the evse is not owned by a tenant partner, we can broadcast the update
     const tenant = evseDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${evseDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${evseDto.id}, should not be broadcasted.`,
       );
       return;
     }
@@ -247,9 +277,19 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const connectorDto = event._payload;
     const tenant = connectorDto.tenant;
     if ((connectorDto as any).ocpiId != null) return;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${connectorDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${connectorDto.id}, should not be broadcasted.`,
       );
       return;
     }
@@ -291,13 +331,17 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     // if the connector is not owned by a tenant partner, we can broadcast the update
     const tenant = connectorDto.tenant;
     if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      this._logger.error(
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${connectorDto.id}, cannot broadcast.`,
       );
       return;
     }
     if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      this._logger.info(
+      logDbBroadcast(
+        this._logger,
+        'info',
         `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${connectorDto.id}, should not be broadcasted.`,
       );
       return;
@@ -308,7 +352,9 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       GetChargingStationByIdQueryVariables
     >(GET_CHARGING_STATION_BY_ID_QUERY, { id: connectorDto.stationId! });
     if (!chargingStationResponse.ChargingStations[0]) {
-      this._logger.error(
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Charging Station not found for ID ${connectorDto.stationId}, cannot broadcast.`,
       );
       return;

@@ -10,6 +10,7 @@ import {
   OcpiConfigToken,
   OcpiModule,
   RabbitMqDtoReceiver,
+  Role,
   TariffsBroadcaster,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
@@ -67,13 +68,22 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
       );
       return;
     }
-
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, should not be broadcasted.`,
+      );
+      return;
+    }
     await this.tariffsBroadcaster.broadcastPutTariff(tenant, tariffDto);
   }
 
@@ -96,13 +106,22 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
       );
       return;
     }
-
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, should not be broadcasted.`,
+      );
+      return;
+    }
     await this.tariffsBroadcaster.broadcastPutTariff(tenant, tariffDto);
   }
 
@@ -123,13 +142,22 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
+      );
+        return;
+    }
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, should not be broadcasted.`,
       );
       return;
     }
-
     await this.tariffsBroadcaster.broadcastTariffDeletion(tenant, tariffDto);
   }
 }

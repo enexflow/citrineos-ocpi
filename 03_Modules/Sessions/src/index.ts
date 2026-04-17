@@ -75,13 +75,17 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
     if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      this._logger.error(
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, cannot broadcast.`,
       );
       return;
     }
     if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      this._logger.info(
+      logDbBroadcast(
+        this._logger,
+        'info',
         `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, should not be broadcasted.`,
       );
       return;
@@ -106,13 +110,17 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
     if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      this._logger.error(
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, cannot broadcast.`,
       );
       return;
     }
     if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      this._logger.info(
+      logDbBroadcast(
+        this._logger,
+        'info',
         `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, should not be broadcasted.`,
       );
       return;
@@ -156,13 +164,17 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     const meterValueDto = event._payload;
     const tenant = meterValueDto.tenant;
     if (!tenant || !tenant.countryCode || !tenant.partyId) {
-      this._logger.error(
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${meterValueDto.id}, cannot broadcast.`,
       );
       return;
     }
     if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.CPO) {
-      this._logger.info(
+      logDbBroadcast(
+        this._logger,
+        'info',
         `Tenant is not a CPO in ${event._context.eventType} notification for ${event._context.objectType} ${meterValueDto.id}, should not be broadcasted.`,
       );
       return;

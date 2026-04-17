@@ -7,6 +7,7 @@ import { TokensModuleApi } from './module/TokensModuleApi.js';
 import {
   AbstractDtoModule,
   AsDtoEventHandler,
+  Role,
   type IDtoEvent,
   type OcpiConfig,
 } from '@citrineos/ocpi-base';
@@ -64,9 +65,19 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
     const tenant = authorizationDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.EMSP) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not an EMSP in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, should not be broadcasted.`,
       );
       return;
     }
@@ -90,9 +101,19 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
     const tenant = authorizationDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.EMSP) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not an EMSP in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, should not be broadcasted.`,
       );
       return;
     }
@@ -116,9 +137,19 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
     const tenant = authorizationDto.tenant;
-    if (!tenant) {
-      this._logger.error(
+    if (!tenant || !tenant.countryCode || !tenant.partyId) {
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
+      return;
+    }
+    if (tenant?.serverProfileOCPI?.credentialsRole?.role !== Role.EMSP) {
+      logDbBroadcast(
+        this._logger,
+        'info',
+        `Tenant is not an EMSP in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, should not be broadcasted.`,
       );
       return;
     }
