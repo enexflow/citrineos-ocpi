@@ -63,3 +63,6 @@ Server/src/assets/certificates/rootCertificate.pem
 Server/src/assets/certificates/subCAKey.pem
 Server/tsconfig.json
 tsconfig.json
+Server/scripts/.env.example
+Server/scripts/README.md
+.eslintignore

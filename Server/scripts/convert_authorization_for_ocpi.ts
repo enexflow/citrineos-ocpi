@@ -1,4 +1,10 @@
-import 'dotenv/config';
+// SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.resolve(import.meta.dirname, '.env') });
 
 const HASURA_URL = process.env.HASURA_URL;
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
@@ -8,7 +14,7 @@ const NEW_TENANT_ID = Number(process.env.NEW_TENANT_ID);
 
 if (!HASURA_URL) throw new Error('Missing HASURA_URL');
 
-async function gql(query, variables = {}) {
+async function gql(query: string, variables: Record<string, unknown> = {}) {
   if (!HASURA_URL || !ADMIN_SECRET)
     throw new Error('Missing HASURA_URL / ADMIN_SECRET');
   const res = await fetch(HASURA_URL, {
@@ -32,7 +38,7 @@ const rows = data[TABLE];
 console.log(`Fetched ${rows.length} rows`);
 
 // 2. Transform each row
-const updatedRows = rows.map((row) => {
+const updatedRows = rows.map((row: any) => {
   if (row.tenantId === OLD_TENANT_ID && row.idTokenType !== 'MacAddress') {
     const additionalInfo = [
       { type: 'eMAID', additionalIdToken: `FR*ZET*${row.idToken}` },

@@ -1,10 +1,13 @@
-import { GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT } from '@citrineos/ocpi-base/src/graphql/queries/tenantPartner.queries';
+// SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+
+import { GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT } from '@citrineos/ocpi-base';
 import { TokensMapper } from '@citrineos/ocpi-base/src/mapper/TokensMapper.js';
 import type { Endpoint } from '@citrineos/base';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(import.meta.dirname, '.env') });
-
 
 const TOKENS_RECEIVER = 'tokens_RECEIVER' as const;
 
@@ -94,7 +97,8 @@ async function main() {
 
   const failures = [];
 
-  while (true) {
+  let hasMore = true;
+  while (hasMore) {
     const data = await gql(
       `
       query GetAuth($limit:Int!, $offset:Int!, $cc:String!, $pid:String!) {
@@ -140,7 +144,10 @@ async function main() {
     const tokens = data.Authorizations;
 
     console.log('sending tokens to partner url :', url);
-    if (!tokens.length) break;
+    if (!tokens.length) {
+      hasMore = false;
+      continue;
+    }
     for (const token of tokens) {
       try {
         if (token.tenantId !== partnerInfo.tenant.id) {

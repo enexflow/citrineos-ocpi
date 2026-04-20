@@ -1,7 +1,15 @@
+// SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import fs from 'fs';
 import { parse } from 'csv-parse/sync';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(__dirname, '.env') });
 const HASURA_URL = process.env.HASURA_URL;
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 const TABLE = 'Authorizations';
@@ -9,8 +17,8 @@ const CSV_FILE = process.env.CSV_FILE;
 const CHUNK_SIZE = 500;
 
 // Parse CSV
-const raw = fs.readFileSync(CSV_FILE, 'utf-8');
-function cleanValue(val) {
+const raw = fs.readFileSync(resolve(__dirname, CSV_FILE!), 'utf-8');
+function cleanValue(val: string) {
   if (val === 'null' || val === '') return null;
   if (val.startsWith("'") && val.endsWith("'")) return val.slice(1, -1);
   return val;
@@ -18,7 +26,12 @@ function cleanValue(val) {
 
 const rows = parse(raw, { columns: true, skip_empty_lines: true })
   .map((row) =>
-    Object.fromEntries(Object.entries(row).map(([k, v]) => [k, cleanValue(v)])),
+    Object.fromEntries(
+      Object.entries(row as Record<string, unknown>).map(([k, v]) => [
+        k,
+        cleanValue(typeof v === 'string' ? v : String(v)),
+      ]),
+    ),
   )
   .map((row) => ({
     ...row,
@@ -42,7 +55,7 @@ const MUTATION = `
   }
 `;
 
-async function insertChunk(chunk) {
+async function insertChunk(chunk: any[] | Record<string, any>[]) {
   if (!HASURA_URL || !ADMIN_SECRET)
     throw new Error('Missing HASURA_URL / ADMIN_SECRET');
   const res = await fetch(HASURA_URL, {
