@@ -7,9 +7,10 @@ how to use:
 
 1. set environment variables : OLD_TENANT_ID, NEW_TENANT_ID
 2. run the script with the following command inside the scripts folder:
+   inside citrineos-ocpi folder:
 
 ```
-node convert_authorization_for_ocpi.ts
+npx tsx ./Server/scripts/convert_authorization_for_ocpi.ts
 ```
 
 3. the script will convert the authorization for OCPI
