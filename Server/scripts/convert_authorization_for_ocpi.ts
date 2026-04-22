@@ -30,43 +30,52 @@ async function gql(query: string, variables: Record<string, unknown> = {}) {
   return json.data;
 }
 
-// 1. Fetch all rows
-const data = await gql(
-  `{ ${TABLE} { id idToken idTokenType status tenantId additionalInfo } }`,
-);
-const rows = data[TABLE];
-console.log(`Fetched ${rows.length} rows`);
-
-// 2. Transform each row
-const updatedRows = rows.map((row: any) => {
-  if (row.tenantId === OLD_TENANT_ID && row.idTokenType !== 'MacAddress') {
-    const additionalInfo = [
-      { type: 'eMAID', additionalIdToken: `FR*ZET*${row.idToken}` },
-      { type: 'visual_number', additionalIdToken: `${row.idToken}` },
-      { type: 'issuer', additionalIdToken: 'Zetra' },
-    ];
-
-    return {
-      ...row,
-      tenantId: NEW_TENANT_ID,
-      realTimeAuth: 'Always',
-      additionalInfo: additionalInfo,
-    };
-  }
-  return row;
-});
-
-// 3. Update each row in DB
-const MUTATION = `
-  mutation Update($id: Int!, $changes: ${TABLE}_set_input!) {
-    update_${TABLE}_by_pk(pk_columns: { id: $id }, _set: $changes) { id }
+const INSERT_MUTATION = `
+  mutation Insert($object: ${TABLE}_insert_input!) {
+    insert_${TABLE}_one(object: $object) { id }
   }
 `;
 
-for (const row of updatedRows) {
-  const { id, ...changes } = row;
-  await gql(MUTATION, { id, changes });
-  console.log(`Updated row ${id}`);
+// 1. Fetch all rows from OLD_TENANT_ID
+const data = await gql(
+  `{ ${TABLE}(where: { tenantId: { _eq: ${OLD_TENANT_ID} } }) { idToken idTokenType status additionalInfo } }`,
+);
+const rows = data[TABLE];
+console.log(`Fetched ${rows.length} rows from tenant ${OLD_TENANT_ID}`);
+
+// 2. Insert new rows for NEW_TENANT_ID
+let inserted = 0;
+let skipped = 0;
+
+for (const row of rows) {
+  if (row.idTokenType === 'MacAddress') {
+    skipped++;
+    continue;
+  }
+  const { id, ...rowWithoutId } = row;
+
+  const newRow = {
+    ...rowWithoutId,
+    tenantId: NEW_TENANT_ID,
+    realTimeAuth: 'Always',
+    additionalInfo: [
+      { type: 'eMAID', additionalIdToken: `FR*ZET*${row.idToken}` },
+      { type: 'visual_number', additionalIdToken: `${row.idToken}` },
+      { type: 'issuer', additionalIdToken: 'Zetra' },
+    ],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  console.log(newRow);
+
+  try {
+    await gql(INSERT_MUTATION, { object: newRow });
+    console.log(`Inserted new authorization for token ${row.idToken}`);
+    inserted++;
+  } catch (err: any) {
+    console.warn(`Skipped token ${row.idToken}: ${err.message}`);
+    skipped++;
+  }
 }
 
-console.log('Done');
+console.log(`Done — inserted: ${inserted}, skipped: ${skipped}`);
