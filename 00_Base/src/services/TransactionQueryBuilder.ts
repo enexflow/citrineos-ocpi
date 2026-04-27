@@ -16,7 +16,7 @@
 //   TransactionEvent,
 //   Transaction,
 // } from '@citrineos/data';
-// import { OCPP2_0_1 } from '@citrineos/base';
+// import { OCPP2_0_1 } from '@zetra/citrineos-base';
 
 // @Service()
 // export class TransactionQueryBuilder {

@@ -20,7 +20,7 @@
     "typescript": "5.0.4"
   },
   "dependencies": {
-    "@citrineos/base": "1.8.3",
+    "@zetra/citrineos-base": "1.8.3-fork.1",
     "@citrineos/data": "1.8.3",
     "@citrineos/ocpi-base": "2.0.1"
   },

@@ -22,8 +22,8 @@ import type {
   AuthorizationDto,
   ChargingStationDto,
   TenantDto,
-} from '@citrineos/base';
-import { AuthorizationStatusEnum, IdTokenEnum } from '@citrineos/base';
+} from '@zetra/citrineos-base';
+import { AuthorizationStatusEnum, IdTokenEnum } from '@zetra/citrineos-base';
 import type {
   Authorizations_Paginated_Bool_Exp,
   Authorizations_Set_Input,
@@ -45,7 +45,7 @@ import type {
   UpdateAuthorizationMutationVariables,
 } from '../graphql/operations.js';
 import { UnknownTokenException } from '../exception/UnknownTokenException.js';
-import type { AdditionalInfoType } from '@citrineos/base/dist/ocpp/model/2.0.1/index.js';
+import type { AdditionalInfoType } from '@zetra/citrineos-base/dist/ocpp/model/2.0.1/index.js';
 import { MissingParamException } from '../exception/MissingParamException.js';
 import type {
   RealTimeAuthorizationRequestBody,

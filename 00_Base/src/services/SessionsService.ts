@@ -28,7 +28,7 @@ import {
   UPSERT_SESSION_MUTATION,
 } from '../graphql/index.js';
 import { ReceivedSessionMapper, SessionMapper } from '../mapper/index.js';
-import type { TransactionDto } from '@citrineos/base';
+import type { TransactionDto } from '@zetra/citrineos-base';
 import type { OcpiHeaders } from '../model/OcpiHeaders.js';
 import type { PaginatedParams } from '../controllers/param/PaginatedParams.js';
 import { NotFoundException } from '../exception/NotFoundException.js';

@@ -10,7 +10,6 @@
     "@graphql-codegen/typescript": "^4.1.6",
     "@graphql-codegen/typescript-operations": "^4.6.1",
     "@graphql-eslint/eslint-plugin": "^4.4.0",
-    "@types/csv-parse": "^1.1.12",
     "@types/eslint__js": "8.42.3",
     "@types/jest": "^30.0.0",
     "@typescript-eslint/eslint-plugin-tslint": "^7.0.2",
@@ -75,6 +74,6 @@
     "./Server"
   ],
   "dependencies": {
-    "csv-parse": "^6.2.1"
+    "@zetra/citrineos-base": "1.8.3-fork.1"
   }
 }

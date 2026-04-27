@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BadRequestError, createParamDecorator } from 'routing-controllers';
-import { HttpHeader } from '@citrineos/base';
+import { HttpHeader } from '@zetra/citrineos-base';
 import { base64Decode } from '../Util.js';
 
 const tokenPrefix = 'Token ';

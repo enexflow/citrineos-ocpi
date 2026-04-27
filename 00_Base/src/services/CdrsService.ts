@@ -19,7 +19,7 @@ import type {
 } from '../graphql/index.js';
 import { GET_TRANSACTIONS_QUERY, OcpiGraphqlClient } from '../graphql/index.js';
 import { CdrMapper } from '../mapper/index.js';
-import type { TenantPartnerDto, TransactionDto } from '@citrineos/base';
+import type { TenantPartnerDto, TransactionDto } from '@zetra/citrineos-base';
 import { NotFoundException } from '../exception/NotFoundException.js';
 
 import type { PaginatedCdrResponse } from '../model/DTO/CdrDTO.js';

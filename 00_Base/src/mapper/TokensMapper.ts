@@ -7,13 +7,13 @@ import type {
   AuthorizationStatusEnumType,
   AuthorizationWhitelistEnumType,
   IdTokenEnumType,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import {
   AuthorizationStatusEnum,
   AuthorizationWhitelistEnum,
   IdTokenEnum,
   OCPP2_0_1,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import { TokenType } from '../model/TokenType.js';
 import type { TokenDTO } from '../model/DTO/TokenDTO.js';
 import { WhitelistType } from '../model/WhitelistType.js';

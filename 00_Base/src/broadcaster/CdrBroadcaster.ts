@@ -10,8 +10,8 @@ import { Logger } from 'tslog';
 import type { CdrDTO } from '../model/DTO/CdrDTO.js';
 import { ModuleId } from '../model/ModuleId.js';
 import { InterfaceRole } from '../model/InterfaceRole.js';
-import type { TransactionDto } from '@citrineos/base';
-import { HttpMethod } from '@citrineos/base';
+import type { TransactionDto } from '@zetra/citrineos-base';
+import { HttpMethod } from '@zetra/citrineos-base';
 import { CdrMapper } from '../mapper/index.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
 

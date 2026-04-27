@@ -14,7 +14,7 @@ import { ENUM_PARAM } from '../util/decorators/EnumParam.js';
 import { refPointerPrefix } from './class.validator.js';
 import { SchemaStore } from './schema.store.js';
 import { MULTIPLE_TYPES } from '../util/decorators/MultipleTypes.js';
-import { HttpHeader } from '@citrineos/base';
+import { HttpHeader } from '@zetra/citrineos-base';
 import { ENUM_QUERY_PARAM } from '../util/decorators/EnumQueryParam.js';
 import type { ParamMetadataArgs } from 'routing-controllers/types/metadata/args/ParamMetadataArgs.js';
 import type { Constructable } from 'typedi';
