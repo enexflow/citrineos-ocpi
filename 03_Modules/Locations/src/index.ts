@@ -29,7 +29,7 @@ import type {
   EvseDto,
   LocationDto,
   TenantDto,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import { Inject, Service } from 'typedi';
 import { logDbBroadcast } from '@citrineos/ocpi-base';
 

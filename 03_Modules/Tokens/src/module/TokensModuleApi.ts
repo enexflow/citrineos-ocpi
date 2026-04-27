@@ -18,7 +18,7 @@ import {
   HttpStatus,
   type TenantDto,
   type TenantPartnerDto,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import type {
   RealTimeAuthorizationRequestBody,
   RealTimeAuthorizationResponse,

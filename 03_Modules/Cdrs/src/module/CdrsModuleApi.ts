@@ -5,8 +5,8 @@
 import type { ICdrsModuleApi } from './ICdrsModuleApi.js';
 
 import { Ctx, Get, JsonController, Param, Post } from 'routing-controllers';
-import { HttpStatus } from '@citrineos/base';
-import type { TenantPartnerDto } from '@citrineos/base';
+import { HttpStatus } from '@zetra/citrineos-base';
+import type { TenantPartnerDto } from '@zetra/citrineos-base';
 import type { OcpiErrorResponse } from '@citrineos/ocpi-base';
 
 import type {

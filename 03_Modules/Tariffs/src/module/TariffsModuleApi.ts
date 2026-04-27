@@ -11,7 +11,7 @@ import {
   Param,
   Put,
 } from 'routing-controllers';
-import { HttpStatus } from '@citrineos/base';
+import { HttpStatus } from '@zetra/citrineos-base';
 import type {
   OcpiEmptyResponse,
   PaginatedTariffResponse,

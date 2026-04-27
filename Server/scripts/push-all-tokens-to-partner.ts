@@ -4,7 +4,7 @@
 
 import { GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT } from '@citrineos/ocpi-base';
 import { TokensMapper } from '@citrineos/ocpi-base/src/mapper/TokensMapper.js';
-import type { Endpoint } from '@citrineos/base';
+import type { Endpoint } from '@zetra/citrineos-base';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(import.meta.dirname, '.env') });

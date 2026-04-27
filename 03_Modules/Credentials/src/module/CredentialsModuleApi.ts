@@ -36,8 +36,8 @@ import {
   VersionNumber,
   VersionNumberParam,
 } from '@citrineos/ocpi-base';
-import type { TenantPartnerDto } from '@citrineos/base';
-import { HttpStatus, UnauthorizedException } from '@citrineos/base';
+import type { TenantPartnerDto } from '@zetra/citrineos-base';
+import { HttpStatus, UnauthorizedException } from '@zetra/citrineos-base';
 import { Service } from 'typedi';
 import type { ICredentialsModuleApi } from './ICredentialsModuleApi.js';
 import {
