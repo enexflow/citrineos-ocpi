@@ -20,15 +20,12 @@ import { WhitelistType } from '../model/WhitelistType.js';
 
 export class TokensMapper {
   public static toDto(authorization: AuthorizationDto): TokenDTO {
+    const tenant = authorization.tenants?.[0]?.tenant;
+
     const tokenDto: TokenDTO = {
       country_code:
-        authorization.tenantPartner?.countryCode ??
-        authorization.tenant?.countryCode ??
-        '',
-      party_id:
-        authorization.tenantPartner?.partyId ??
-        authorization.tenant?.partyId ??
-        '',
+        authorization.tenantPartner?.countryCode ?? tenant?.countryCode ?? '',
+      party_id: authorization.tenantPartner?.partyId ?? tenant?.partyId ?? '',
       uid: authorization.idToken,
       type: TokensMapper.mapOcppIdTokenTypeToOcpiTokenType(
         authorization.idTokenType ? authorization.idTokenType : null,
