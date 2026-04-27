@@ -3,7 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { KoaMiddlewareInterface } from 'routing-controllers';
-import { HttpHeader, HttpStatus, UnauthorizedException } from '@zetra/citrineos-base';
+import {
+  HttpHeader,
+  HttpStatus,
+  UnauthorizedException,
+} from '@zetra/citrineos-base';
 import { Container, Service } from 'typedi';
 import { Logger } from 'tslog';
 import { extractToken } from '../decorators/AuthToken.js';
