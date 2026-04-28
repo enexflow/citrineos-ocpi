@@ -11,7 +11,7 @@ import type {
   PullSummary,
 } from '../model/DTO/PullPartnerModulesBody.js';
 
-import type { TenantPartnerDto } from '@citrineos/base';
+import type { TenantPartnerDto } from '@zetra/citrineos-base';
 import type { LocationDTO } from '../model/DTO/LocationDTO.js';
 import { LocationReceiverService } from './LocationReceiverService.js';
 import type {
@@ -65,8 +65,8 @@ import type {
   Endpoint,
   EvseDto,
   LocationDto,
-} from '@citrineos/base';
-import { HttpMethod } from '@citrineos/base';
+} from '@zetra/citrineos-base';
+import { HttpMethod } from '@zetra/citrineos-base';
 import { z } from 'zod';
 
 @Service()

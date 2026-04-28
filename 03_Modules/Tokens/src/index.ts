@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AuthorizationDto } from '@citrineos/base';
+import type { AuthorizationDto } from '@zetra/citrineos-base';
 import { TokensModuleApi } from './module/TokensModuleApi.js';
 import {
   AbstractDtoModule,

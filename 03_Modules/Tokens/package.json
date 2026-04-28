@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@citrineos/ocpi-base": "2.0.1",
-    "@citrineos/util": "~1.8.0",
+    "@zetra/citrineos-util": "*",
     "tslog": "4.9.2"
   }
 }

@@ -6,7 +6,7 @@ import type { KoaMiddlewareInterface } from 'routing-controllers';
 import { NotFoundError, UnauthorizedError } from 'routing-controllers';
 import type { Context } from 'vm';
 import { Service } from 'typedi';
-import { HttpStatus, UnauthorizedException } from '@citrineos/base';
+import { HttpStatus, UnauthorizedException } from '@zetra/citrineos-base';
 import { MissingParamException } from '../../exception/MissingParamException.js';
 import { AlreadyRegisteredException } from '../../exception/AlreadyRegisteredException.js';
 import { NotRegisteredException } from '../../exception/NotRegisteredException.js';

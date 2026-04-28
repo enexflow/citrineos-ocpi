@@ -19,11 +19,11 @@ import type {
   GetTenantPartnerByCpoClientAndModuleIdQueryResult,
   GetTenantPartnerByCpoClientAndModuleIdQueryVariables,
 } from '../graphql/index.js';
-import { HttpMethod } from '@citrineos/base';
+import { HttpMethod } from '@zetra/citrineos-base';
 import { GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT } from '../graphql/index.js';
 import { GET_TRANSACTIONS_QUERY, OcpiGraphqlClient } from '../graphql/index.js';
 import { CdrMapper } from '../mapper/index.js';
-import type { TenantPartnerDto, TransactionDto } from '@citrineos/base';
+import type { TenantPartnerDto, TransactionDto } from '@zetra/citrineos-base';
 import { NotFoundException } from '../exception/NotFoundException.js';
 
 import type { PaginatedCdrResponse } from '../model/DTO/CdrDTO.js';
@@ -39,7 +39,7 @@ import type {
   PullPartnerModulesBody,
   PullSummary,
 } from '../model/DTO/PullPartnerModulesBody.js';
-import type { Endpoint } from '@citrineos/base';
+import type { Endpoint } from '@zetra/citrineos-base';
 import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
 import type { CdrDTO } from '../model/DTO/CdrDTO.js';
 import { z } from 'zod';

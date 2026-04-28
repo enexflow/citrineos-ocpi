@@ -7,8 +7,8 @@ import type {
   ICache,
   ChargingStationDto,
   TenantPartnerDto,
-} from '@citrineos/base';
-import { OCPPVersion } from '@citrineos/base';
+} from '@zetra/citrineos-base';
+import { OCPPVersion } from '@zetra/citrineos-base';
 import { Inject, InjectMany, Service } from 'typedi';
 import type { StopSession } from '../model/StopSession.js';
 import type { SetChargingProfile } from '../model/SetChargingProfile.js';

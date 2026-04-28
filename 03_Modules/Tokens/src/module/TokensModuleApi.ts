@@ -14,11 +14,11 @@ import {
 } from 'routing-controllers';
 import { Service } from 'typedi';
 
-import { HttpStatus } from '@citrineos/base';
+import { HttpStatus } from '@zetra/citrineos-base';
 import type {
   RealTimeAuthorizationRequestBody,
   RealTimeAuthorizationResponse,
-} from '@citrineos/util';
+} from '@zetra/citrineos-util';
 import type {
   AuthorizationInfoResponse,
   LocationReferences,

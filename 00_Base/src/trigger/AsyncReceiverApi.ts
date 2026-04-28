@@ -6,7 +6,7 @@ import { BaseClientApi } from './BaseClientApi.js';
 import { Service } from 'typedi';
 import type { OcpiEmptyResponse } from '../model/OcpiEmptyResponse.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
-import { HttpMethod, type PartnerProfile } from '@citrineos/base';
+import { HttpMethod, type PartnerProfile } from '@zetra/citrineos-base';
 
 @Service()
 export class AsyncReceiverApi extends BaseClientApi {

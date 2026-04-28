@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IMessageHandler } from '@citrineos/base';
+import type { IMessageHandler } from '@zetra/citrineos-base';
 
 export class MessageHandlerWrapper {
   handler: IMessageHandler;

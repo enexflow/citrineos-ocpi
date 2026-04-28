@@ -73,7 +73,7 @@ import {
   VersionNumberParam,
 } from '@citrineos/ocpi-base';
 import { Service } from 'typedi';
-import { HttpStatus, type TenantPartnerDto } from '@citrineos/base';
+import { HttpStatus, type TenantPartnerDto } from '@zetra/citrineos-base';
 
 const RCV = '/:country_code/:party_id/:location_id';
 const RCV_EVSE = `${RCV}/:evse_uid`;

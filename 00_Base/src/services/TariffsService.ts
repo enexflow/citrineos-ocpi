@@ -10,9 +10,9 @@ import type { PutTariffRequest } from '../model/DTO/tariffs/PutTariffRequest.js'
 import { DEFAULT_LIMIT, DEFAULT_OFFSET } from '../model/PaginatedResponse.js';
 import { OcpiHeaders } from '../model/OcpiHeaders.js';
 import { PaginatedParams } from '../controllers/param/PaginatedParams.js';
-import type { TenantPartnerDto, Endpoint } from '@citrineos/base';
+import type { TenantPartnerDto, Endpoint } from '@zetra/citrineos-base';
 import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
-import { HttpMethod } from '@citrineos/base';
+import { HttpMethod } from '@zetra/citrineos-base';
 import { z } from 'zod';
 import type {
   CreateOrUpdateTariffMutationResult,

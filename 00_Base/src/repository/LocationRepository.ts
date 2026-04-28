@@ -13,7 +13,7 @@ import {
 } from '../graphql/index.js';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
-import type { ChargingStationDto } from '@citrineos/base';
+import type { ChargingStationDto } from '@zetra/citrineos-base';
 
 @Service()
 export class LocationRepository {

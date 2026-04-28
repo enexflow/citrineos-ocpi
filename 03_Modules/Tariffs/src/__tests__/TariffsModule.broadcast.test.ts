@@ -10,7 +10,7 @@ jest.mock('../module/TariffsModuleApi.js', () => ({
 
 import type { IDtoEvent, OcpiConfig } from '@citrineos/ocpi-base';
 import { DtoEventObjectType, DtoEventType } from '@citrineos/ocpi-base';
-import type { TariffDto } from '@citrineos/base';
+import type { TariffDto } from '@zetra/citrineos-base';
 import { Logger } from 'tslog';
 import { Token } from 'typedi';
 import { TariffsModule } from '../index.js';

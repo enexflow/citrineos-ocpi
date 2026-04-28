@@ -18,8 +18,8 @@ import {
   UPDATE_TOKEN_MUTATION,
 } from '../graphql/index.js';
 import { TokensMapper } from '../mapper/index.js';
-import type { AuthorizationDto, ChargingStationDto } from '@citrineos/base';
-import { AuthorizationStatusEnum, IdTokenEnum } from '@citrineos/base';
+import type { AuthorizationDto, ChargingStationDto } from '@zetra/citrineos-base';
+import { AuthorizationStatusEnum, IdTokenEnum } from '@zetra/citrineos-base';
 import type {
   Authorizations_Paginated_Bool_Exp,
   Authorizations_Set_Input,
@@ -41,12 +41,12 @@ import type {
   UpdateAuthorizationMutationVariables,
 } from '../graphql/operations.js';
 import { UnknownTokenException } from '../exception/UnknownTokenException.js';
-import type { AdditionalInfoType } from '@citrineos/base/dist/ocpp/model/2.0.1/index.js';
+import type { AdditionalInfoType } from '@zetra/citrineos-base/dist/ocpp/model/2.0.1/index.js';
 import { MissingParamException } from '../exception/MissingParamException.js';
 import type {
   RealTimeAuthorizationRequestBody,
   RealTimeAuthorizationResponse,
-} from '@citrineos/util';
+} from '@zetra/citrineos-util';
 import { TokensClientApi } from '../trigger/TokensClientApi.js';
 import { InvalidParamException } from '../exception/InvalidParamException.js';
 import type { LocationReferences } from '../model/LocationReferences.js';

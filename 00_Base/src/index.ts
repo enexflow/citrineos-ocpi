@@ -8,7 +8,7 @@ import { Container } from 'typedi';
 import { OcpiModule } from './model/OcpiModule.js';
 import { KoaServer } from './util/KoaServer.js';
 import Koa from 'koa';
-import type { ICache } from '@citrineos/base';
+import type { ICache } from '@zetra/citrineos-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { CacheWrapper } from './util/CacheWrapper.js';
