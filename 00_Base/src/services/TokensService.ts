@@ -18,7 +18,10 @@ import {
   UPDATE_TOKEN_MUTATION,
 } from '../graphql/index.js';
 import { TokensMapper } from '../mapper/index.js';
-import type { AuthorizationDto, ChargingStationDto } from '@zetra/citrineos-base';
+import type {
+  AuthorizationDto,
+  ChargingStationDto,
+} from '@zetra/citrineos-base';
 import { AuthorizationStatusEnum, IdTokenEnum } from '@zetra/citrineos-base';
 import type {
   Authorizations_Paginated_Bool_Exp,
