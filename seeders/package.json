@@ -20,8 +20,8 @@
     "typescript": "5.0.4"
   },
   "dependencies": {
-    "@zetra/citrineos-base": "*",
-    "@zetra/citrineos-data": "*",
+    "@zetra/citrineos-base": "prod",
+    "@zetra/citrineos-data": "prod",
     "@citrineos/ocpi-base": "2.0.1"
   },
   "workspaces": [
