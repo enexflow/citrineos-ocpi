@@ -14,7 +14,12 @@ import {
 } from 'routing-controllers';
 import { Service } from 'typedi';
 
-import { HttpStatus } from '@zetra/citrineos-base';
+import {
+  HttpStatus,
+  type TenantDto,
+  type TenantPartnerDto,
+} from '@zetra/citrineos-base';
+
 import type {
   RealTimeAuthorizationRequestBody,
   RealTimeAuthorizationResponse,
@@ -141,12 +146,14 @@ export class TokensModuleApi
   )
   async getTokensPaginated(
     @VersionNumberParam() version: VersionNumber,
+    @Ctx() ctx: any,
     @FunctionalEndpointParams() ocpiHeaders: OcpiHeaders,
     @Paginated() paginationParams?: PaginatedParams,
   ): Promise<PaginatedTokenResponse> {
     this.logger.info('getTokensPaginated');
+    const tenant = ctx.state.tenantPartner?.tenant as TenantDto;
     const { data, count } = await this.tokensService.getTokensPaginated(
-      ocpiHeaders,
+      tenant,
       paginationParams,
     );
 
@@ -182,14 +189,15 @@ export class TokensModuleApi
     type?: TokenType,
   ): Promise<TokenResponse | OcpiEmptyResponse> {
     this.logger.info('getTokens', countryCode, partyId, tokenId, type);
-    if (
-      ocpiHeader.fromCountryCode !== countryCode ||
-      ocpiHeader.fromPartyId !== partyId
-    ) {
-      throw new WrongClientAccessException(
-        'Client is trying to access wrong resource',
-      );
-    }
+    // if (
+    //   ocpiHeader && (
+    //   ocpiHeader.fromCountryCode !== countryCode ||
+    //   ocpiHeader.fromPartyId !== partyId)
+    // ) {
+    //   throw new WrongClientAccessException(
+    //     'Client is trying to access wrong resource',
+    //   );
+    // }
     const tokenRequest: SingleTokenRequest = {
       country_code: countryCode,
       party_id: partyId,
@@ -228,14 +236,14 @@ export class TokensModuleApi
   ): Promise<OcpiEmptyResponse> {
     this.logger.info('putToken', countryCode, partyId, tokenId, tokenDTO, type);
 
-    if (
-      ocpiHeader.fromCountryCode !== countryCode ||
-      ocpiHeader.fromPartyId !== partyId
-    ) {
-      throw new WrongClientAccessException(
-        'Client is trying to access wrong resource',
-      );
-    }
+    // if (
+    //   ocpiHeader.fromCountryCode !== countryCode ||
+    //   ocpiHeader.fromPartyId !== partyId
+    // ) {
+    //   throw new WrongClientAccessException(
+    //     'Client is trying to access wrong resource',
+    //   );
+    // }
 
     if (tokenId !== tokenDTO.uid) {
       throw new InvalidParamException(

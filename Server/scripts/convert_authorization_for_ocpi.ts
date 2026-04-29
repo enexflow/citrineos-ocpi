@@ -30,52 +30,85 @@ async function gql(query: string, variables: Record<string, unknown> = {}) {
   return json.data;
 }
 
-const INSERT_MUTATION = `
-  mutation Insert($object: ${TABLE}_insert_input!) {
-    insert_${TABLE}_one(object: $object) { id }
+// 1. Fetch all rows
+const data = await gql(`
+  {
+    ${TABLE} {
+      id
+      idToken
+      idTokenType
+      status
+      additionalInfo
+      tenants {
+        tenantId
+      }
+    }
+  }
+`);
+
+const rows = data[TABLE];
+console.log(`Fetched ${rows.length} rows`);
+const tenantData = await gql(`
+  {
+    AuthorizationTenants(where: { tenantId: { _eq: ${NEW_TENANT_ID} } }) {
+      authorizationId
+    }
+  }
+`);
+const existingTenantAuthIds = new Set<number>(
+  tenantData.AuthorizationTenants.map((r: any) => r.authorizationId),
+);
+console.log(
+  `Found ${existingTenantAuthIds.size} existing AuthorizationTenant rows for tenant ${NEW_TENANT_ID}`,
+);
+
+const UPDATE_MUTATION = `
+  mutation Update($id: Int!, $changes: ${TABLE}_set_input!) {
+    update_${TABLE}_by_pk(pk_columns: { id: $id }, _set: $changes) { id }
   }
 `;
 
-// 1. Fetch all rows from OLD_TENANT_ID
-const data = await gql(
-  `{ ${TABLE}(where: { tenantId: { _eq: ${OLD_TENANT_ID} } }) { idToken idTokenType status additionalInfo } }`,
-);
-const rows = data[TABLE];
-console.log(`Fetched ${rows.length} rows from tenant ${OLD_TENANT_ID}`);
-
-// 2. Insert new rows for NEW_TENANT_ID
-let inserted = 0;
-let skipped = 0;
+const INSERT_TENANT_MUTATION = `
+  mutation InsertAuthorizationTenant($authorizationId: Int!, $tenantId: Int!) {
+    insert_AuthorizationTenants_one(
+      object: { authorizationId: $authorizationId, tenantId: $tenantId }
+      on_conflict: { constraint: AuthorizationTenants_authorizationId_tenantId_key, update_columns: [] }
+    ) {
+      authorizationId
+      tenantId
+    }
+  }
+`;
 
 for (const row of rows) {
-  if (row.idTokenType === 'MacAddress') {
-    skipped++;
-    continue;
-  }
-  const { id, ...rowWithoutId } = row;
-
-  const newRow = {
-    ...rowWithoutId,
-    tenantId: NEW_TENANT_ID,
-    realTimeAuth: 'Always',
-    additionalInfo: [
+  const tenantIds = row.tenants?.map((t: any) => t.tenantId) ?? [];
+  if (tenantIds.includes(OLD_TENANT_ID) && row.idTokenType !== 'MacAddress') {
+    const additionalInfo = [
       { type: 'eMAID', additionalIdToken: `FR*ZET*${row.idToken}` },
       { type: 'visual_number', additionalIdToken: `${row.idToken}` },
       { type: 'issuer', additionalIdToken: 'Zetra' },
-    ],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  console.log(newRow);
+    ];
 
-  try {
-    await gql(INSERT_MUTATION, { object: newRow });
-    console.log(`Inserted new authorization for token ${row.idToken}`);
-    inserted++;
-  } catch (err: any) {
-    console.warn(`Skipped token ${row.idToken}: ${err.message}`);
-    skipped++;
+    const { id, tenants, ...rest } = row;
+    const changes = { ...rest, realTimeAuth: 'Always', additionalInfo };
+
+    await gql(UPDATE_MUTATION, { id, changes });
+    console.log(`Updated Authorization row ${id}`);
+
+    if (!existingTenantAuthIds.has(id)) {
+      await gql(INSERT_TENANT_MUTATION, {
+        authorizationId: id,
+        tenantId: NEW_TENANT_ID,
+      });
+      console.log(
+        `Inserted AuthorizationTenant for authorizationId=${id}, tenantId=${NEW_TENANT_ID}`,
+      );
+    } else {
+      console.log(
+        `AuthorizationTenant already exists for authorizationId=${id}, skipping`,
+      );
+    }
   }
 }
 
-console.log(`Done — inserted: ${inserted}, skipped: ${skipped}`);
+console.log('Done');

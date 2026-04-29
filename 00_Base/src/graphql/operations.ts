@@ -65,6 +65,11 @@ export type Authorizations_Paginated_Bool_Exp = {
   TenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
   tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  tenants?: InputMaybe<AuthorizationTenants_Bool_Exp>;
+};
+export type AuthorizationTenants_Bool_Exp = {
+  tenant?: InputMaybe<Tenants_Bool_Exp>;
+  tenantId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type Timestamptz_Comparison_Exp = {
   _gte?: InputMaybe<Scalars['timestamptz']['input']>;
@@ -94,43 +99,6 @@ export type Locations_Insert_Input = any;
 export type Locations_Set_Input = any;
 export type Cdrs_Insert_Input = any;
 export type Cdrs_Set_Input = any;
-export type CdrDbRow = {
-  id: number;
-  ocpiCdrId: string;
-  countryCode: string;
-  partyId: string;
-  startDateTime: any;
-  endDateTime: any;
-  sessionId?: string | null;
-  cdrToken: any;
-  authMethod: string;
-  authorizationReference?: string | null;
-  cdrLocation: any;
-  meterId?: string | null;
-  currency: string;
-  tariffs?: any | null;
-  chargingPeriods: any;
-  signedData?: any | null;
-  totalCost: any;
-  totalFixedCost?: any | null;
-  totalEnergy: any;
-  totalEnergyCost?: any | null;
-  totalTime: any;
-  totalTimeCost?: any | null;
-  totalParkingTime?: any | null;
-  totalParkingCost?: any | null;
-  totalReservationCost?: any | null;
-  remark?: string | null;
-  invoiceReferenceId?: string | null;
-  credit?: boolean | null;
-  creditReferenceId?: string | null;
-  homeChargingCompensation?: boolean | null;
-  lastUpdated: any;
-  tenantId: number;
-  tenantPartnerId: number;
-  createdAt?: any;
-  updatedAt?: any;
-};
 export type Cdrs_Bool_Exp = {
   countryCode?: InputMaybe<String_Comparison_Exp>;
   partyId?: InputMaybe<String_Comparison_Exp>;
@@ -1731,7 +1699,6 @@ export type ReadAuthorizationsQueryResult = {
     id: number,
     createdAt: any,
     updatedAt: any,
-    tenantId: number,
     idToken: any,
     idTokenType?: string | null,
     additionalInfo?: any | null,
@@ -1739,6 +1706,13 @@ export type ReadAuthorizationsQueryResult = {
     realTimeAuth: string,
     language1?: string | null,
     groupAuthorizationId?: number | null,
+    tenants: Array<{
+      tenantId: number,
+      tenant: {
+        countryCode?: string | null,
+        partyId?: string | null
+      }
+    }>,
     tenantPartner?: {
       id: number,
       countryCode: string,
@@ -1764,7 +1738,6 @@ export type UpdateAuthorizationMutationResult = {
       id: number,
       createdAt: any,
       updatedAt: any,
-      tenantId: number,
       idToken: any,
       idTokenType?: string | null,
       additionalInfo?: any | null,
@@ -1772,6 +1745,13 @@ export type UpdateAuthorizationMutationResult = {
       realTimeAuth: string,
       language1?: string | null,
       groupAuthorizationId?: number | null,
+      tenants: Array<{
+        tenantId: number,
+        tenant: {
+          countryCode?: string | null,
+          partyId?: string | null
+        }
+      }>,
       tenantPartner?: {
         id: number,
         countryCode: string,
@@ -1796,7 +1776,6 @@ export type GetAuthorizationByTokenQueryResult = {
     id: number,
     idToken: any,
     idTokenType?: string | null,
-    tenantId: number,
     additionalInfo?: any | null,
     groupAuthorizationId?: number | null,
     status: string,
@@ -1811,7 +1790,14 @@ export type GetAuthorizationByTokenQueryResult = {
     } | null,
     groupAuthorization?: {
       idToken: any
-    } | null
+    } | null,
+    tenants: Array<{
+      tenantId: number,
+      tenant: {
+        countryCode?: string | null,
+        partyId?: string | null
+      }
+    }>
   }>
 };
 
@@ -1825,7 +1811,6 @@ export type GetAuthorizationByIdQueryResult = {
     id: number,
     idToken: any,
     idTokenType?: string | null,
-    tenantId: number,
     additionalInfo?: any | null,
     groupAuthorizationId?: number | null,
     status: string,
@@ -1833,6 +1818,13 @@ export type GetAuthorizationByIdQueryResult = {
     language1?: string | null,
     createdAt: any,
     updatedAt: any,
+    tenants: Array<{
+      tenantId: number,
+      tenant: {
+        countryCode?: string | null,
+        partyId?: string | null
+      }
+    }>,
     tenantPartner?: {
       id: number,
       countryCode: string,
@@ -1864,7 +1856,6 @@ export type CreateAuthorizationMutationResult = {
     id: number,
     createdAt: any,
     updatedAt: any,
-    tenantId: number,
     idToken: any,
     idTokenType?: string | null,
     additionalInfo?: any | null,
@@ -1872,6 +1863,13 @@ export type CreateAuthorizationMutationResult = {
     realTimeAuth: string,
     language1?: string | null,
     groupAuthorizationId?: number | null,
+    tenants: Array<{
+      tenantId: number,
+      tenant: {
+        countryCode?: string | null,
+        partyId?: string | null
+      }
+    }>,
     tenantPartner?: {
       id: number,
       countryCode: string,
@@ -1895,7 +1893,6 @@ export type GetAuthorizationsPaginatedQueryResult = {
     id: number,
     createdAt: any,
     updatedAt: any,
-    tenantId: number,
     idToken: any,
     idTokenType?: string | null,
     additionalInfo?: any | null,
@@ -1908,10 +1905,13 @@ export type GetAuthorizationsPaginatedQueryResult = {
       countryCode: string,
       partyId: string
     } | null,
-    tenant: {
-      countryCode?: string | null,
-      partyId?: string | null
-    },
+    tenants: Array<{
+      tenantId: number,
+      tenant: {
+        countryCode?: string | null,
+        partyId?: string | null
+      }
+    }>,
     groupAuthorization?: {
       idToken: any
     } | null

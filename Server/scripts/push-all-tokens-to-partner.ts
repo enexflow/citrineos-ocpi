@@ -4,7 +4,7 @@
 
 import { GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT } from '@citrineos/ocpi-base';
 import { TokensMapper } from '@citrineos/ocpi-base/src/mapper/TokensMapper.js';
-import type { Endpoint } from '@citrineos/base';
+import type { Endpoint } from '@zetra/citrineos-base';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(import.meta.dirname, '.env') });
@@ -107,7 +107,7 @@ async function main() {
           offset: $offset,
           where: {
             tenantPartnerId: { _is_null: true },
-            Tenant: { countryCode: { _eq: $cc }, partyId: { _eq: $pid } }
+            tenants: { tenant: { countryCode: { _eq: $cc }, partyId: { _eq: $pid } } }
           }
           order_by: { id: asc }
         ) {
@@ -126,10 +126,12 @@ async function main() {
           personalMessage
           concurrentTransaction
           createdAt
-          tenantId
-          tenant: Tenant {
-            countryCode
-            partyId
+          tenants {
+            tenantId
+            tenant {
+              countryCode
+              partyId
+            }
           }
         }
       }
@@ -150,7 +152,13 @@ async function main() {
     }
     for (const token of tokens) {
       try {
-        if (token.tenantId !== partnerInfo.tenant.id) {
+        const partnerTenantId = partnerInfo.tenant.id;
+
+        const tokenHasPartnerTenant = token.tenants?.some(
+          (t: any) => t.tenantId === partnerTenantId,
+        );
+
+        if (!tokenHasPartnerTenant) {
           console.log('This token is not for this partner', token);
           continue;
         }
@@ -159,6 +167,7 @@ async function main() {
         await putTokenToPartner(tokenDto, url, authorizationToken);
         pushed++;
       } catch (e) {
+        console.error('Error pushing token to partner', e);
         failed++;
         failures.push({ id: token.id, err: String(e) });
       }

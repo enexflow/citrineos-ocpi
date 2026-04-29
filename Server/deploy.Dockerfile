@@ -11,6 +11,7 @@ COPY ./Server/tsconfig.docker.json /usr/local/apps/Server/tsconfig.json
 RUN npm run install-all
 
 # BUILD
+RUN npm run install-all
 RUN npm run build
 
 # The final stage, which copies built files and prepares the run environment
