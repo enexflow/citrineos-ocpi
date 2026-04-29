@@ -24,7 +24,7 @@ import {
   type Endpoint,
   HttpMethod,
   type PartnerProfile,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 
 @Service()
 export class LocationsClientApi extends BaseClientApi {

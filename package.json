@@ -72,5 +72,19 @@
     "./03_Modules/Certificates",
     "./03_Modules/DtoRouter",
     "./Server"
-  ]
+  ],
+  "dependencies": {
+    "@zetra/citrineos-base": "prod",
+    "@zetra/citrineos-data": "prod",
+    "@zetra/citrineos-util": "prod",
+    "@zetra/citrineos-certificates": "prod",
+    "@zetra/citrineos-configuration": "prod",
+    "@zetra/citrineos-evdriver": "prod",
+    "@zetra/citrineos-monitoring": "prod",
+    "@zetra/citrineos-reporting": "prod",
+    "@zetra/citrineos-ocpprouter": "prod",
+    "@zetra/citrineos-smartcharging": "prod",
+    "@zetra/citrineos-tenant": "prod",
+    "@zetra/citrineos-transactions": "prod"
+  }
 }

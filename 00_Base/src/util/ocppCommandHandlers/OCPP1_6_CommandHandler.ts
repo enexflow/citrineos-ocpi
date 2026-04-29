@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ChargingStationDto, TenantPartnerDto } from '@citrineos/base';
-import { OCPP1_6, OCPPVersion } from '@citrineos/base';
+import type {
+  ChargingStationDto,
+  TenantPartnerDto,
+} from '@zetra/citrineos-base';
+import { OCPP1_6, OCPPVersion } from '@zetra/citrineos-base';
 import type { IRequestOptions } from 'typed-rest-client';
 import { Service } from 'typedi';
 import { OCPP_COMMAND_HANDLER, OCPPCommandHandler } from './base.js';

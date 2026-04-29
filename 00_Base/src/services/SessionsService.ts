@@ -32,16 +32,16 @@ import {
   GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT,
 } from '../graphql/index.js';
 import { ReceivedSessionMapper, SessionMapper } from '../mapper/index.js';
-import type { TransactionDto } from '@citrineos/base';
+import type { TransactionDto } from '@zetra/citrineos-base';
 import type { OcpiHeaders } from '../model/OcpiHeaders.js';
 import type { PaginatedParams } from '../controllers/param/PaginatedParams.js';
 import { NotFoundException } from '../exception/NotFoundException.js';
 import { SessionsClientApi } from '../trigger/SessionsClientApi.js';
 import type { PullPartnerModulesBody } from '../model/DTO/PullPartnerModulesBody.js';
-import type { TenantPartnerDto, Endpoint } from '@citrineos/base';
+import type { TenantPartnerDto, Endpoint } from '@zetra/citrineos-base';
 import type { PullSummary } from '../model/DTO/PullPartnerModulesBody.js';
 import { buildPaginatedParams } from '../trigger/param/PaginatedParams.js';
-import { HttpMethod } from '@citrineos/base';
+import { HttpMethod } from '@zetra/citrineos-base';
 import { z } from 'zod';
 
 @Service()

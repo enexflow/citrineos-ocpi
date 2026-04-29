@@ -10,8 +10,8 @@ import type {
 } from 'typed-rest-client/Interfaces.js';
 import { VersionNumber } from '../model/VersionNumber.js';
 import { UnsuccessfulRequestException } from '../exception/UnsuccessfulRequestException.js';
-import type { TenantPartnerDto, PartnerProfile } from '@citrineos/base';
-import { HttpHeader, HttpMethod } from '@citrineos/base';
+import type { TenantPartnerDto, PartnerProfile } from '@zetra/citrineos-base';
+import { HttpHeader, HttpMethod } from '@zetra/citrineos-base';
 import { OcpiHttpHeader } from '../util/OcpiHttpHeader.js';
 import { base64Encode } from '../util/Util.js';
 import { Inject } from 'typedi';

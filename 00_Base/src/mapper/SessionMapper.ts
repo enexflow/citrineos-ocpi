@@ -9,8 +9,8 @@ import type {
   TariffDto,
   TransactionDto,
   TransactionEventDto,
-} from '@citrineos/base';
-import { OCPP2_0_1 } from '@citrineos/base';
+} from '@zetra/citrineos-base';
+import { OCPP2_0_1 } from '@zetra/citrineos-base';
 import { AuthMethod } from '../model/AuthMethod.js';
 import type { ChargingPeriod } from '../model/ChargingPeriod.js';
 import { CdrDimensionType } from '../model/CdrDimensionType.js';

@@ -8,7 +8,7 @@ import { TariffDimensionType } from '../model/TariffDimensionType.js';
 import type { TariffElement } from '../model/TariffElement.js';
 import { TariffType } from '../model/TariffType.js';
 import { MINUTES_IN_HOUR } from '../util/Consts.js';
-import type { TariffDto } from '@citrineos/base';
+import type { TariffDto } from '@zetra/citrineos-base';
 import type { Price } from '../model/Price.js';
 import type { EnergyMix } from '../model/EnergyMix.js';
 

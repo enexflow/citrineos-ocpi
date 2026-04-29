@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
 //
 // SPDX-License-Identifier: Apache-2.0
-import { UnauthorizedException } from '@citrineos/base';
+import { UnauthorizedException } from '@zetra/citrineos-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { Service } from 'typedi';
@@ -76,7 +76,7 @@ import {
   EvseMapper,
   LocationMapper,
 } from '../mapper/index.js';
-import type { TenantPartnerDto } from '@citrineos/base';
+import type { TenantPartnerDto } from '@zetra/citrineos-base';
 
 import type { LocationDTO, LocationEvseDTO } from '../model/DTO/LocationDTO.js';
 import type { EvseResponse } from '../model/DTO/EvseDTO.js';

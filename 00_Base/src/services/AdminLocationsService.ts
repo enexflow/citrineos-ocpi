@@ -4,7 +4,7 @@
 
 // import { Service } from 'typedi';
 // import { type ILogObj, Logger } from 'tslog';
-// import { ChargingStation, Location } from '@citrineos/data';
+// import { ChargingStation, Location } from '@zetra/citrineos-data';
 // import { OcpiLocation } from '../model/OcpiLocation';
 // import { OcpiEvse } from '../model/OcpiEvse';
 // import { OcpiConnector } from '../model/OcpiConnector';

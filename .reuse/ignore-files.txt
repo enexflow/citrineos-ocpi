@@ -4,6 +4,7 @@
 .prettierignore
 .prettierrc
 .sequelizerc
+.npmrc
 README.md
 Server/.nvmrc
 Server/deploy.Dockerfile

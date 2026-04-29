@@ -16,7 +16,7 @@ import {
   type Endpoint,
   HttpMethod,
   type PartnerProfile,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import { EndpointIdentifier } from '../model/EndpointIdentifier.js';
 import type { CredentialsDTO } from '../index.js';
 

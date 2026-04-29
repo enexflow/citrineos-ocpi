@@ -23,7 +23,7 @@ import {
   type LocationFacilityEnumType,
   type LocationParkingEnumType,
   type TenantPartnerDto,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import {
   ChargingStationCapabilityEnum,
   ChargingStationParkingRestrictionEnum,
@@ -34,7 +34,7 @@ import {
   LocationFacilityEnum,
   LocationHours,
   LocationParkingEnum,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import type { BusinessDetails } from '../model/BusinessDetails.js';
 import { ParkingRestriction } from '../model/ParkingRestriction.js';
 import { Capability } from '../model/Capability.js';

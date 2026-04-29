@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TenantPartnerDto } from '@citrineos/base';
+import type { TenantPartnerDto } from '@zetra/citrineos-base';
 
 // Temporarily define the types locally until the import issue is resolved
-// TODO: Import these from @citrineos/base once the build/link issue is fixed
+// TODO: Import these from @zetra/citrineos-base once the build/link issue is fixed
 
 // AsyncJob enums
 export enum AsyncJobName {

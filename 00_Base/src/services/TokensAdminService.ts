@@ -27,7 +27,7 @@
 //   AsyncJobStatusResponse,
 // } from '../types/asyncJob.types';
 // import { buildPaginatedParams } from '../trigger/param/PaginatedParams';
-// import { Authorization } from '@citrineos/data';
+// import { Authorization } from '@zetra/citrineos-data';
 // import { TokensMapper } from '../mapper/TokensMapper';
 
 // @Service()

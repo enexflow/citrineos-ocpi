@@ -5,7 +5,7 @@
 import * as amqplib from 'amqplib';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
-import { RetryMessageError } from '@citrineos/base';
+import { RetryMessageError } from '@zetra/citrineos-base';
 import type { IDtoEventReceiver, IDtoModule } from '../index.js';
 import {
   AbstractDtoEventReceiver,

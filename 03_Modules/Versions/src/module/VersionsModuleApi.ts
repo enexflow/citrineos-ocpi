@@ -17,7 +17,7 @@ import {
   VersionNumberParam,
   VersionService,
 } from '@citrineos/ocpi-base';
-import { HttpStatus } from '@citrineos/base';
+import { HttpStatus } from '@zetra/citrineos-base';
 import { Service } from 'typedi';
 import type { IVersionsModuleApi } from './IVersionsModuleApi.js';
 import { Get, JsonController, Param } from 'routing-controllers';
