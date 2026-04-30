@@ -7,6 +7,7 @@ import type {
   IDtoEvent,
   OcpiConfig,
 } from '@citrineos/ocpi-base';
+
 import {
   AbstractDtoModule,
   AsDtoEventHandler,
@@ -19,6 +20,8 @@ import {
   OcpiModule,
   RabbitMqDtoReceiver,
   SessionBroadcaster,
+  Role,
+  shouldBroadcast,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -72,13 +75,18 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     );
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(transactionDto.id),
+      )
+    ) {
       return;
     }
-    await this.sessionBroadcaster.broadcastPutSession(tenant, transactionDto);
+    await this.sessionBroadcaster.broadcastPutSession(tenant!, transactionDto);
   }
 
   @AsDtoEventHandler(
@@ -97,13 +105,21 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     );
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(transactionDto.id),
+      )
+    ) {
       return;
     }
-    await this.sessionBroadcaster.broadcastPatchSession(tenant, transactionDto);
+    await this.sessionBroadcaster.broadcastPatchSession(
+      tenant!,
+      transactionDto,
+    );
     if (transactionDto.isActive === false) {
       this._logger.debug(`Transaction is no longer active: ${event._eventId}`);
 
@@ -141,10 +157,15 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     );
     const meterValueDto = event._payload;
     const tenant = meterValueDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${meterValueDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(meterValueDto.id),
+      )
+    ) {
       return;
     }
     if (meterValueDto.transactionDatabaseId) {
@@ -159,7 +180,7 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
       }
 
       await this.sessionBroadcaster.broadcastPatchSessionChargingPeriod(
-        tenant,
+        tenant!,
         meterValueDto,
       );
     }

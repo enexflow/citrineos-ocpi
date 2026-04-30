@@ -10,6 +10,8 @@ import {
   OcpiConfigToken,
   OcpiModule,
   RabbitMqDtoReceiver,
+  Role,
+  shouldBroadcast,
   TariffsBroadcaster,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
@@ -67,14 +69,18 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-
-    await this.tariffsBroadcaster.broadcastPutTariff(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastPutTariff(tenant!, tariffDto);
   }
 
   @AsDtoEventHandler(
@@ -96,14 +102,18 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-
-    await this.tariffsBroadcaster.broadcastPutTariff(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastPutTariff(tenant!, tariffDto);
   }
 
   @AsDtoEventHandler(
@@ -123,13 +133,17 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-
-    await this.tariffsBroadcaster.broadcastTariffDeletion(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastTariffDeletion(tenant!, tariffDto);
   }
 }
