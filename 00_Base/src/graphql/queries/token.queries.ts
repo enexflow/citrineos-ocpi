@@ -24,7 +24,13 @@ export const READ_AUTHORIZATION = gql`
       id
       createdAt
       updatedAt
-      tenantId
+      tenants {
+        tenantId
+        tenant {
+          countryCode
+          partyId
+        }
+      }
       tenantPartner: TenantPartner {
         id
         countryCode
@@ -63,7 +69,13 @@ export const UPDATE_TOKEN_MUTATION = gql`
         id
         createdAt
         updatedAt
-        tenantId
+        tenants {
+          tenantId
+          tenant {
+            countryCode
+            partyId
+          }
+        }
         tenantPartner: TenantPartner {
           id
           countryCode
@@ -100,7 +112,6 @@ export const GET_AUTHORIZATION_BY_TOKEN = gql`
       id
       idToken
       idTokenType
-      tenantId
       tenantPartner: TenantPartner {
         id
         countryCode
@@ -108,6 +119,13 @@ export const GET_AUTHORIZATION_BY_TOKEN = gql`
       }
       groupAuthorization: GroupAuthorization {
         idToken
+      }
+      tenants {
+        tenantId
+        tenant {
+          countryCode
+          partyId
+        }
       }
       additionalInfo
       groupAuthorizationId
@@ -126,7 +144,13 @@ export const GET_AUTHORIZATION_BY_ID = gql`
       id
       idToken
       idTokenType
-      tenantId
+      tenants {
+        tenantId
+        tenant {
+          countryCode
+          partyId
+        }
+      }
       tenantPartner: TenantPartner {
         id
         countryCode
@@ -162,7 +186,6 @@ export const CREATE_AUTHORIZATION_MUTATION = gql`
   ) {
     insert_Authorizations_one(
       object: {
-        tenantId: $tenantId
         tenantPartnerId: $tenantPartnerId
         idToken: $idToken
         idTokenType: $idTokenType
@@ -173,12 +196,19 @@ export const CREATE_AUTHORIZATION_MUTATION = gql`
         realTimeAuth: $realTimeAuth
         createdAt: $createdAt
         updatedAt: $updatedAt
+        tenants: { data: [{ tenantId: $tenantId }] }
       }
     ) {
       id
       createdAt
       updatedAt
-      tenantId
+      tenants {
+        tenantId
+        tenant {
+          countryCode
+          partyId
+        }
+      }
       tenantPartner: TenantPartner {
         id
         countryCode
@@ -213,15 +243,17 @@ export const GET_AUTHORIZATIONS_PAGINATED = gql`
       id
       createdAt
       updatedAt
-      tenantId
       tenantPartner: TenantPartner {
         id
         countryCode
         partyId
       }
-      tenant: Tenant {
-        countryCode
-        partyId
+      tenants {
+        tenantId
+        tenant {
+          countryCode
+          partyId
+        }
       }
       groupAuthorization: GroupAuthorization {
         idToken

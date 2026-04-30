@@ -11,6 +11,7 @@ Server/deploy.Dockerfile
 Server/everest/Dockerfile
 Server/everest/README.md
 Server/local.Dockerfile
+Server/local-npm.Dockerfile
 Server/nodemon.json
 Server/tsconfig.docker.json
 migrations/tsconfig.json
@@ -63,3 +64,5 @@ Server/src/assets/certificates/rootCertificate.pem
 Server/src/assets/certificates/subCAKey.pem
 Server/tsconfig.json
 tsconfig.json
+Server/scripts/.env.example
+Server/scripts/README.md

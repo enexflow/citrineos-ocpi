@@ -1,13 +1,8 @@
-# local dockerfile that use tgz to install citrineos core and then build the ocpi server
+# local dockerfile that use npm to install citrineos core and then build the ocpi server
 
 FROM --platform=$BUILDPLATFORM node:24 AS build
 
 WORKDIR /usr/local/apps
-
-# copy and pack citrineos core
-COPY ./citrineos-core ./citrineos-core
-RUN cd ./citrineos-core && npm install && npm run build && npm pack --workspaces
-
 
 COPY ./citrineos-ocpi ./citrineos-ocpi
 COPY ./citrineos-ocpi/Server/tsconfig.docker.json /usr/local/apps/citrineos-ocpi/Server/tsconfig.json
@@ -15,7 +10,6 @@ COPY ./citrineos-ocpi/Server/tsconfig.docker.json /usr/local/apps/citrineos-ocpi
 WORKDIR /usr/local/apps/citrineos-ocpi
 
 # INSTALL
-RUN npm install ../citrineos-core/*.tgz
 RUN npm run install-all
 
 # BUILD

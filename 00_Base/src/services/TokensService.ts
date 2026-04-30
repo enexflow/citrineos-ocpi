@@ -18,9 +18,11 @@ import {
   UPDATE_TOKEN_MUTATION,
 } from '../graphql/index.js';
 import { TokensMapper } from '../mapper/index.js';
+
 import type {
   AuthorizationDto,
   ChargingStationDto,
+  TenantDto,
 } from '@zetra/citrineos-base';
 import { AuthorizationStatusEnum, IdTokenEnum } from '@zetra/citrineos-base';
 import type {
@@ -241,15 +243,17 @@ export class TokensService {
   }
 
   async getTokensPaginated(
-    ocpiHeaders: OcpiHeaders,
+    tenant: TenantDto,
     paginatedParams?: PaginatedParams,
   ): Promise<{ data: TokenDTO[]; count: number }> {
     const limit = paginatedParams?.limit ?? DEFAULT_LIMIT;
     const offset = paginatedParams?.offset ?? DEFAULT_OFFSET;
     const where: Authorizations_Paginated_Bool_Exp = {
-      Tenant: {
-        countryCode: { _eq: ocpiHeaders.toCountryCode },
-        partyId: { _eq: ocpiHeaders.toPartyId },
+      tenants: {
+        tenant: {
+          countryCode: { _eq: tenant?.countryCode },
+          partyId: { _eq: tenant?.partyId },
+        },
       },
       tenantPartnerId: { _is_null: true },
     };

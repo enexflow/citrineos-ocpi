@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AuthorizationDto } from '@zetra/citrineos-base';
+import type { AuthorizationDto, TenantDto } from '@zetra/citrineos-base';
 import { TokensModuleApi } from './module/TokensModuleApi.js';
 import {
   AbstractDtoModule,
@@ -65,19 +65,33 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     );
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
-    const tenant = authorizationDto.tenant;
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.EMSP,
-        event._context,
-        this._logger,
-        String(authorizationDto.id),
-      )
-    ) {
+
+    const tenants = authorizationDto.tenants as unknown as
+      | TenantDto[]
+      | null
+      | undefined;
+
+    if (!tenants || tenants.length === 0) {
+      this._logger.error(
+        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
       return;
     }
-    await this.tokenBroadcaster.broadcastPutToken(tenant!, authorizationDto);
+    for (const tenant of tenants) {
+      if (
+        !tenant ||
+        !shouldBroadcast(
+          tenant,
+          Role.EMSP,
+          event._context,
+          this._logger,
+          String(authorizationDto.id),
+        )
+      ) {
+        continue;
+      }
+      await this.tokenBroadcaster.broadcastPutToken(tenant, authorizationDto);
+    }
   }
 
   @AsDtoEventHandler(
@@ -96,19 +110,35 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     );
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
-    const tenant = authorizationDto.tenant;
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.EMSP,
-        event._context,
-        this._logger,
-        String(authorizationDto.id),
-      )
-    ) {
+    const tenants = authorizationDto.tenants as unknown as
+      | TenantDto[]
+      | null
+      | undefined;
+
+    if (!tenants || tenants.length === 0) {
+      this._logger.error(
+        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
       return;
     }
-    await this.tokenBroadcaster.broadcastPatchToken(tenant!, authorizationDto);
+    for (const tenant of tenants) {
+      if (
+        !tenant ||
+        !shouldBroadcast(
+          tenant,
+          Role.EMSP,
+          event._context,
+          this._logger,
+          String(authorizationDto.id),
+        )
+      ) {
+        return;
+      }
+      await this.tokenBroadcaster.broadcastPatchToken(
+        tenant!,
+        authorizationDto,
+      );
+    }
   }
 
   @AsDtoEventHandler(
@@ -127,18 +157,33 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     );
     if (event._payload.tenantPartnerId) return;
     const authorizationDto = event._payload;
-    const tenant = authorizationDto.tenant;
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.EMSP,
-        event._context,
-        this._logger,
-        String(authorizationDto.id),
-      )
-    ) {
+    const tenants = authorizationDto.tenants as unknown as
+      | TenantDto[]
+      | null
+      | undefined;
+    if (!tenants || tenants.length === 0) {
+      this._logger.error(
+        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${authorizationDto.id}, cannot broadcast.`,
+      );
       return;
     }
-    await this.tokenBroadcaster.broadcastDeleteToken(tenant!, authorizationDto);
+    for (const tenant of tenants) {
+      if (
+        !tenant ||
+        !shouldBroadcast(
+          tenant,
+          Role.EMSP,
+          event._context,
+          this._logger,
+          String(authorizationDto.id),
+        )
+      ) {
+        continue;
+      }
+      await this.tokenBroadcaster.broadcastDeleteToken(
+        tenant,
+        authorizationDto,
+      );
+    }
   }
 }
