@@ -14,11 +14,7 @@ import {
 } from 'routing-controllers';
 import { Service } from 'typedi';
 
-import {
-  HttpStatus,
-  type TenantDto,
-  type TenantPartnerDto,
-} from '@zetra/citrineos-base';
+import { HttpStatus, type TenantDto } from '@zetra/citrineos-base';
 
 import type {
   RealTimeAuthorizationRequestBody,
