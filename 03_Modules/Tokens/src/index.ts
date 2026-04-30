@@ -78,7 +78,8 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
     for (const tenant of tenants) {
-      if ( !tenant ||
+      if (
+        !tenant ||
         !shouldBroadcast(
           tenant,
           Role.EMSP,
@@ -133,7 +134,10 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       ) {
         return;
       }
-      await this.tokenBroadcaster.broadcastPatchToken(tenant!, authorizationDto);
+      await this.tokenBroadcaster.broadcastPatchToken(
+        tenant!,
+        authorizationDto,
+      );
     }
   }
 

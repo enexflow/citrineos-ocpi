@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { logDbBroadcast, Role, type IDtoEventContext } from '../index.js';
-import type { TenantDto } from '@citrineos/base';
+import type { TenantDto } from '@zetra/citrineos-base';
 import { Logger } from 'tslog';
 import type { ILogObj } from 'tslog';
 
