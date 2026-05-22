@@ -27,6 +27,12 @@ export const ConnectorResponseSchemaName = 'ConnectorResponseSchema';
 export const ConnectorListResponseSchema =
   OcpiResponseSchema(ConnectorDTOSchema);
 
+export const ConnectorDTOSchemaName = 'ConnectorDTOSchema';
+
+/** Partial Connector for OCPI Receiver PATCH. */
+export const ConnectorPatchSchema = ConnectorDTOSchema.partial();
+export const ConnectorPatchSchemaName = 'ConnectorPatchSchema';
+
 export type ConnectorDTO = z.infer<typeof ConnectorDTOSchema>;
 export type ConnectorResponse = z.infer<typeof ConnectorResponseSchema>;
 export type ConnectorListResponse = z.infer<typeof ConnectorListResponseSchema>;

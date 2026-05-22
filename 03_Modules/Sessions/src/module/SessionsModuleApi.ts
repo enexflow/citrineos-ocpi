@@ -9,14 +9,16 @@ import {
   JsonController,
   Param,
   Patch,
+  Post,
   Put,
 } from 'routing-controllers';
-import { HttpStatus } from '@citrineos/base';
+import { HttpStatus } from '@zetra/citrineos-base';
 import type {
   ChargingPreferences,
   ChargingPreferencesResponse,
   OcpiEmptyResponse,
   PaginatedSessionResponse,
+  PullPartnerModulesBody,
   Session,
   SessionResponse,
 } from '@citrineos/ocpi-base';
@@ -43,6 +45,8 @@ import {
   PaginatedParams,
   PaginatedSessionResponseSchema,
   PaginatedSessionResponseSchemaName,
+  PullPartnerModulesBodySchema,
+  PullPartnerModulesBodySchemaName,
   ResponseSchema,
   SessionSchema,
   SessionSchemaName,
@@ -50,6 +54,7 @@ import {
   versionIdParam,
   VersionNumber,
   VersionNumberParam,
+  AsAdminEndpoint,
 } from '@citrineos/ocpi-base';
 
 import { Service } from 'typedi';
@@ -59,7 +64,7 @@ const MOCK_CHARGING_PREFERENCES = await generateMockForSchema(
   ChargingPreferencesResponseSchemaName,
 );
 
-@JsonController(`/:${versionIdParam}/${ModuleId.Sessions}`)
+@JsonController(`/:role(cpo|emsp)/:${versionIdParam}/${ModuleId.Sessions}`)
 @Service()
 export class SessionsModuleApi
   extends BaseController
@@ -248,5 +253,25 @@ export class SessionsModuleApi
       body,
     );
     return MOCK_CHARGING_PREFERENCES;
+  }
+
+  /**
+   * ADMIN ENDPOINTS
+   */
+  @Post('/pull-partner-sessions')
+  @AsAdminEndpoint()
+  async PullPartnerSessions(
+    @BodyWithSchema(
+      PullPartnerModulesBodySchema,
+      PullPartnerModulesBodySchemaName,
+    )
+    body: PullPartnerModulesBody,
+  ) {
+    this.logger.info('PullPartnerSessions', body);
+    const summary = await this.sessionsService.pullPartnerSessions(body);
+    return buildOcpiResponse(
+      OcpiResponseStatusCode.GenericSuccessCode,
+      summary,
+    );
   }
 }

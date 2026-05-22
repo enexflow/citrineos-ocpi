@@ -5,7 +5,7 @@
 import * as amqplib from 'amqplib';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
-import { RetryMessageError } from '@citrineos/base';
+import { RetryMessageError } from '@zetra/citrineos-base';
 import type { IDtoEventReceiver, IDtoModule } from '../index.js';
 import {
   AbstractDtoEventReceiver,
@@ -15,7 +15,7 @@ import {
 import { Inject } from 'typedi';
 import type { OcpiConfig } from '../../config/ocpi.types.js';
 import { OcpiConfigToken } from '../../config/ocpi.types.js';
-
+import { logDbBroadcast } from '../../util/logging.js';
 /**
  * Implementation of a {@link IEventHandler} using RabbitMQ as the underlying transport.
  */
@@ -211,7 +211,9 @@ export class RabbitMqDtoReceiver
   ): Promise<void> {
     if (message) {
       try {
-        this._logger.debug(
+        logDbBroadcast(
+          this._logger,
+          'debug',
           '_onEvent:Received message:',
           message.properties,
           message.content.toString(),

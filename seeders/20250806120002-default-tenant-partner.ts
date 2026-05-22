@@ -38,31 +38,31 @@ export default {
           identifier: 'credentials',
         },
         {
-          url: 'http://host.docker.internal:8083/ocpi/2.2.1/emsp/locations',
+          url: 'http://host.docker.internal:8083/ocpi/emsp/2.2.1/locations',
           identifier: 'locations_RECEIVER',
         },
         {
-          url: 'http://host.docker.internal:8083/ocpi/2.2.1/emsp/tariffs',
+          url: 'http://host.docker.internal:8083/ocpi/emsp/2.2.1/tariffs',
           identifier: 'tariffs_RECEIVER',
         },
         {
-          url: 'http://host.docker.internal:8083/ocpi/2.2.1/emsp/sessions',
+          url: 'http://host.docker.internal:8083/ocpi/emsp/2.2.1/sessions',
           identifier: 'sessions_RECEIVER',
         },
         {
-          url: 'http://host.docker.internal:8083/ocpi/2.2.1/emsp/cdrs',
+          url: 'http://host.docker.internal:8083/ocpi/emsp/2.2.1/cdrs',
           identifier: 'cdrs_RECEIVER',
         },
         {
-          url: 'http://host.docker.internal:8083/ocpi/2.2.1/emsp/tokens',
+          url: 'http://host.docker.internal:8083/ocpi/cpo/2.2.1/tokens',
           identifier: 'tokens_SENDER',
         },
         {
-          url: 'http://host.docker.internal:8083/ocpi/2.2.1/emsp/commands',
+          url: 'http://host.docker.internal:8083/ocpi/cpo/2.2.1/commands',
           identifier: 'commands_SENDER',
         },
         {
-          url: 'http://host.docker.internal:8083/ocpi/2.2.1/emsp/chargingprofiles',
+          url: 'http://host.docker.internal:8083/ocpi/emsp/2.2.1/chargingprofiles',
           identifier: 'chargingprofiles_RECEIVER',
         },
       ],

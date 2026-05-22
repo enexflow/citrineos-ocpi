@@ -61,11 +61,6 @@ jobs:
           context: ./
           file: ./Server/deploy.Dockerfile
           push: true
+          no-cache: true 
           tags: ${{ steps.login-ecr.outputs.registry }}/citrineos-ocpi:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }},${{ steps.login-ecr.outputs.registry }}/citrineos-ocpi:latest,ghcr.io/enexflow/citrineos-ocpi:latest,ghcr.io/enexflow/citrineos-ocpi:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
-
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+  

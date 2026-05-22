@@ -10,7 +10,7 @@ import {
   type BusinessDetails,
   type Image,
   OCPIVersionNumberEnum,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import type { CredentialsDTO } from '../index.js';
 import { ImageCategory, ImageType, Role, VersionNumber } from '../index.js';
 import { EndpointIdentifier } from '../model/EndpointIdentifier.js';

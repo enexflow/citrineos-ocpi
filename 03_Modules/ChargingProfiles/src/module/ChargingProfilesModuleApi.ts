@@ -12,7 +12,7 @@ import {
   QueryParam,
 } from 'routing-controllers';
 
-import { HttpStatus } from '@citrineos/base';
+import { HttpStatus } from '@zetra/citrineos-base';
 import type {
   ChargingProfileResponse,
   SetChargingProfile,
@@ -39,7 +39,7 @@ const MOCK_CHARGING_PROFILE_RESPONSE = await generateMockForSchema(
   ChargingProfileResponseSchemaName,
 );
 
-@JsonController(`/:${versionIdParam}/${ModuleId.ChargingProfiles}`)
+@JsonController(`/emsp/:${versionIdParam}/${ModuleId.ChargingProfiles}`)
 @Service()
 export class ChargingProfilesModuleApi
   extends BaseController

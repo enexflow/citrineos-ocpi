@@ -46,6 +46,10 @@ services:
       AMQP_EXCHANGE: 'citrineos'
       CITRINEOS_OCPI_GRAPHQL_ENDPOINT: 'http://172.17.0.1:8090/v1/graphql'
       CITRINEOS_OCPI_GRAPHQL_HEADERS: '{"x-hasura-admin-secret":"password"}'
+      CITRINEOS_OCPI_OIDC_JWKSURI: 'http://keycloak:8180/auth/realms/patterm/protocol/openid-connect/certs'
+      CITRINEOS_OCPI_OIDC_ISSUER: 'http://keycloak:8180/auth/realms/patterm'
+      CITRINEOS_OCPI_OIDC_AUDIENCE: 'citrineos-ocpi'
+      CITRINEOS_OCPI_OIDC_RATELIMIT: 'true'
     # depends_on:
     #   ocpp-db:
     #     condition: service_healthy

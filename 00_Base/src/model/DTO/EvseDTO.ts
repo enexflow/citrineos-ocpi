@@ -11,6 +11,7 @@ import { GeoLocationSchema } from '../GeoLocation.js';
 import { DisplayTextSchema } from '../DisplayText.js';
 import { ParkingRestriction } from '../ParkingRestriction.js';
 import { OcpiResponseSchema } from '../OcpiResponse.js';
+import { ImageDTOSchema } from './ImageDTO.js';
 
 // TODO make dynamic
 export const uidDelimiter = '::';
@@ -35,7 +36,7 @@ export const EvseDTOSchema = z.object({
   status: z.nativeEnum(EvseStatus),
   status_schedule: z.array(EvseStatusScheduleSchema).nullable().optional(),
   capabilities: z.array(z.nativeEnum(Capability)).nullable().optional(),
-  connectors: z.array(ConnectorDTOSchema).min(1),
+  connectors: z.array(z.lazy(() => ConnectorDTOSchema)).min(1),
   floor_level: z.string().max(4).nullable().optional(),
   coordinates: GeoLocationSchema.nullable().optional(),
   physical_reference: z.string().max(16).nullable().optional(),
@@ -44,13 +45,18 @@ export const EvseDTOSchema = z.object({
     .array(z.nativeEnum(ParkingRestriction))
     .nullable()
     .optional(),
-  images: z.null().optional(),
+  images: z.array(ImageDTOSchema).nullable().optional(),
   last_updated: z.coerce.date(),
 });
 
 export const EvseResponseSchema = OcpiResponseSchema(EvseDTOSchema);
 export const EvseResponseSchemaName = 'EvseResponseSchema';
 export const EvseListResponseSchema = OcpiResponseSchema(EvseDTOSchema);
+export const EvseDTOSchemaName = 'EvseDTOSchema';
+
+/** Partial EVSE for OCPI Receiver PATCH. */
+export const EvsePatchSchema = EvseDTOSchema.partial();
+export const EvsePatchSchemaName = 'EvsePatchSchema';
 
 export type EvseDTO = z.infer<typeof EvseDTOSchema>;
 export type EvseResponse = z.infer<typeof EvseResponseSchema>;

@@ -24,27 +24,27 @@ export default {
             identifier: 'credentials',
           },
           {
-            url: `http://localhost:8085/ocpi/2.2.1/locations`,
+            url: `http://localhost:8085/ocpi/cpo/2.2.1/locations`,
             identifier: 'locations_SENDER',
           },
           {
-            url: `http://localhost:8085/ocpi/2.2.1/tariffs`,
+            url: `http://localhost:8085/ocpi/cpo/2.2.1/tariffs`,
             identifier: 'tariffs_SENDER',
           },
           {
-            url: `http://localhost:8085/ocpi/2.2.1/sessions`,
+            url: `http://localhost:8085/ocpi/cpo/2.2.1/sessions`,
             identifier: 'sessions_SENDER',
           },
           {
-            url: `http://localhost:8085/ocpi/2.2.1/cdrs`,
+            url: `http://localhost:8085/ocpi/cpo/2.2.1/cdrs`,
             identifier: 'cdrs_SENDER',
           },
           {
-            url: `http://localhost:8085/ocpi/2.2.1/tokens`,
+            url: `http://localhost:8085/ocpi/emsp/2.2.1/tokens`,
             identifier: 'tokens_RECEIVER',
           },
           {
-            url: `http://localhost:8085/ocpi/2.2.1/commands`,
+            url: `http://localhost:8085/ocpi/emsp/2.2.1/commands`,
             identifier: 'commands_RECEIVER',
           },
         ],

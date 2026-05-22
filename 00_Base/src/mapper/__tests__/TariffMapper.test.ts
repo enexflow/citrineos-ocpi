@@ -5,7 +5,7 @@
 import { TariffMapper } from '../TariffMapper';
 import { TariffDimensionType } from '../../model/TariffDimensionType';
 import { TariffType } from '../../model/TariffType';
-import type { TariffDto } from '@citrineos/base';
+import type { TariffDto } from '@zetra/citrineos-base';
 import type { PutTariffRequest } from '../../model/DTO/tariffs/PutTariffRequest';
 
 describe('TariffMapper', () => {

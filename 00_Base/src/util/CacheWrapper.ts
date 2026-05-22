@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ICache } from '@citrineos/base';
+import type { ICache } from '@zetra/citrineos-base';
 
 export class CacheWrapper {
   cache: ICache;

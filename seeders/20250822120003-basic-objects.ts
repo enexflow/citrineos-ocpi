@@ -196,7 +196,7 @@ export default {
       language1: 'en',
       realTimeAuth: 'AllowedOffline',
       realTimeAuthUrl:
-        'http://citrineos-ocpi:8085/ocpi/2.2.1/tokens/realTimeAuth',
+        'http://citrineos-ocpi:8085/ocpi/emsp/2.2.1/tokens/realTimeAuth',
       concurrentTransaction: false,
       tenantId: 1,
       tenantPartnerId: 1,

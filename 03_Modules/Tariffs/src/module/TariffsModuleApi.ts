@@ -7,14 +7,16 @@ import {
   Ctx,
   Delete,
   Get,
+  Post,
   JsonController,
   Param,
   Put,
 } from 'routing-controllers';
-import { HttpStatus } from '@citrineos/base';
+import { HttpStatus } from '@zetra/citrineos-base';
 import type {
   OcpiEmptyResponse,
   PaginatedTariffResponse,
+  PullPartnerModulesBody,
   PutTariffRequest,
   TariffDTO,
 } from '@citrineos/ocpi-base';
@@ -44,6 +46,9 @@ import {
   versionIdParam,
   VersionNumber,
   VersionNumberParam,
+  PullPartnerModulesBodySchemaName,
+  PullPartnerModulesBodySchema,
+  AsAdminEndpoint,
 } from '@citrineos/ocpi-base';
 import { Service } from 'typedi';
 
@@ -53,7 +58,7 @@ const MOCK_PAGINATED_TARIFF = await generateMockForSchema(
 );
 
 @Service()
-@JsonController(`/:${versionIdParam}/${ModuleId.Tariffs}`)
+@JsonController(`/:role(cpo|emsp)/:${versionIdParam}/${ModuleId.Tariffs}`)
 export class TariffsModuleApi
   extends BaseController
   implements ITariffsModuleApi
@@ -178,5 +183,27 @@ export class TariffsModuleApi
   ): Promise<OcpiEmptyResponse> {
     await this.tariffService.deleteTariff(countryCode, partyId, tariffId, true);
     return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
+  }
+
+  /**
+   * ADMIN ENDPOINTS
+   */
+  @Post('/pull-partner-tariffs')
+  @AsAdminEndpoint()
+  async PullPartnerTariffs(
+    @BodyWithSchema(
+      PullPartnerModulesBodySchema,
+      PullPartnerModulesBodySchemaName,
+    )
+    body: PullPartnerModulesBody,
+  ) {
+    this.logger.info('PullPartnerTariffs', body);
+
+    const summary = await this.tariffService.pullPartnerTariffs(body);
+
+    return buildOcpiResponse(
+      OcpiResponseStatusCode.GenericSuccessCode,
+      summary,
+    );
   }
 }

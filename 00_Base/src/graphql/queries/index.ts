@@ -13,3 +13,5 @@ export * from './tenantVersionEndpoints.queries.js';
 export * from './session.queries.js';
 export * from './token.queries.js';
 export * from './transaction.queries.js';
+export * from './evse.queries.js';
+export * from './connector.queries.js';

@@ -1,3 +1,5 @@
+# local dockerfile that use tgz to install citrineos core and then build the ocpi server
+
 FROM --platform=$BUILDPLATFORM node:24 AS build
 
 WORKDIR /usr/local/apps

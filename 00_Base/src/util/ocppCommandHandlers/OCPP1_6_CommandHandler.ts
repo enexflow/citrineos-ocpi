@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ChargingStationDto, TenantPartnerDto } from '@citrineos/base';
-import { OCPP1_6, OCPPVersion } from '@citrineos/base';
+import type {
+  ChargingStationDto,
+  TenantPartnerDto,
+} from '@zetra/citrineos-base';
+import { OCPP1_6, OCPPVersion } from '@zetra/citrineos-base';
 import type { IRequestOptions } from 'typed-rest-client';
 import { Service } from 'typedi';
 import { OCPP_COMMAND_HANDLER, OCPPCommandHandler } from './base.js';
@@ -34,7 +37,7 @@ export class OCPP1_6_CommandHandler extends OCPPCommandHandler {
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +
-      `/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.START_SESSION}/${commandId}`;
+      `/emsp/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.START_SESSION}/${commandId}`;
     options.queryParameters = queryParameters;
     const remoteStartTransactionRequest: OCPP1_6.RemoteStartTransactionRequest =
       {
@@ -67,7 +70,7 @@ export class OCPP1_6_CommandHandler extends OCPPCommandHandler {
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +
-      `/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.STOP_SESSION}/${commandId}`;
+      `/emsp/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.STOP_SESSION}/${commandId}`;
     options.queryParameters = queryParameters;
 
     const requestStopTransactionRequest: OCPP1_6.RemoteStopTransactionRequest =
@@ -100,7 +103,7 @@ export class OCPP1_6_CommandHandler extends OCPPCommandHandler {
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +
-      `/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.UNLOCK_CONNECTOR}/${commandId}`;
+      `/emsp/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.UNLOCK_CONNECTOR}/${commandId}`;
     options.queryParameters = queryParameters;
 
     const ocpp1_6ConnectorId = Array.from(

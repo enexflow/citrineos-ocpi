@@ -15,6 +15,7 @@ import { HoursSchema } from '../Hours.js';
 import { EnergyMixSchema } from '../EnergyMix.js';
 import { OcpiResponseSchema } from '../OcpiResponse.js';
 import { PaginatedResponseSchema } from '../PaginatedResponse.js';
+import { ImageDTOSchema } from './ImageDTO.js';
 
 export const LocationDTOSchema = z.object({
   country_code: z.string().min(2).max(2),
@@ -32,15 +33,18 @@ export const LocationDTOSchema = z.object({
   related_locations: z.array(AdditionalGeoLocationSchema).nullable().optional(),
   parking_type: z.nativeEnum(ParkingType).nullable().optional(),
   evses: z.array(EvseDTOSchema).nullable().optional(),
-  directions: z.null().optional(),
+  directions: z
+    .array(z.object({ language: z.string(), text: z.string() }))
+    .nullable()
+    .optional(),
   operator: BusinessDetailsSchema.nullable().optional(),
   suboperator: BusinessDetailsSchema.nullable().optional(),
   owner: BusinessDetailsSchema.nullable().optional(),
   facilities: z.array(z.nativeEnum(Facilities)).nullable().optional(),
   time_zone: z.string().max(255),
   opening_times: HoursSchema.nullable().optional(),
-  charging_when_closed: z.null().optional(),
-  images: z.null().optional(),
+  charging_when_closed: z.boolean().nullable().optional(),
+  images: z.array(ImageDTOSchema).nullable().optional(),
   energy_mix: EnergyMixSchema.nullable().optional(),
   last_updated: z.coerce.date(),
 });
@@ -58,3 +62,11 @@ export type LocationResponse = z.infer<typeof LocationResponseSchema>;
 export type PaginatedLocationResponse = z.infer<
   typeof PaginatedLocationResponseSchema
 >;
+
+export const LocationDTOSchemaName = 'LocationDTOSchema';
+
+/** Partial Location for OCPI Receiver PATCH (all fields optional). */
+export const LocationPatchSchema = LocationDTOSchema.partial();
+export const LocationPatchSchemaName = 'LocationPatchSchema';
+
+export type LocationEvseDTO = z.infer<typeof EvseDTOSchema>;

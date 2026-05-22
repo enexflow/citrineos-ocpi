@@ -11,7 +11,7 @@ import { AbstractDtoEventSender } from '../index.js';
 import { Inject, Service } from 'typedi';
 import type { OcpiConfig } from '../../config/ocpi.types.js';
 import { OcpiConfigToken } from '../../config/ocpi.types.js';
-
+import { logDbBroadcast } from '../../util/logging.js';
 /**
  * Implementation of a {@link IEventSender} using RabbitMQ as the underlying transport.
  */
@@ -81,7 +81,7 @@ export class RabbitMqDtoSender
     });*/
     const channel = this._channel;
 
-    this._logger.debug(`Publishing to ${exchange}:`, event);
+    logDbBroadcast(this._logger, 'debug', 'Publishing to ${exchange}:', event);
 
     const success = channel.publish(
       exchange || '',

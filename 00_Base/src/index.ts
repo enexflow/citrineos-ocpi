@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
 //
 // SPDX-License-Identifier: Apache-2.0
-
 import type { RoutingControllersOptions } from 'routing-controllers';
 import { useContainer } from 'routing-controllers';
 import type { Constructable } from 'typedi';
@@ -9,7 +8,7 @@ import { Container } from 'typedi';
 import { OcpiModule } from './model/OcpiModule.js';
 import { KoaServer } from './util/KoaServer.js';
 import Koa from 'koa';
-import type { ICache } from '@citrineos/base';
+import type { ICache } from '@zetra/citrineos-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { CacheWrapper } from './util/CacheWrapper.js';
@@ -213,22 +212,36 @@ export { EnumQueryParam } from './util/decorators/EnumQueryParam.js';
 export type { CommandResult } from './model/CommandResult.js';
 export type {
   LocationDTO,
+  LocationEvseDTO,
   LocationResponse,
   PaginatedLocationResponse,
 } from './model/DTO/LocationDTO.js';
 export {
+  LocationDTOSchema,
+  LocationDTOSchemaName,
+  LocationPatchSchema,
+  LocationPatchSchemaName,
   LocationResponseSchema,
   LocationResponseSchemaName,
   PaginatedLocationResponseSchema,
   PaginatedLocationResponseSchemaName,
 } from './model/DTO/LocationDTO.js';
 export type { EvseDTO, EvseResponse } from './model/DTO/EvseDTO.js';
+export type { PullPartnerModulesBody } from './model/DTO/PullPartnerModulesBody.js';
+export {
+  PullPartnerModulesBodySchema,
+  PullPartnerModulesBodySchemaName,
+} from './model/DTO/PullPartnerModulesBody.js';
 export {
   UID_FORMAT,
   EXTRACT_EVSE_ID,
   EXTRACT_STATION_ID,
   EvseResponseSchema,
   EvseResponseSchemaName,
+  EvseDTOSchema,
+  EvseDTOSchemaName,
+  EvsePatchSchema,
+  EvsePatchSchemaName,
 } from './model/DTO/EvseDTO.js';
 export type {
   ConnectorDTO,
@@ -236,6 +249,10 @@ export type {
 } from './model/DTO/ConnectorDTO.js';
 export {
   TEMPORARY_CONNECTOR_ID,
+  ConnectorDTOSchema,
+  ConnectorDTOSchemaName,
+  ConnectorPatchSchema,
+  ConnectorPatchSchemaName,
   ConnectorResponseSchema,
   ConnectorResponseSchemaName,
 } from './model/DTO/ConnectorDTO.js';
@@ -290,6 +307,7 @@ export { CredentialsService } from './services/CredentialsService.js';
 export { TokensService } from './services/TokensService.js';
 // export { TokensAdminService } from './services/TokensAdminService.js';
 export { LocationsService } from './services/LocationsService.js';
+export { LocationReceiverService } from './services/LocationReceiverService.js';
 export { VersionService } from './services/VersionService.js';
 export { SessionsService } from './services/SessionsService.js';
 // export { AdminLocationsService } from './services/AdminLocationsService.js';
@@ -308,7 +326,13 @@ export { TariffMapper } from './mapper/TariffMapper.js';
 export { OcpiHttpHeader } from './util/OcpiHttpHeader.js';
 
 export { CdrsService } from './services/CdrsService.js';
-export type { PaginatedCdrResponse } from './model/Cdr.js';
+export type { CdrDTO, PaginatedCdrResponse } from './model/DTO/CdrDTO.js';
+export {
+  CdrDTOSchema,
+  CdrDTOSchemaName,
+  PaginatedCdrResponseSchema,
+  PaginatedCdrResponseSchemaName,
+} from './model/DTO/CdrDTO.js';
 export { BaseBroadcaster } from './broadcaster/BaseBroadcaster.js';
 export type {
   PaginatedTariffResponse,
@@ -401,6 +425,44 @@ export class OcpiServer extends KoaServer {
   private initKoaServer() {
     try {
       this.koa = new Koa();
+      this.koa.use(async (ctx, next) => {
+        if (['POST', 'PUT', 'PATCH'].includes(ctx.method)) {
+          let rawBody = '';
+          ctx.req.setEncoding('utf8');
+
+          await new Promise<void>((resolve, reject) => {
+            ctx.req.on('data', (chunk) => (rawBody += chunk));
+            ctx.req.on('end', () => resolve());
+            ctx.req.on('error', reject);
+          });
+
+          this.logger.info('[Headers for Request]', {
+            authorization: ctx.get('authorization') ? '[redacted]' : undefined,
+            ocpiFromCountryCode: ctx.get('ocpi-from-country-code'),
+            ocpiFromPartyId: ctx.get('ocpi-from-party-id'),
+            ocpiToCountryCode: ctx.get('ocpi-to-country-code'),
+            ocpiToPartyId: ctx.get('ocpi-to-party-id'),
+            xRequestId: ctx.get('x-request-id'),
+            xCorrelationId: ctx.get('x-correlation-id'),
+            contentType: ctx.get('content-type'),
+          });
+          this.logger.info(
+            '[Request]',
+            ctx.method,
+            ctx.path,
+            rawBody || '(empty)',
+          );
+
+          // expose parsed body for downstream if needed
+          try {
+            (ctx.request as any).body = rawBody ? JSON.parse(rawBody) : {};
+          } catch {
+            (ctx.request as any).body = rawBody;
+          }
+        }
+
+        await next();
+      });
       const controllers = this._modules.map((module) =>
         (module as OcpiModule).getController(),
       );
@@ -475,8 +537,5 @@ export {
 } from './model/CommandResponse.js';
 export { ChargingProfileResponseSchemaName } from './model/ChargingProfileResponse.js';
 export { ChargingProfileResponseSchema } from './model/ChargingProfileResponse.js';
-
-export {
-  PaginatedCdrResponseSchema,
-  PaginatedCdrResponseSchemaName,
-} from './model/Cdr.js';
+export { DB_BROADCAST_LOG_PREFIX, logDbBroadcast } from './util/logging.js';
+export { shouldBroadcast } from './util/helpers.js';
