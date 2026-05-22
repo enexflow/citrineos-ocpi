@@ -9,7 +9,7 @@ import {
   type Endpoint,
   HttpMethod,
   type PartnerProfile,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import { EndpointIdentifier } from '../model/EndpointIdentifier.js';
 import type { PaginatedParams } from './param/PaginatedParams.js';
 import type { PaginatedTokenResponse } from '../model/DTO/TokenDTO.js';
@@ -26,7 +26,7 @@ export class TokensClientApi extends BaseClientApi {
   getUrl(partnerProfile: PartnerProfile): string {
     const url = partnerProfile.endpoints?.find(
       (value: Endpoint) =>
-        value.identifier === EndpointIdentifier.TOKENS_SENDER,
+        value.identifier === EndpointIdentifier.TOKENS_RECEIVER,
     )?.url;
     if (!url) {
       throw new Error(

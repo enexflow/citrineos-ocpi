@@ -5,7 +5,7 @@
 import type { KoaMiddlewareInterface } from 'routing-controllers';
 import { NotFoundError, UnauthorizedError } from 'routing-controllers';
 import type { Context } from 'vm';
-import { HttpStatus, UnauthorizedException } from '@citrineos/base';
+import { HttpStatus, UnauthorizedException } from '@zetra/citrineos-base';
 import { buildOcpiErrorResponse } from '../../model/OcpiErrorResponse.js';
 import { Service } from 'typedi';
 import { UnknownTokenException } from '../../exception/UnknownTokenException.js';

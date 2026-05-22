@@ -6,7 +6,7 @@
 // import { PaginatedResult } from '../model/PaginatedResult';
 // import { OcpiGraphqlClient } from '../graphql/OcpiGraphqlClient';
 // import { Service, Token } from 'typedi';
-// import { Transaction } from '@citrineos/data';
+// import { Transaction } from '@zetra/citrineos-data';
 // import { GET_TRANSACTIONS_QUERY } from '../graphql/queries/transaction.queries';
 // import { GetTransactionsQuery } from '../graphql/types/graphql';
 

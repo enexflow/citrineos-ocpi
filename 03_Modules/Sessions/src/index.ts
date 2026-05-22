@@ -7,6 +7,7 @@ import type {
   IDtoEvent,
   OcpiConfig,
 } from '@citrineos/ocpi-base';
+
 import {
   AbstractDtoModule,
   AsDtoEventHandler,
@@ -19,13 +20,15 @@ import {
   OcpiModule,
   RabbitMqDtoReceiver,
   SessionBroadcaster,
+  Role,
+  shouldBroadcast,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { Inject, Service } from 'typedi';
 import { SessionsModuleApi } from './module/SessionsModuleApi.js';
-import type { MeterValueDto, TransactionDto } from '@citrineos/base';
-
+import type { MeterValueDto, TransactionDto } from '@zetra/citrineos-base';
+import { logDbBroadcast } from '@citrineos/ocpi-base';
 export { SessionsModuleApi } from './module/SessionsModuleApi.js';
 export type { ISessionsModuleApi } from './module/ISessionsModuleApi.js';
 
@@ -64,16 +67,26 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
   async handleTransactionInsert(
     event: IDtoEvent<TransactionDto>,
   ): Promise<void> {
-    this._logger.debug(`Handling Transaction Insert: ${JSON.stringify(event)}`);
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Transaction Insert:',
+      event,
+    );
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(transactionDto.id),
+      )
+    ) {
       return;
     }
-    await this.sessionBroadcaster.broadcastPutSession(tenant, transactionDto);
+    await this.sessionBroadcaster.broadcastPutSession(tenant!, transactionDto);
   }
 
   @AsDtoEventHandler(
@@ -84,16 +97,29 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
   async handleTransactionUpdate(
     event: IDtoEvent<Partial<TransactionDto>>,
   ): Promise<void> {
-    this._logger.debug(`Handling Transaction Update: ${JSON.stringify(event)}`);
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Transaction Update:',
+      event,
+    );
     const transactionDto = event._payload;
     const tenant = transactionDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${transactionDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(transactionDto.id),
+      )
+    ) {
       return;
     }
-    await this.sessionBroadcaster.broadcastPatchSession(tenant, transactionDto);
+    await this.sessionBroadcaster.broadcastPatchSession(
+      tenant!,
+      transactionDto,
+    );
     if (transactionDto.isActive === false) {
       this._logger.debug(`Transaction is no longer active: ${event._eventId}`);
 
@@ -123,13 +149,23 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
     'MeterValueNotification',
   )
   async handleMeterValueInsert(event: IDtoEvent<MeterValueDto>): Promise<void> {
-    this._logger.debug(`Handling Meter Value Insert: ${JSON.stringify(event)}`);
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Meter Value Insert:',
+      event,
+    );
     const meterValueDto = event._payload;
     const tenant = meterValueDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${meterValueDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(meterValueDto.id),
+      )
+    ) {
       return;
     }
     if (meterValueDto.transactionDatabaseId) {
@@ -144,7 +180,7 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
       }
 
       await this.sessionBroadcaster.broadcastPatchSessionChargingPeriod(
-        tenant,
+        tenant!,
         meterValueDto,
       );
     }

@@ -6,7 +6,7 @@ import type { ParamOptions } from 'routing-controllers';
 import { HeaderParam, UseBefore } from 'routing-controllers';
 import { AuthMiddleware } from '../middleware/AuthMiddleware.js';
 import { UniqueMessageIdsMiddleware } from '../middleware/UniqueMessageIdsMiddleware.js';
-import { HttpHeader } from '@citrineos/base';
+import { HttpHeader } from '@zetra/citrineos-base';
 import { uniqueMessageIdHeaders } from './AsOcpiFunctionalEndpoint.js';
 import { OcpiExceptionHandler } from '../middleware/OcpiExceptionHandler.js';
 

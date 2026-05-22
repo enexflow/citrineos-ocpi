@@ -20,16 +20,16 @@ Le module prend egalement en charge le **Real-time Authorization Flow** qui perm
 ```mermaid
 flowchart TD
     subgraph senderInterface ["Sender Interface (eMSP)"]
-        SenderGET["GET /tokens\n(liste paginee)"]
-        SenderPOST["POST /tokens/:token_uid/authorize\n(autorisation temps reel)"]
+        SenderGET["GET /cpo/:versionId/tokens\n(liste paginee)"]
+        SenderPOST["POST /cpo/:versionId/tokens/:token_uid/authorize\n(autorisation temps reel)"]
     end
     subgraph receiverInterface ["Receiver Interface (CPO)"]
-        ReceiverGET["GET /:cc/:pid/:token_uid"]
-        ReceiverPUT["PUT /:cc/:pid/:token_uid"]
-        ReceiverPATCH["PATCH /:cc/:pid/:token_uid"]
+        ReceiverGET["GET /emsp/:versionId/tokens/:cc/:pid/:token_uid"]
+        ReceiverPUT["PUT /emsp/:versionId/tokens/:cc/:pid/:token_uid"]
+        ReceiverPATCH["PATCH /emsp/:versionId/tokens/:cc/:pid/:token_uid"]
     end
     subgraph adminInterface ["Admin Interface"]
-        AdminPOST["POST /realTimeAuth\n(appel sortant)"]
+        AdminPOST["POST /emsp/:versionId/tokens/realTimeAuth\n(appel sortant)"]
     end
     subgraph serviceLayer ["Service Layer"]
         TokensService["TokensService"]
@@ -62,24 +62,24 @@ flowchart TD
 
 ### Sender Interface (eMSP)
 
-| Methode | Route                                     | Description                                                                                                                                   |
-| ------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`   | `/:versionId/tokens`                      | Liste paginee de tous les tokens. Supporte `date_from`, `date_to`, `offset`, `limit`.                                                         |
-| `POST`  | `/:versionId/tokens/:token_uid/authorize` | Autorisation temps reel. Le CPO demande a l'eMSP si le token est autorise. Body optionnel : `LocationReferences`. Query optionnel : `?type=`. |
+| Methode | Route                                         | Description                                                                                                                                   |
+| ------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`   | `/cpo/:versionId/tokens`                      | Liste paginee de tous les tokens. Supporte `date_from`, `date_to`, `offset`, `limit`.                                                         |
+| `POST`  | `/cpo/:versionId/tokens/:token_uid/authorize` | Autorisation temps reel. Le CPO demande a l'eMSP si le token est autorise. Body optionnel : `LocationReferences`. Query optionnel : `?type=`. |
 
 ### Receiver Interface (CPO)
 
-| Methode | Route                                                   | Description                                                                                                                       |
-| ------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`   | `/:versionId/tokens/:country_code/:party_id/:token_uid` | Recupere un token specifique par ses identifiants OCPI. Query optionnel : `?type=`. Retourne `404` si non trouve.                 |
-| `PUT`   | `/:versionId/tokens/:country_code/:party_id/:token_uid` | Cree ou met a jour un token. Le body est valide par `TokenDTOSchema`. Le `token_uid` de l'URL doit correspondre au `uid` du body. |
-| `PATCH` | `/:versionId/tokens/:country_code/:party_id/:token_uid` | Mise a jour partielle d'un token. Le champ `last_updated` est obligatoire dans le body.                                           |
+| Methode | Route                                                        | Description                                                                                                                       |
+| ------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`   | `/emsp/:versionId/tokens/:country_code/:party_id/:token_uid` | Recupere un token specifique par ses identifiants OCPI. Query optionnel : `?type=`. Retourne `404` si non trouve.                 |
+| `PUT`   | `/emsp/:versionId/tokens/:country_code/:party_id/:token_uid` | Cree ou met a jour un token. Le body est valide par `TokenDTOSchema`. Le `token_uid` de l'URL doit correspondre au `uid` du body. |
+| `PATCH` | `/emsp/:versionId/tokens/:country_code/:party_id/:token_uid` | Mise a jour partielle d'un token. Le champ `last_updated` est obligatoire dans le body.                                           |
 
 ### Admin Interface
 
-| Methode | Route                             | Description                                                                                                   |
-| ------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `POST`  | `/:versionId/tokens/realTimeAuth` | Endpoint interne (OIDC si configure). Declenche un appel sortant d'autorisation temps reel via le client API. |
+| Methode | Route                                  | Description                                                                                                   |
+| ------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `POST`  | `/emsp/:versionId/tokens/realTimeAuth` | Endpoint interne (OIDC si configure). Declenche un appel sortant d'autorisation temps reel via le client API. |
 
 ---
 
@@ -89,7 +89,7 @@ flowchart TD
 
 **`03_Modules/Tokens/src/module/TokensModuleApi.ts`**
 
-Controleur principal enregistre sur `/:versionId/tokens`. Implemente `ITokensModuleApi`. Methodes :
+Controleur principal enregistre sur `/:role(cpo|emsp)/:versionId/tokens`. Implemente `ITokensModuleApi`. Methodes :
 
 - `getTokensPaginated()` -- Sender GET pagine avec `@Paginated()`, `@FunctionalEndpointParams()`
 - `getTokens()` -- Receiver GET unitaire, lance `UnknownTokenException` si absent
@@ -213,7 +213,7 @@ CPO  <-  PaginatedTokenResponse { data: TokenDTO[], total, offset, limit }
 ### Push model (eMSP pousse vers le CPO)
 
 ```
-eMSP  ->  PUT /:versionId/tokens/:cc/:pid/:uid  ->  CPO
+eMSP  ->  PUT /emsp/:versionId/tokens/:cc/:pid/:uid  ->  CPO
        ->  TokensModuleApi.putToken
        ->  TokensService.upsertToken
        ->  TokensMapper + GraphQL upsert
@@ -221,7 +221,7 @@ eMSP  ->  PUT /:versionId/tokens/:cc/:pid/:uid  ->  CPO
 ```
 
 ```
-eMSP  ->  PATCH /:versionId/tokens/:cc/:pid/:uid  ->  CPO
+eMSP  ->  PATCH /emsp/:versionId/tokens/:cc/:pid/:uid  ->  CPO
        ->  TokensModuleApi.patchToken
        ->  TokensService.patchToken
        ->  TokensMapper + GraphQL update
@@ -231,7 +231,7 @@ eMSP  ->  PATCH /:versionId/tokens/:cc/:pid/:uid  ->  CPO
 ### Real-time Authorization (CPO demande a l'eMSP)
 
 ```
-CPO  ->  POST /:versionId/tokens/:token_uid/authorize  ->  eMSP
+CPO  ->  POST /cpo/:versionId/tokens/:token_uid/authorize  ->  eMSP
          Body (optionnel): { location_id, evse_uids }
          Query (optionnel): ?type=RFID
       ->  TokensModuleApi.postAuthorize
@@ -243,7 +243,7 @@ CPO  ->  POST /:versionId/tokens/:token_uid/authorize  ->  eMSP
 ### Real-time Authorization sortante (admin -> partenaire)
 
 ```
-Admin  ->  POST /:versionId/tokens/realTimeAuth  ->  CitrineOS
+Admin  ->  POST /emsp/:versionId/tokens/realTimeAuth  ->  CitrineOS
         ->  TokensService.realTimeAuthorization
         ->  TokensClientApi.postToken  ->  Partenaire POST /:token_uid/authorize
         <-  RealTimeAuthorizationResponse { allowed, reason? }

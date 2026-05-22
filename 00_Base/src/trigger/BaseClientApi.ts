@@ -10,8 +10,8 @@ import type {
 } from 'typed-rest-client/Interfaces.js';
 import { VersionNumber } from '../model/VersionNumber.js';
 import { UnsuccessfulRequestException } from '../exception/UnsuccessfulRequestException.js';
-import type { TenantPartnerDto, PartnerProfile } from '@citrineos/base';
-import { HttpHeader, HttpMethod } from '@citrineos/base';
+import type { TenantPartnerDto, PartnerProfile } from '@zetra/citrineos-base';
+import { HttpHeader, HttpMethod } from '@zetra/citrineos-base';
 import { OcpiHttpHeader } from '../util/OcpiHttpHeader.js';
 import { base64Encode } from '../util/Util.js';
 import { Inject } from 'typedi';
@@ -241,10 +241,17 @@ export abstract class BaseClientApi {
   }
 
   protected getOffsetFromLink(link: string): number {
-    const url = new URL(link);
-    const offset = url.searchParams.get('offset');
-    if (offset) {
-      return parseInt(offset, 10);
+    try {
+      const url = new URL(link);
+      const offset = url.searchParams.get('offset');
+      if (offset) {
+        return parseInt(offset, 10);
+      }
+    } catch {
+      const match = link.match(/[?&]offset=(\d+)/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
     }
     return 0;
   }

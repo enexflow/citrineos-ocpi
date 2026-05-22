@@ -10,18 +10,20 @@ import {
   OcpiConfigToken,
   OcpiModule,
   RabbitMqDtoReceiver,
+  Role,
+  shouldBroadcast,
   TariffsBroadcaster,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { Inject, Service } from 'typedi';
 import { TariffsModuleApi } from './module/TariffsModuleApi.js';
-import type { TariffDto } from '@citrineos/base';
+import type { TariffDto } from '@zetra/citrineos-base';
 import {
   getTenantPartnerId,
   isPartnerReceivedTariff,
 } from './tariffPartnerNotification.js';
-
+import { logDbBroadcast } from '@citrineos/ocpi-base';
 export { TariffsModuleApi } from './module/TariffsModuleApi.js';
 export type { ITariffsModuleApi } from './module/ITariffsModuleApi.js';
 
@@ -56,7 +58,7 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     'TariffNotification',
   )
   async handleTariffInsert(event: IDtoEvent<TariffDto>): Promise<void> {
-    this._logger.debug(`Handling Tariff Insert: ${JSON.stringify(event)}`);
+    logDbBroadcast(this._logger, 'debug', 'Handling Tariff Insert:', event);
     const tariffDto = event._payload;
 
     if (isPartnerReceivedTariff(tariffDto)) {
@@ -67,14 +69,18 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-
-    await this.tariffsBroadcaster.broadcastPutTariff(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastPutTariff(tenant!, tariffDto);
   }
 
   @AsDtoEventHandler(
@@ -85,7 +91,7 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
   async handleTariffUpdate(
     event: IDtoEvent<Partial<TariffDto>>,
   ): Promise<void> {
-    this._logger.debug(`Handling Tariff Update: ${JSON.stringify(event)}`);
+    logDbBroadcast(this._logger, 'debug', 'Handling Tariff Update:', event);
     const tariffDto = event._payload;
 
     if (isPartnerReceivedTariff(tariffDto)) {
@@ -96,14 +102,18 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-
-    await this.tariffsBroadcaster.broadcastPutTariff(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastPutTariff(tenant!, tariffDto);
   }
 
   @AsDtoEventHandler(
@@ -112,7 +122,7 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     'TariffNotification',
   )
   async handleTariffDelete(event: IDtoEvent<TariffDto>): Promise<void> {
-    this._logger.debug(`Handling Tariff Delete: ${JSON.stringify(event)}`);
+    logDbBroadcast(this._logger, 'debug', 'Handling Tariff Delete:', event);
     const tariffDto = event._payload;
 
     if (isPartnerReceivedTariff(tariffDto)) {
@@ -123,13 +133,17 @@ export class TariffsModule extends AbstractDtoModule implements OcpiModule {
     }
 
     const tenant = tariffDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${tariffDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(tariffDto.id),
+      )
+    ) {
       return;
     }
-
-    await this.tariffsBroadcaster.broadcastTariffDeletion(tenant, tariffDto);
+    await this.tariffsBroadcaster.broadcastTariffDeletion(tenant!, tariffDto);
   }
 }

@@ -7,7 +7,7 @@ import {
   type IMessageConfirmation,
   type TenantPartnerDto,
   OCPPVersion,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import type {
   OcpiConfig,
   StartSession,

@@ -10,8 +10,8 @@ import { Inject, Service } from 'typedi';
 import type { OcpiEmptyResponse } from '../model/OcpiEmptyResponse.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
 import { ModuleId } from '../model/ModuleId.js';
-import type { ICache, PartnerProfile } from '@citrineos/base';
-import { HttpMethod } from '@citrineos/base';
+import type { ICache, PartnerProfile } from '@zetra/citrineos-base';
+import { HttpMethod } from '@zetra/citrineos-base';
 import type { CommandResult } from '../model/CommandResult.js';
 import {
   COMMAND_RESPONSE_URL_CACHE_NAMESPACE,

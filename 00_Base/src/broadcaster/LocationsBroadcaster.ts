@@ -20,8 +20,8 @@ import type {
   EvseDto,
   LocationDto,
   TenantDto,
-} from '@citrineos/base';
-import { HttpMethod } from '@citrineos/base';
+} from '@zetra/citrineos-base';
+import { HttpMethod } from '@zetra/citrineos-base';
 import {
   ConnectorMapper,
   EvseMapper,

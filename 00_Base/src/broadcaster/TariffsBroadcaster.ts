@@ -9,8 +9,8 @@ import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { ModuleId } from '../model/ModuleId.js';
 import { InterfaceRole } from '../model/InterfaceRole.js';
-import type { TariffDto, TenantDto } from '@citrineos/base';
-import { HttpMethod } from '@citrineos/base';
+import type { TariffDto, TenantDto } from '@zetra/citrineos-base';
+import { HttpMethod } from '@zetra/citrineos-base';
 import type { Tariff } from '../model/Tariff.js';
 import { TariffMapper } from '../mapper/index.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
@@ -81,7 +81,7 @@ export class TariffsBroadcaster extends BaseBroadcaster {
       tariffDto.pricePerKwh = tariffResponse.Tariffs[0].pricePerKwh;
     }
 
-    const tariff = TariffMapper.map(tariffDto);
+    const tariff = TariffMapper.mapForSender(tariffDto);
     const path = `/${tenant.countryCode}/${tenant.partyId}/${tariff.id}`;
     await this.broadcast(tenant, HttpMethod.Put, path, tariff);
   }

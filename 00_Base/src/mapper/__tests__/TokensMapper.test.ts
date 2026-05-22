@@ -5,13 +5,13 @@
 import { TokensMapper } from '../TokensMapper';
 import { TokenType } from '../../model/TokenType';
 import { WhitelistType } from '../../model/WhitelistType';
-import type { AuthorizationDto } from '@citrineos/base';
+import type { AuthorizationDto } from '@zetra/citrineos-base';
 import {
   AuthorizationStatusEnum,
   AuthorizationWhitelistEnum,
   IdTokenEnum,
   OCPP2_0_1,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 
 const mockAuthorization: Partial<AuthorizationDto> = {
   id: 1,

@@ -18,6 +18,7 @@ import {
   OcpiGraphqlClient,
   OcpiModule,
   RabbitMqDtoReceiver,
+  Role,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -27,12 +28,32 @@ import type {
   ConnectorDto,
   EvseDto,
   LocationDto,
-} from '@citrineos/base';
+  TenantDto,
+} from '@zetra/citrineos-base';
 import { Inject, Service } from 'typedi';
+import { logDbBroadcast, shouldBroadcast } from '@citrineos/ocpi-base';
 
 export { LocationsModuleApi } from './module/LocationsModuleApi.js';
 export type { ILocationsModuleApi } from './module/ILocationsModuleApi.js';
 
+type EvseNotifyPayload = Partial<EvseDto> & {
+  tenant?: TenantDto;
+  ownerTenantPartner?: {
+    id: number;
+    partyId?: string;
+    countryCode?: string;
+  };
+  ocpiUid?: string | null;
+};
+type ConnectorNotifyPayload = Partial<ConnectorDto> & {
+  tenant?: TenantDto;
+  ownerTenantPartner?: {
+    id: number;
+    partyId?: string;
+    countryCode?: string;
+  };
+  ocpiId?: string | null;
+};
 @Service()
 export class LocationsModule extends AbstractDtoModule implements OcpiModule {
   constructor(
@@ -65,17 +86,24 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'LocationNotification',
   )
   async handleLocationInsert(event: IDtoEvent<LocationDto>): Promise<void> {
-    this._logger.debug(`Handling Location Insert: ${JSON.stringify(event)}`);
+    logDbBroadcast(this._logger, 'debug', 'Handling Location Insert:', event);
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${locationDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(locationDto.id),
+      )
+    ) {
       return;
     }
+    // if the location is owned by a tenant partner, don't broadcast
+    if ((locationDto as any).ownerTenantPartnerId != null) return;
 
-    await this.locationsBroadcaster.broadcastPutLocation(tenant, locationDto);
+    await this.locationsBroadcaster.broadcastPutLocation(tenant!, locationDto);
   }
 
   @AsDtoEventHandler(
@@ -84,19 +112,40 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'LocationNotification',
   )
   async handleLocationUpdate(
-    event: IDtoEvent<Partial<LocationDto>>,
+    event: IDtoEvent<
+      Partial<LocationDto> & {
+        tenant?: TenantDto;
+        ownerTenantPartnerId?: number;
+      }
+    >,
   ): Promise<void> {
-    this._logger.debug(`Handling Location Update: ${JSON.stringify(event)}`);
+    logDbBroadcast(this._logger, 'debug', 'Handling Location Update:', event);
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${locationDto.id}, cannot broadcast.`,
-      );
+
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(locationDto.id),
+      )
+    ) {
       return;
     }
+    // if the location is owned by a tenant partner, don't broadcast
+    if (
+      locationDto.ownerTenantPartnerId != null ||
+      event._payload?.ownerTenantPartnerId != null
+    )
+      return;
 
-    await this.locationsBroadcaster.broadcastPatchLocation(tenant, locationDto);
+    // if the location is not owned by a tenant partner, we can broadcast the update
+    await this.locationsBroadcaster.broadcastPatchLocation(
+      tenant!,
+      locationDto,
+    );
   }
 
   @AsDtoEventHandler(
@@ -107,8 +156,11 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
   async handleChargingStationUpdate(
     event: IDtoEvent<Partial<ChargingStationDto>>,
   ): Promise<void> {
-    this._logger.debug(
-      `Handling Charging Station Update: ${JSON.stringify(event)}`,
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Charging Station Update:',
+      event,
     );
     // Updates are Location/Evse PATCH requests
     // await this.locationsBroadcaster.broadcastPatchEvse(event._payload); // todo
@@ -120,16 +172,21 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'EvseNotification',
   )
   async handleEvseInsert(event: IDtoEvent<EvseDto>): Promise<void> {
-    this._logger.debug(`Handling EVSE Insert: ${JSON.stringify(event)}`);
+    logDbBroadcast(this._logger, 'debug', 'Handling EVSE Insert:', event);
     const evseDto = event._payload;
+    if ((evseDto as any).ocpiUid != null) return;
     const tenant = evseDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${evseDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(evseDto.id),
+      )
+    ) {
       return;
     }
-
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
       GetChargingStationByIdQueryVariables
@@ -144,7 +201,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       .ChargingStations[0] as ChargingStationDto;
 
     await this.locationsBroadcaster.broadcastPutEvse(
-      tenant,
+      tenant!,
       evseDto,
       chargingStationDto,
     );
@@ -155,14 +212,28 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     DtoEventObjectType.Evse,
     'EvseNotification',
   )
-  async handleEvseUpdate(event: IDtoEvent<Partial<EvseDto>>): Promise<void> {
-    this._logger.debug(`Handling EVSE Update: ${JSON.stringify(event)}`);
+  async handleEvseUpdate(event: IDtoEvent<EvseNotifyPayload>): Promise<void> {
+    logDbBroadcast(this._logger, 'debug', 'Handling EVSE Update:', event);
     const evseDto = event._payload;
+
+    // if the evse is owned by a tenant partner, don't broadcast
+    if (
+      evseDto.ocpiUid != null ||
+      event._payload?.ownerTenantPartner?.id != null
+    )
+      return;
+
+    // if the evse is not owned by a tenant partner, we can broadcast the update
     const tenant = evseDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${evseDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(evseDto.id),
+      )
+    ) {
       return;
     }
 
@@ -180,7 +251,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       .ChargingStations[0] as ChargingStationDto;
 
     await this.locationsBroadcaster.broadcastPatchEvse(
-      tenant,
+      tenant!,
       evseDto,
       chargingStationDto,
     );
@@ -192,16 +263,21 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'ConnectorNotification',
   )
   async handleConnectorInsert(event: IDtoEvent<ConnectorDto>): Promise<void> {
-    this._logger.debug(`Handling Connector Insert: ${JSON.stringify(event)}`);
+    logDbBroadcast(this._logger, 'debug', 'Handling Connector Insert:', event);
     const connectorDto = event._payload;
     const tenant = connectorDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${connectorDto.id}, cannot broadcast.`,
-      );
+    if ((connectorDto as any).ocpiId != null) return;
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(connectorDto.id),
+      )
+    ) {
       return;
     }
-
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
       GetChargingStationByIdQueryVariables
@@ -215,7 +291,10 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     connectorDto.chargingStation = chargingStationResponse
       .ChargingStations[0] as ChargingStationDto;
 
-    await this.locationsBroadcaster.broadcastPutConnector(tenant, connectorDto);
+    await this.locationsBroadcaster.broadcastPutConnector(
+      tenant!,
+      connectorDto,
+    );
   }
 
   @AsDtoEventHandler(
@@ -224,15 +303,29 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     'ConnectorNotification',
   )
   async handleConnectorUpdate(
-    event: IDtoEvent<Partial<ConnectorDto>>,
+    event: IDtoEvent<ConnectorNotifyPayload>,
   ): Promise<void> {
-    this._logger.debug(`Handling Connector Update: ${JSON.stringify(event)}`);
+    logDbBroadcast(this._logger, 'debug', 'Handling Connector Update:', event);
     const connectorDto = event._payload;
+
+    // if the connector is owned by a tenant partner, don't broadcast
+    if (
+      connectorDto.ocpiId != null ||
+      event._payload?.ownerTenantPartner?.id != null
+    )
+      return;
+
+    // if the connector is not owned by a tenant partner, we can broadcast the update
     const tenant = connectorDto.tenant;
-    if (!tenant) {
-      this._logger.error(
-        `Tenant data missing in ${event._context.eventType} notification for ${event._context.objectType} ${connectorDto.id}, cannot broadcast.`,
-      );
+    if (
+      !shouldBroadcast(
+        tenant,
+        Role.CPO,
+        event._context,
+        this._logger,
+        String(connectorDto.id),
+      )
+    ) {
       return;
     }
 
@@ -241,7 +334,9 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       GetChargingStationByIdQueryVariables
     >(GET_CHARGING_STATION_BY_ID_QUERY, { id: connectorDto.stationId! });
     if (!chargingStationResponse.ChargingStations[0]) {
-      this._logger.error(
+      logDbBroadcast(
+        this._logger,
+        'error',
         `Charging Station not found for ID ${connectorDto.stationId}, cannot broadcast.`,
       );
       return;
@@ -252,7 +347,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     // TODO: filter out status updates, since they should only apply at the EVSE level
 
     await this.locationsBroadcaster.broadcastPatchConnector(
-      tenant,
+      tenant!,
       connectorDto,
     );
   }

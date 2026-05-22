@@ -7,7 +7,7 @@ import type {
   LocationDto,
   TariffDto,
   TransactionDto,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import type { TokenDTO } from '../model/DTO/TokenDTO.js';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -150,7 +150,7 @@ export abstract class BaseTransactionMapper {
           if (tariff) {
             transactionIdToOcpiTariffMap.set(
               session.id,
-              TariffMapper.map(tariff),
+              TariffMapper.mapForSender(tariff),
             );
           }
         }),

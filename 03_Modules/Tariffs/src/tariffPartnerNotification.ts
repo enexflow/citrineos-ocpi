@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TariffDto } from '@citrineos/base';
+import type { TariffDto } from '@zetra/citrineos-base';
 
 /**
  * DB/pg_notify payload for Tariff DTO events may include tenantPartnerId even though
- * {@link TariffDto} from @citrineos/base is inferred from a schema without that column.
+ * {@link TariffDto} from @zetra/citrineos-base is inferred from a schema without that column.
  */
 export type TariffNotificationPayload = (TariffDto | Partial<TariffDto>) & {
   tenantPartnerId?: number | null;

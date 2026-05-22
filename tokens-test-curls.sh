@@ -14,7 +14,12 @@
 #
 # Or run individual sections by copying the curl commands.
 
-BASE_URL="http://localhost:8085/ocpi/2.2.1/tokens"
+OCPI_BASE="${OCPI_BASE:-http://localhost:8085/ocpi}"
+OCPI_VERSION="${OCPI_VERSION:-2.2.1}"
+SENDER_PREFIX="$OCPI_BASE/cpo/$OCPI_VERSION"
+RECEIVER_PREFIX="$OCPI_BASE/emsp/$OCPI_VERSION"
+SENDER_BASE_URL="$SENDER_PREFIX/tokens"
+RECEIVER_BASE_URL="$RECEIVER_PREFIX/tokens"
 
 AUTH_TOKEN="Token YjU5ZGNlYTctZWM4My00NjQwLTllNTEtZWY0MjA2NDgwMDc0"
 
@@ -60,7 +65,7 @@ run_curl() {
   http_code=$(curl -sS -w "%{http_code}" -o "$tmp" "$@" 2>&1) || {
     echo -e "${RED}  Connection error:${RESET}"
     echo -e "${DIM}$(cat "$tmp")${RESET}"
-    echo -e "${RED}  -> Is the server running on $BASE_URL ?${RESET}"
+    echo -e "${RED}  -> Is the server running on $RECEIVER_BASE_URL and $SENDER_BASE_URL ?${RESET}"
     FAIL=$((FAIL + 1))
     rm -f "$tmp"
     return
@@ -90,7 +95,7 @@ run_curl() {
 
 separator "1. PUT /tokens/FR/TMS/RFID001 — Creer token RFID (whitelist ALWAYS)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/RFID001" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/RFID001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -110,7 +115,7 @@ run_curl 200 \
 
 separator "2. PUT /tokens/FR/TMS/APP001 — Creer token APP_USER (whitelist NEVER)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/APP001?type=APP_USER" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/APP001?type=APP_USER" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -129,7 +134,7 @@ run_curl 200 \
 
 separator "3. PUT /tokens/FR/TMS/ADHOC001 — Creer token AD_HOC_USER (whitelist NEVER)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/ADHOC001?type=AD_HOC_USER" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/ADHOC001?type=AD_HOC_USER" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -151,17 +156,17 @@ run_curl 200 \
 
 separator "4. GET /tokens/FR/TMS/RFID001 — Recuperer token RFID"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/RFID001" \
+  "$RECEIVER_BASE_URL/FR/TMS/RFID001" \
   "${OCPI_HEADERS[@]}"
 
 separator "5. GET /tokens/FR/TMS/APP001?type=APP_USER — Recuperer token APP_USER"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/APP001?type=APP_USER" \
+  "$RECEIVER_BASE_URL/FR/TMS/APP001?type=APP_USER" \
   "${OCPI_HEADERS[@]}"
 
 separator "6. GET /tokens/FR/TMS/UNKNOWN — Token inexistant (attend 404)"
 run_curl 404 \
-  "$BASE_URL/FR/TMS/UNKNOWN" \
+  "$RECEIVER_BASE_URL/FR/TMS/UNKNOWN" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
@@ -177,22 +182,22 @@ run_curl 404 \
 
 separator "7. GET /tokens — Liste paginee (Sender Interface, nos propres tokens)"
 run_curl 200 \
-  "$BASE_URL" \
+  "$SENDER_BASE_URL" \
   "${OCPI_HEADERS[@]}"
 
 separator "8. GET /tokens?limit=1&offset=0 — Pagination (page 1)"
 run_curl 200 \
-  "$BASE_URL?limit=1&offset=0" \
+  "$SENDER_BASE_URL?limit=1&offset=0" \
   "${OCPI_HEADERS[@]}"
 
 separator "9. GET /tokens?limit=1&offset=1 — Pagination (page 2)"
 run_curl 200 \
-  "$BASE_URL?limit=1&offset=1" \
+  "$SENDER_BASE_URL?limit=1&offset=1" \
   "${OCPI_HEADERS[@]}"
 
 separator "10. GET /tokens?date_from=2024-07-10T19:00:00Z — Filtre date_from"
 run_curl 200 \
-  "$BASE_URL?date_from=2024-07-10T19:00:00Z" \
+  "$SENDER_BASE_URL?date_from=2024-07-10T19:00:00Z" \
   "${OCPI_HEADERS[@]}"
 
 # ===========================================================================
@@ -201,7 +206,7 @@ run_curl 200 \
 
 separator "11. PUT /tokens/FR/TMS/RFID001 — Mettre a jour token RFID (ajout energy_contract)"
 run_curl 200 \
-  -X PUT "$BASE_URL/FR/TMS/RFID001" \
+  -X PUT "$RECEIVER_BASE_URL/FR/TMS/RFID001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -224,7 +229,7 @@ run_curl 200 \
 
 separator "12. PATCH /tokens/FR/TMS/RFID001 — Invalider le token RFID"
 run_curl 200 \
-  -X PATCH "$BASE_URL/FR/TMS/RFID001" \
+  -X PATCH "$RECEIVER_BASE_URL/FR/TMS/RFID001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -234,12 +239,12 @@ run_curl 200 \
 
 separator "13. GET /tokens/FR/TMS/RFID001 — Verifier invalidation"
 run_curl 200 \
-  "$BASE_URL/FR/TMS/RFID001" \
+  "$RECEIVER_BASE_URL/FR/TMS/RFID001" \
   "${OCPI_HEADERS[@]}"
 
 separator "14. PATCH /tokens/FR/TMS/UNKNOWN — Patch token inexistant (attend erreur)"
 run_curl 404 \
-  -X PATCH "$BASE_URL/FR/TMS/UNKNOWN" \
+  -X PATCH "$RECEIVER_BASE_URL/FR/TMS/UNKNOWN" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -253,19 +258,19 @@ run_curl 404 \
 
 separator "15. POST /tokens/RFID001/authorize — Autorisation temps reel (sans body)"
 run_curl 200 \
-  -X POST "$BASE_URL/RFID001/authorize" \
+  -X POST "$SENDER_BASE_URL/RFID001/authorize" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json"
 
 separator "16. POST /tokens/APP001/authorize?type=APP_USER — Autorisation avec type"
 run_curl 200 \
-  -X POST "$BASE_URL/APP001/authorize?type=APP_USER" \
+  -X POST "$SENDER_BASE_URL/APP001/authorize?type=APP_USER" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json"
 
 separator "17. POST /tokens/RFID001/authorize — Autorisation avec LocationReferences"
 run_curl 200 \
-  -X POST "$BASE_URL/RFID001/authorize" \
+  -X POST "$SENDER_BASE_URL/RFID001/authorize" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -275,7 +280,7 @@ run_curl 200 \
 
 separator "18. POST /tokens/UNKNOWN/authorize — Token inconnu (attend 404)"
 run_curl 404 \
-  -X POST "$BASE_URL/UNKNOWN/authorize" \
+  -X POST "$SENDER_BASE_URL/UNKNOWN/authorize" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json"
 
@@ -285,7 +290,7 @@ run_curl 404 \
 
 separator "19. PATCH /tokens/FR/TMS/RFID001 — Revalider token RFID pour nettoyage"
 run_curl 200 \
-  -X PATCH "$BASE_URL/FR/TMS/RFID001" \
+  -X PATCH "$RECEIVER_BASE_URL/FR/TMS/RFID001" \
   "${OCPI_HEADERS[@]}" \
   -H "Content-Type: application/json" \
   -d '{

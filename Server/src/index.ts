@@ -1,15 +1,15 @@
 // SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
 //
 // SPDX-License-Identifier: Apache-2.0
-import type { Constructable } from '@citrineos/base';
+import type { Constructable } from '@zetra/citrineos-base';
 import {
   EventGroup,
   eventGroupFromString,
   type ICache,
   type IModule,
   type IModuleApi,
-} from '@citrineos/base';
-import { MemoryCache, RedisCache } from '@citrineos/util';
+} from '@zetra/citrineos-base';
+import { MemoryCache, RedisCache } from '@zetra/citrineos-util';
 import type { IDtoModule, OcpiConfig } from '@citrineos/ocpi-base';
 import {
   Container,

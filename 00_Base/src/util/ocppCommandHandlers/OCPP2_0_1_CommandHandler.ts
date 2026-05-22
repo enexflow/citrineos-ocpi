@@ -2,18 +2,21 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ChargingStationDto, TenantPartnerDto } from '@citrineos/base';
+import type {
+  ChargingStationDto,
+  TenantPartnerDto,
+} from '@zetra/citrineos-base';
 import {
   ChargingStationSequenceTypeEnum,
   OCPP2_0_1,
   OCPPVersion,
-} from '@citrineos/base';
+} from '@zetra/citrineos-base';
 import type { IRequestOptions } from 'typed-rest-client';
 import { Service } from 'typedi';
 import { OCPP_COMMAND_HANDLER, OCPPCommandHandler } from './base.js';
 import type { StartSession } from '../../model/StartSession.js';
 import type { IRequestQueryParams } from 'typed-rest-client/Interfaces.js';
-import { OCPP2_0_1_Mapper } from '@citrineos/data';
+import { OCPP2_0_1_Mapper } from '@zetra/citrineos-data';
 import type {
   GetSequenceQueryResult,
   GetSequenceQueryVariables,
@@ -48,7 +51,7 @@ export class OCPP2_0_1_CommandHandler extends OCPPCommandHandler {
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +
-      `/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.START_SESSION}/${commandId}`;
+      `/emsp/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.START_SESSION}/${commandId}`;
     options.queryParameters = queryParameters;
 
     const sequenceResponse = await this.ocpiGraphqlClient.request<
@@ -119,7 +122,7 @@ export class OCPP2_0_1_CommandHandler extends OCPPCommandHandler {
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +
-      `/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.STOP_SESSION}/${commandId}`;
+      `/emsp/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.STOP_SESSION}/${commandId}`;
     options.queryParameters = queryParameters;
 
     const requestStopTransactionRequest: OCPP2_0_1.RequestStopTransactionRequest =
@@ -152,7 +155,7 @@ export class OCPP2_0_1_CommandHandler extends OCPPCommandHandler {
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +
-      `/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.UNLOCK_CONNECTOR}/${commandId}`;
+      `/emsp/2.2.1/commands/callback/${tenantPartner.id}/${this.supportedVersion}/${CommandType.UNLOCK_CONNECTOR}/${commandId}`;
     options.queryParameters = queryParameters;
 
     const evseTypeId = Array.from(chargingStation.evses || []).find(

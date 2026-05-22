@@ -18,8 +18,13 @@ import {
   UPDATE_TOKEN_MUTATION,
 } from '../graphql/index.js';
 import { TokensMapper } from '../mapper/index.js';
-import type { AuthorizationDto, ChargingStationDto } from '@citrineos/base';
-import { AuthorizationStatusEnum, IdTokenEnum } from '@citrineos/base';
+
+import type {
+  AuthorizationDto,
+  ChargingStationDto,
+  TenantDto,
+} from '@zetra/citrineos-base';
+import { AuthorizationStatusEnum, IdTokenEnum } from '@zetra/citrineos-base';
 import type {
   Authorizations_Paginated_Bool_Exp,
   Authorizations_Set_Input,
@@ -41,12 +46,12 @@ import type {
   UpdateAuthorizationMutationVariables,
 } from '../graphql/operations.js';
 import { UnknownTokenException } from '../exception/UnknownTokenException.js';
-import type { AdditionalInfoType } from '@citrineos/base/dist/ocpp/model/2.0.1/index.js';
+import type { AdditionalInfoType } from '@zetra/citrineos-base/dist/ocpp/model/2.0.1/index.js';
 import { MissingParamException } from '../exception/MissingParamException.js';
 import type {
   RealTimeAuthorizationRequestBody,
   RealTimeAuthorizationResponse,
-} from '@citrineos/util';
+} from '@zetra/citrineos-util';
 import { TokensClientApi } from '../trigger/TokensClientApi.js';
 import { InvalidParamException } from '../exception/InvalidParamException.js';
 import type { LocationReferences } from '../model/LocationReferences.js';
@@ -238,15 +243,17 @@ export class TokensService {
   }
 
   async getTokensPaginated(
-    ocpiHeaders: OcpiHeaders,
+    tenant: TenantDto,
     paginatedParams?: PaginatedParams,
   ): Promise<{ data: TokenDTO[]; count: number }> {
     const limit = paginatedParams?.limit ?? DEFAULT_LIMIT;
     const offset = paginatedParams?.offset ?? DEFAULT_OFFSET;
     const where: Authorizations_Paginated_Bool_Exp = {
-      Tenant: {
-        countryCode: { _eq: ocpiHeaders.toCountryCode },
-        partyId: { _eq: ocpiHeaders.toPartyId },
+      tenants: {
+        tenant: {
+          countryCode: { _eq: tenant?.countryCode },
+          partyId: { _eq: tenant?.partyId },
+        },
       },
       tenantPartnerId: { _is_null: true },
     };

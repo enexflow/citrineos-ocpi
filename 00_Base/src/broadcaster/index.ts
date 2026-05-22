@@ -6,3 +6,4 @@ export * from './SessionBroadcaster.js';
 export * from './CdrBroadcaster.js';
 export * from './TariffsBroadcaster.js';
 export * from './LocationsBroadcaster.js';
+export * from './TokenBroadcaster.js';
