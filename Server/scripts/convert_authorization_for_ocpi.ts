@@ -89,7 +89,7 @@ for (const row of rows) {
       { type: 'issuer', additionalIdToken: 'Zetra' },
     ];
 
-    const { id, tenants, ...rest } = row;
+    const { id, tenants: _tenants, ...rest } = row;
     const changes = { ...rest, realTimeAuth: 'Always', additionalInfo };
 
     await gql(UPDATE_MUTATION, { id, changes });

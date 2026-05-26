@@ -183,4 +183,3 @@ export function LIST_TENANT_PARTNERS_BY_CPO(): string {
 `;
 }
 
-

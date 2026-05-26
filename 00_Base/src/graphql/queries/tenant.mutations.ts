@@ -30,7 +30,10 @@ import { gql } from 'graphql-request';
 
 /** Persists OCPI partner profile JSON on OcpiIntegrations (linked from TenantPartners.ocpiIntegrationId). */
 export const UPDATE_OCPI_INTEGRATION_PROFILE = gql`
-  mutation UpdateOcpiIntegrationProfile($id: Int!, $partnerProfileOCPI: jsonb!) {
+  mutation UpdateOcpiIntegrationProfile(
+    $id: Int!
+    $partnerProfileOCPI: jsonb!
+  ) {
     update_OcpiIntegrations_by_pk(
       pk_columns: { id: $id }
       _set: { partnerProfileOCPI: $partnerProfileOCPI }
@@ -43,7 +46,9 @@ export const UPDATE_OCPI_INTEGRATION_PROFILE = gql`
 
 export const INSERT_OCPI_INTEGRATION_ONE = gql`
   mutation InsertOcpiIntegrationOne($partnerProfileOCPI: jsonb!) {
-    insert_OcpiIntegrations_one(object: { partnerProfileOCPI: $partnerProfileOCPI }) {
+    insert_OcpiIntegrations_one(
+      object: { partnerProfileOCPI: $partnerProfileOCPI }
+    ) {
       id
       partnerProfileOCPI
     }

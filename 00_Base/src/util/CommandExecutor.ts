@@ -479,10 +479,9 @@ export class CommandExecutor {
       );
       return;
     }
-    const tenantPartner =
-      mergeTenantPartnerOcpiIntegration(
-        tenantPartnerRaw as Record<string, unknown>,
-      ) as TenantPartnerDto;
+    const tenantPartner = mergeTenantPartnerOcpiIntegration(
+      tenantPartnerRaw as Record<string, unknown>,
+    ) as TenantPartnerDto;
 
     const commandHandler = this.getCommandHandler(
       ocppVersion,

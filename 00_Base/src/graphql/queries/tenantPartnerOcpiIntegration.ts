@@ -53,8 +53,7 @@ export function mergeTenantPartnerOcpiIntegration<
   merged.partnerProfileOCPI =
     integ?.partnerProfileOCPI ?? merged.partnerProfileOCPI ?? undefined;
   merged.ocpiIntegrationId =
-    ((row as { ocpiIntegrationId?: number | null }).ocpiIntegrationId ??
-      null) ??
+    (row as { ocpiIntegrationId?: number | null }).ocpiIntegrationId ??
     integ?.id ??
     null;
 
