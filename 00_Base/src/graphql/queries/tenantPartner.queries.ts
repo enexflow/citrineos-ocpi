@@ -47,7 +47,6 @@ ${ocpiNestedSelection()}
   }
 `;
 }
-
 /** Resolve a TenantPartner row by OCPI country_code + party_id (e.g. Receiver URL segment). */
 export const GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY = gql`
   query GetTenantPartnerIdByCountryParty(
@@ -182,4 +181,3 @@ export function LIST_TENANT_PARTNERS_BY_CPO(): string {
   }
 `;
 }
-
