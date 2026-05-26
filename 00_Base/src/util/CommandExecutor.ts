@@ -29,6 +29,7 @@ import type {
 } from '../graphql/index.js';
 import {
   GET_TENANT_PARTNER_BY_ID,
+  mergeTenantPartnerOcpiIntegration,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
 import { CommandsClientApi } from '../trigger/CommandsClientApi.js';
@@ -463,10 +464,11 @@ export class CommandExecutor {
     const tenantPartnerResponse = await this.ocpiGraphqlClient.request<
       GetTenantPartnerByIdQueryResult,
       GetTenantPartnerByIdQueryVariables
-    >(GET_TENANT_PARTNER_BY_ID, {
+    >(GET_TENANT_PARTNER_BY_ID(), {
       id: tenantPartnerId,
     });
-    if (!tenantPartnerResponse.TenantPartners_by_pk) {
+    const tenantPartnerRaw = tenantPartnerResponse.TenantPartners_by_pk;
+    if (!tenantPartnerRaw) {
       this.logger.error(
         'Tenant partner not found, unable to complete command',
         {
@@ -478,7 +480,9 @@ export class CommandExecutor {
       return;
     }
     const tenantPartner =
-      tenantPartnerResponse.TenantPartners_by_pk as TenantPartnerDto;
+      mergeTenantPartnerOcpiIntegration(
+        tenantPartnerRaw as Record<string, unknown>,
+      ) as TenantPartnerDto;
 
     const commandHandler = this.getCommandHandler(
       ocppVersion,

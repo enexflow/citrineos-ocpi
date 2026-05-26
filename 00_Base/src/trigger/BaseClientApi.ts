@@ -29,6 +29,7 @@ import type {
 import {
   GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT,
   LIST_TENANT_PARTNERS_BY_CPO,
+  mergeTenantPartnerOcpiIntegration,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
 import type { PaginatedParams } from './param/PaginatedParams.js';
@@ -122,13 +123,15 @@ export abstract class BaseClientApi {
       const response = await this.ocpiGraphqlClient.request<
         GetTenantPartnerByCpoClientAndModuleIdQueryResult,
         GetTenantPartnerByCpoClientAndModuleIdQueryVariables
-      >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
+      >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT(), {
         cpoCountryCode: fromCountryCode,
         cpoPartyId: fromPartyId,
         clientCountryCode: toCountryCode,
         clientPartyId: toPartyId,
       });
-      const partner = response.TenantPartners[0] as TenantPartnerDto;
+      const partner = mergeTenantPartnerOcpiIntegration(
+        response.TenantPartners[0] as Record<string, unknown>,
+      ) as TenantPartnerDto;
       partnerProfile = partner.partnerProfileOCPI!;
     }
     if (!url) {
@@ -284,13 +287,19 @@ export abstract class BaseClientApi {
     const response = await this.ocpiGraphqlClient.request<
       TenantPartnersListQueryResult,
       TenantPartnersListQueryVariables
-    >(LIST_TENANT_PARTNERS_BY_CPO, {
+    >(LIST_TENANT_PARTNERS_BY_CPO(), {
       cpoCountryCode,
       cpoPartyId,
       endpointIdentifier: `${moduleId}_${interfaceRole}`,
     });
-    const partners = response.TenantPartners as TenantPartnerDto[];
-    for (const partner of partners) {
+    const partners = response.TenantPartners as unknown as Record<
+      string,
+      unknown
+    >[];
+    for (const raw of partners) {
+      const partner = mergeTenantPartnerOcpiIntegration(
+        raw,
+      ) as TenantPartnerDto;
       this.logger.debug(
         `Requesting partner ${partner.countryCode}_${partner.partyId}`,
       );

@@ -28,6 +28,43 @@ import { gql } from 'graphql-request';
 //   }
 // `;
 
+/** Persists OCPI partner profile JSON on OcpiIntegrations (linked from TenantPartners.ocpiIntegrationId). */
+export const UPDATE_OCPI_INTEGRATION_PROFILE = gql`
+  mutation UpdateOcpiIntegrationProfile($id: Int!, $partnerProfileOCPI: jsonb!) {
+    update_OcpiIntegrations_by_pk(
+      pk_columns: { id: $id }
+      _set: { partnerProfileOCPI: $partnerProfileOCPI }
+    ) {
+      id
+      partnerProfileOCPI
+    }
+  }
+`;
+
+export const INSERT_OCPI_INTEGRATION_ONE = gql`
+  mutation InsertOcpiIntegrationOne($partnerProfileOCPI: jsonb!) {
+    insert_OcpiIntegrations_one(object: { partnerProfileOCPI: $partnerProfileOCPI }) {
+      id
+      partnerProfileOCPI
+    }
+  }
+`;
+
+export const LINK_TENANT_PARTNER_OCPI_INTEGRATION = gql`
+  mutation LinkTenantPartnerOcpiIntegration(
+    $partnerId: Int!
+    $ocpiIntegrationId: Int!
+  ) {
+    update_TenantPartners(
+      where: { id: { _eq: $partnerId } }
+      _set: { ocpiIntegrationId: $ocpiIntegrationId }
+    ) {
+      affected_rows
+    }
+  }
+`;
+
+/** @deprecated Profiles live on OcpiIntegrations; use UPDATE_OCPI_INTEGRATION_PROFILE + linkage instead. */
 export const UPDATE_TENANT_PARTNER_PROFILE = gql`
   mutation UpdateTenantPartnerProfile($partnerId: Int!, $input: jsonb!) {
     update_TenantPartners(

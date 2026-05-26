@@ -22,6 +22,7 @@ import type {
 } from '../../graphql/index.js';
 import {
   GET_TENANT_PARTNER_BY_SERVER_TOKEN,
+  mergeTenantPartnerOcpiIntegration,
   OcpiGraphqlClient,
 } from '../../graphql/index.js';
 
@@ -75,9 +76,11 @@ export class AuthMiddleware
         const response = await this.ocpiGraphqlClient.request<
           GetTenantPartnerByServerTokenQueryResult,
           GetTenantPartnerByServerTokenQueryVariables
-        >(GET_TENANT_PARTNER_BY_SERVER_TOKEN, { serverToken: token });
+        >(GET_TENANT_PARTNER_BY_SERVER_TOKEN(), { serverToken: token });
 
-        const tenantPartner = response.TenantPartners[0];
+        const tenantPartner = mergeTenantPartnerOcpiIntegration(
+          response.TenantPartners[0] as Record<string, unknown>,
+        );
         if (!tenantPartner) {
           logger.debug(
             `Authorization failed - tenant partner not found for token`,
@@ -113,14 +116,20 @@ export class AuthMiddleware
             fromCountryCode && fromPartyId && toCountryCode && toPartyId;
 
           if (hasRoutingHeaders) {
+            const tpTenant = tenantPartner.tenant;
+            if (!tpTenant || !tpTenant.countryCode || !tpTenant.partyId) {
+              throw new UnauthorizedException(
+                'Credentials not found for given token',
+              );
+            }
             if (
               tenantPartner.countryCode !== fromCountryCode ||
               tenantPartner.partyId !== fromPartyId ||
-              tenantPartner.tenant.countryCode !== toCountryCode ||
-              tenantPartner.tenant.partyId !== toPartyId
+              tpTenant.countryCode !== toCountryCode ||
+              tpTenant.partyId !== toPartyId
             ) {
               logger.debug(
-                `String token matched tenantPartner with incorrect routing headers - ${tenantPartner.countryCode}:${fromCountryCode}, ${tenantPartner.partyId}:${fromPartyId}, ${tenantPartner.tenant.countryCode}:${toCountryCode}, ${tenantPartner.tenant.partyId}:${toPartyId}`,
+                `String token matched tenantPartner with incorrect routing headers - ${tenantPartner.countryCode}:${fromCountryCode}, ${tenantPartner.partyId}:${fromPartyId}, ${tpTenant.countryCode}:${toCountryCode}, ${tpTenant.partyId}:${toPartyId}`,
               );
               throw new UnauthorizedException(
                 'Credentials not found for given token',

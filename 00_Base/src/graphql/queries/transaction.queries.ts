@@ -4,6 +4,8 @@
 
 import { gql } from 'graphql-request';
 
+import { TENANT_PARTNER_OCPI_GRAPHQL_RELATION } from './tenantPartner.queries.js';
+
 export const GET_TRANSACTIONS_QUERY = gql`
   query GetTransactions(
     $offset: Int
@@ -57,7 +59,8 @@ export const GET_TRANSACTIONS_QUERY = gql`
   }
 `;
 
-export const GET_TRANSACTION_BY_TRANSACTION_ID_QUERY = gql`
+export function GET_TRANSACTION_BY_TRANSACTION_ID_QUERY(): string {
+  return `
   query GetTransactionByTransactionId($transactionId: String!) {
     Transactions(where: { transactionId: { _eq: $transactionId } }) {
       tenant: Tenant {
@@ -88,7 +91,11 @@ export const GET_TRANSACTION_BY_TRANSACTION_ID_QUERY = gql`
           id
           countryCode
           partyId
-          partnerProfileOCPI
+          ocpiIntegrationId
+          ${TENANT_PARTNER_OCPI_GRAPHQL_RELATION} {
+            id
+            partnerProfileOCPI
+          }
           tenant: Tenant {
             id
             countryCode
@@ -120,3 +127,4 @@ export const GET_TRANSACTION_BY_TRANSACTION_ID_QUERY = gql`
     }
   }
 `;
+}

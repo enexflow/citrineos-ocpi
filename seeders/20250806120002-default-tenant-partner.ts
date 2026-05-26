@@ -76,14 +76,30 @@ export default {
       },
     };
 
+    const profileJson = JSON.stringify(partnerProfileOCPI);
+    const seedTime = new Date('2025-08-07T17:55:00+00:00');
+
+    const ocpiIntegration = {
+      id: 1,
+      partnerProfileOCPI: profileJson,
+      createdAt: seedTime,
+      updatedAt: seedTime,
+    };
+
+    await queryInterface.bulkInsert(
+      'OcpiIntegrations',
+      [ocpiIntegration],
+      {} as QueryOptions,
+    );
+
     const tenantPartner = {
       id: 1,
       tenantId: 1,
       partyId: 'TST',
       countryCode: 'US',
-      partnerProfileOCPI: JSON.stringify(partnerProfileOCPI),
-      createdAt: new Date('2025-08-07T17:55:00+00:00'),
-      updatedAt: new Date('2025-08-07T17:55:00+00:00'),
+      ocpiIntegrationId: 1,
+      createdAt: seedTime,
+      updatedAt: seedTime,
     };
 
     await queryInterface.bulkInsert(
@@ -96,6 +112,11 @@ export default {
   down: async (queryInterface: QueryInterface) => {
     await queryInterface.bulkDelete(
       'TenantPartners',
+      { id: 1 },
+      {} as QueryOptions,
+    );
+    await queryInterface.bulkDelete(
+      'OcpiIntegrations',
       { id: 1 },
       {} as QueryOptions,
     );

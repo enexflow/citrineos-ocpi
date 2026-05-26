@@ -48,6 +48,7 @@ import {
   GET_TARIFF_ID_BY_OCPI_ID_QUERY,
   DELETE_TARIFF_ELEMENTS_MUTATION,
   GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT,
+  mergeTenantPartnerOcpiIntegration,
 } from '../graphql/index.js';
 import { NotFoundException } from '../exception/NotFoundException.js';
 import { TariffMapper, type TariffMapInput } from '../mapper/index.js';
@@ -302,21 +303,22 @@ export class TariffsService {
     const tenantPartner = await this.ocpiGraphqlClient.request<
       GetTenantPartnerByCpoClientAndModuleIdQueryResult,
       GetTenantPartnerByCpoClientAndModuleIdQueryVariables
-    >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
+    >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT(), {
       cpoCountryCode: ourCountryCode,
       cpoPartyId: ourPartyId,
       clientCountryCode: cpoCountryCode,
       clientPartyId: cpoPartyId,
     });
 
-    const partnerRow = tenantPartner.TenantPartners[0];
-    if (!partnerRow?.partnerProfileOCPI) {
+    const mergedPartner = mergeTenantPartnerOcpiIntegration(
+      tenantPartner.TenantPartners[0] as Record<string, unknown>,
+    );
+    if (!mergedPartner?.partnerProfileOCPI) {
       throw new Error('Tenant partner missing partnerProfileOCPI');
     }
-    const partner = partnerRow as TenantPartnerDto;
+    const partner = mergedPartner as TenantPartnerDto;
 
-    const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
-      .endpoints as Endpoint[];
+    const endpoints = mergedPartner.partnerProfileOCPI!.endpoints as Endpoint[];
     const url = endpoints.find(
       (e: Endpoint) => e.identifier === 'tariffs_SENDER',
     )?.url;
@@ -347,7 +349,7 @@ export class TariffsService {
         cpoPartyId,
         HttpMethod.Get,
         z.any(),
-        tenantPartner.TenantPartners[0].partnerProfileOCPI!,
+        mergedPartner.partnerProfileOCPI!,
         true,
         url,
         undefined,

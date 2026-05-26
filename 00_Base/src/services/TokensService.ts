@@ -13,6 +13,7 @@ import {
   GET_CHARGING_STATION_BY_ID_QUERY,
   GET_GROUP_AUTHORIZATION,
   GET_TENANT_PARTNER_BY_ID,
+  mergeTenantPartnerOcpiIntegration,
   OcpiGraphqlClient,
   READ_AUTHORIZATION,
   UPDATE_TOKEN_MUTATION,
@@ -23,6 +24,7 @@ import type {
   AuthorizationDto,
   ChargingStationDto,
   TenantDto,
+  TenantPartnerDto,
 } from '@zetra/citrineos-base';
 import { AuthorizationStatusEnum, IdTokenEnum } from '@zetra/citrineos-base';
 import type {
@@ -340,13 +342,16 @@ export class TokensService {
     const tenantPartnerResponse = await this.ocpiGraphqlClient.request<
       GetTenantPartnerByIdQueryResult,
       GetTenantPartnerByIdQueryVariables
-    >(GET_TENANT_PARTNER_BY_ID, { id: realTimeAuthRequest.tenantPartnerId });
-    if (!tenantPartnerResponse.TenantPartners_by_pk) {
+    >(GET_TENANT_PARTNER_BY_ID(), { id: realTimeAuthRequest.tenantPartnerId });
+    const tenantPartnerRaw = tenantPartnerResponse.TenantPartners_by_pk;
+    if (!tenantPartnerRaw) {
       throw new InvalidParamException(
         `Unknown tenant partner ${realTimeAuthRequest.tenantPartnerId}`,
       );
     }
-
+    const tenantPartner = mergeTenantPartnerOcpiIntegration(
+      tenantPartnerRaw as Record<string, unknown>,
+    ) as TenantPartnerDto;
     let locationReferences: LocationReferences | undefined;
     if (realTimeAuthRequest.locationId && realTimeAuthRequest.stationId) {
       const chargingStationResponse = await this.ocpiGraphqlClient.request<
@@ -374,13 +379,25 @@ export class TokensService {
       };
     }
 
-    const tenantPartner = tenantPartnerResponse.TenantPartners_by_pk;
+    const tpTenant = tenantPartner.tenant;
+    if (
+      !tpTenant ||
+      tpTenant.countryCode == null ||
+      tpTenant.partyId == null ||
+      tenantPartner.countryCode == null ||
+      tenantPartner.partyId == null
+    ) {
+      throw new InvalidParamException(
+        'Tenant partner is missing Tenant or OCPI identifiers',
+      );
+    }
+
     this.logger.info('getting real time auth response');
     const postTokenResult = await this.tokensClientApi.postToken(
-      tenantPartner.tenant.countryCode!,
-      tenantPartner.tenant.partyId!,
-      tenantPartner.countryCode!,
-      tenantPartner.partyId!,
+      tpTenant.countryCode,
+      tpTenant.partyId,
+      tenantPartner.countryCode,
+      tenantPartner.partyId,
       tenantPartner.partnerProfileOCPI!,
       realTimeAuthRequest.idToken,
       TokensMapper.mapOcppIdTokenTypeToOcpiTokenType(

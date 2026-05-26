@@ -11,6 +11,7 @@ import {
   type Image,
   OCPIVersionNumberEnum,
 } from '@zetra/citrineos-base';
+import { BadRequestError, NotFoundError } from 'routing-controllers';
 import type { CredentialsDTO } from '../index.js';
 import { ImageCategory, ImageType, Role, VersionNumber } from '../index.js';
 import { EndpointIdentifier } from '../model/EndpointIdentifier.js';
@@ -25,9 +26,28 @@ export class RegistrationMapper {
   static tenantPartnerToCredentialsDto(
     partner: TenantPartnerDto,
   ): CredentialsDTO {
-    const partnerProfile = partner.partnerProfileOCPI!;
-    const tenant = partner.tenant!;
-    const serverProfile = tenant.serverProfileOCPI!;
+    const partnerProfile = partner.partnerProfileOCPI;
+    if (partnerProfile == null) {
+      throw new BadRequestError('TenantPartner has no partnerProfileOCPI');
+    }
+    if (partnerProfile.serverCredentials == null) {
+      throw new BadRequestError(
+        'Partner OCPI profile is missing serverCredentials (token / versions URL)',
+      );
+    }
+    const tenant = partner.tenant;
+    if (tenant == null) {
+      throw new NotFoundError(
+        'TenantPartner has no Tenant relation; reload via GraphQL with tenant nested selection',
+      );
+    }
+    const serverProfile = tenant.serverProfileOCPI;
+    const credentialsRole = serverProfile?.credentialsRole;
+    if (credentialsRole == null) {
+      throw new NotFoundError(
+        'CPO tenant is missing serverProfileOCPI.credentialsRole; configure server_profile_ocpi on the Tenant row used as receiver (party / country)',
+      );
+    }
     return {
       token: partnerProfile.serverCredentials.token!,
       url: partnerProfile.serverCredentials.versionsUrl,
@@ -35,7 +55,7 @@ export class RegistrationMapper {
         RegistrationMapper.toCredentialsRoleDto(
           tenant.countryCode!,
           tenant.partyId!,
-          serverProfile.credentialsRole,
+          credentialsRole,
         ),
       ],
     };

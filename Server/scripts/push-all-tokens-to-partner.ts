@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT } from '@citrineos/ocpi-base';
+import {
+  GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT,
+  mergeTenantPartnerOcpiIntegration,
+} from '@citrineos/ocpi-base';
 import { TokensMapper } from '@citrineos/ocpi-base/src/mapper/TokensMapper.js';
 import type { Endpoint } from '@zetra/citrineos-base';
 import dotenv from 'dotenv';
@@ -48,13 +51,15 @@ async function gql(query: string, variables: Record<string, any> = {}) {
 }
 
 async function getPartnerInfo() {
-  const data = await gql(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
+  const data = await gql(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT(), {
     cpoCountryCode: OUR_COUNTRY_CODE,
     cpoPartyId: OUR_PARTY_ID,
     clientCountryCode: PARTNER_COUNTRY_CODE,
     clientPartyId: PARTNER_PARTY_ID,
   });
-  return data.TenantPartners[0];
+  return mergeTenantPartnerOcpiIntegration(
+    data.TenantPartners[0] as Record<string, unknown>,
+  )!;
 }
 
 function getTokensReceiverUrl(endpoints: Endpoint[] | undefined): string {
@@ -141,8 +146,24 @@ async function main() {
 
     // Get partner info
     const partnerInfo = await getPartnerInfo();
-    const url = getTokensReceiverUrl(partnerInfo.partnerProfileOCPI.endpoints);
-    const authorizationToken = partnerInfo.partnerProfileOCPI.credentials.token;
+    const ocpiProfile = partnerInfo.partnerProfileOCPI;
+    if (!ocpiProfile?.endpoints) {
+      throw new Error(
+        'Partner missing partnerProfileOCPI or endpoints — check OcpiIntegrations link',
+      );
+    }
+    const authToken = ocpiProfile.credentials?.token;
+    if (authToken == null || authToken === '') {
+      throw new Error(
+        'Partner missing partnerProfileOCPI.credentials.token — finish OCPI registration',
+      );
+    }
+    const tenant = partnerInfo.tenant;
+    if (tenant?.id == null) {
+      throw new Error('Partner row missing linked Tenant');
+    }
+    const partnerTenantId = tenant.id;
+    const url = getTokensReceiverUrl(ocpiProfile.endpoints);
     const tokens = data.Authorizations;
 
     console.log('sending tokens to partner url :', url);
@@ -152,8 +173,6 @@ async function main() {
     }
     for (const token of tokens) {
       try {
-        const partnerTenantId = partnerInfo.tenant.id;
-
         const tokenHasPartnerTenant = token.tenants?.some(
           (t: any) => t.tenantId === partnerTenantId,
         );
@@ -164,7 +183,7 @@ async function main() {
         }
         const tokenDto = TokensMapper.toDto(token);
         // Send token to partner
-        await putTokenToPartner(tokenDto, url, authorizationToken);
+        await putTokenToPartner(tokenDto, url, authToken);
         pushed++;
       } catch (e) {
         console.error('Error pushing token to partner', e);

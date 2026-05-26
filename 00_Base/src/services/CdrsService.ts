@@ -21,7 +21,11 @@ import type {
 } from '../graphql/index.js';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT } from '../graphql/index.js';
-import { GET_TRANSACTIONS_QUERY, OcpiGraphqlClient } from '../graphql/index.js';
+import {
+  GET_TRANSACTIONS_QUERY,
+  mergeTenantPartnerOcpiIntegration,
+  OcpiGraphqlClient,
+} from '../graphql/index.js';
 import { CdrMapper } from '../mapper/index.js';
 import type { TenantPartnerDto, TransactionDto } from '@zetra/citrineos-base';
 import { NotFoundException } from '../exception/NotFoundException.js';
@@ -248,21 +252,22 @@ export class CdrsService {
     const tenantPartner = await this.ocpiGraphqlClient.request<
       GetTenantPartnerByCpoClientAndModuleIdQueryResult,
       GetTenantPartnerByCpoClientAndModuleIdQueryVariables
-    >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
+    >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT(), {
       cpoCountryCode: ourCountryCode,
       cpoPartyId: ourPartyId,
       clientCountryCode: cpoCountryCode,
       clientPartyId: cpoPartyId,
     });
 
-    const partnerRow = tenantPartner.TenantPartners[0];
-    if (!partnerRow?.partnerProfileOCPI) {
+    const mergedPartner = mergeTenantPartnerOcpiIntegration(
+      tenantPartner.TenantPartners[0] as Record<string, unknown>,
+    );
+    if (!mergedPartner?.partnerProfileOCPI) {
       throw new Error('Tenant partner missing partnerProfileOCPI');
     }
-    const partner = partnerRow as TenantPartnerDto;
+    const partner = mergedPartner as TenantPartnerDto;
 
-    const endpoints = tenantPartner.TenantPartners[0].partnerProfileOCPI!
-      .endpoints as Endpoint[];
+    const endpoints = mergedPartner.partnerProfileOCPI!.endpoints as Endpoint[];
     const url = endpoints.find(
       (e: Endpoint) => e.identifier === 'cdrs_SENDER',
     )?.url;
@@ -293,7 +298,7 @@ export class CdrsService {
         cpoPartyId,
         HttpMethod.Get,
         z.any(),
-        tenantPartner.TenantPartners[0].partnerProfileOCPI!,
+        mergedPartner.partnerProfileOCPI!,
         true,
         url,
         undefined,

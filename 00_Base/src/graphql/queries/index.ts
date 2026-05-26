@@ -9,6 +9,7 @@ export * from './location.queries.js';
 export * from './tariff.queries.js';
 export * from './tenant.mutations.js';
 export * from './tenantPartner.queries.js';
+export * from './tenantPartnerOcpiIntegration.js';
 export * from './tenantVersionEndpoints.queries.js';
 export * from './session.queries.js';
 export * from './token.queries.js';

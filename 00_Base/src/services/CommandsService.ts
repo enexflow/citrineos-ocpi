@@ -206,7 +206,7 @@ export class CommandsService {
     const transactionResponse = await this.ocpiGraphqlClient.request<
       GetTransactionByTransactionIdQueryResult,
       GetTransactionByTransactionIdQueryVariables
-    >(GET_TRANSACTION_BY_TRANSACTION_ID_QUERY, {
+    >(GET_TRANSACTION_BY_TRANSACTION_ID_QUERY(), {
       transactionId: stopSession.session_id,
     });
     if (!transactionResponse.Transactions[0]) {

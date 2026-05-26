@@ -126,7 +126,7 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
       const fullTransactionDtoResponse = await this.ocpiGraphqlClient.request<
         GetTransactionByTransactionIdQueryResult,
         GetTransactionByTransactionIdQueryVariables
-      >(GET_TRANSACTION_BY_TRANSACTION_ID_QUERY, {
+      >(GET_TRANSACTION_BY_TRANSACTION_ID_QUERY(), {
         transactionId: transactionDto.transactionId!,
       });
 

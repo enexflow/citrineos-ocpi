@@ -2,21 +2,40 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * Hasura exposes this nested field on `TenantPartners` for `OcpiIntegrations` (FK).
+ * Query helpers return strings (`QUERY()`, not gql documents) so this name is interpolated.
+ */
+
 import { gql } from 'graphql-request';
 
-export const GET_TENANT_PARTNER_BY_SERVER_TOKEN = gql`
+export const TENANT_PARTNER_OCPI_GRAPHQL_RELATION = 'OcpiIntegration';
+
+function ocpiNestedSelection(): string {
+  return `
+      ocpiIntegrationId
+      ${TENANT_PARTNER_OCPI_GRAPHQL_RELATION} {
+        id
+        partnerProfileOCPI
+      }`;
+}
+
+export function GET_TENANT_PARTNER_BY_SERVER_TOKEN(): string {
+  return `
   query GetTenantPartnerByServerToken($serverToken: String!) {
     TenantPartners(
       where: {
-        partnerProfileOCPI: {
-          _contains: { serverCredentials: { token: $serverToken } }
+        ${TENANT_PARTNER_OCPI_GRAPHQL_RELATION}: {
+          partnerProfileOCPI: {
+            _contains: { serverCredentials: { token: $serverToken } }
+          }
         }
       }
     ) {
       id
       countryCode
       partyId
-      partnerProfileOCPI
+${ocpiNestedSelection()}
       tenantId
       tenant: Tenant {
         id
@@ -27,6 +46,7 @@ export const GET_TENANT_PARTNER_BY_SERVER_TOKEN = gql`
     }
   }
 `;
+}
 
 /** Resolve a TenantPartner row by OCPI country_code + party_id (e.g. Receiver URL segment). */
 export const GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY = gql`
@@ -43,13 +63,18 @@ export const GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY = gql`
   }
 `;
 
-export const GET_TENANT_PARTNER_BY_ID = gql`
+export function GET_TENANT_PARTNER_BY_ID(): string {
+  return `
   query GetTenantPartnerById($id: Int!) {
     TenantPartners_by_pk(id: $id) {
       id
       countryCode
       partyId
-      partnerProfileOCPI
+      ocpiIntegrationId
+      ${TENANT_PARTNER_OCPI_GRAPHQL_RELATION} {
+        id
+        partnerProfileOCPI
+      }
       tenantId
       tenant: Tenant {
         id
@@ -60,13 +85,17 @@ export const GET_TENANT_PARTNER_BY_ID = gql`
     }
   }
 `;
+}
 
-export const DELETE_TENANT_PARTNER_BY_SERVER_TOKEN = gql`
+export function DELETE_TENANT_PARTNER_BY_SERVER_TOKEN(): string {
+  return `
   mutation DeleteTenantPartnerByServerToken($serverToken: String!) {
     delete_TenantPartners(
       where: {
-        partnerProfileOCPI: {
-          _contains: { serverCredentials: { token: $serverToken } }
+        ${TENANT_PARTNER_OCPI_GRAPHQL_RELATION}: {
+          partnerProfileOCPI: {
+            _contains: { serverCredentials: { token: $serverToken } }
+          }
         }
       }
     ) {
@@ -74,8 +103,10 @@ export const DELETE_TENANT_PARTNER_BY_SERVER_TOKEN = gql`
     }
   }
 `;
+}
 
-export const GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT = gql`
+export function GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT(): string {
+  return `
   query GetTenantPartnerByCpoClientAndModuleId(
     $cpoCountryCode: String!
     $cpoPartyId: String!
@@ -95,7 +126,11 @@ export const GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT = gql`
       id
       countryCode
       partyId
-      partnerProfileOCPI
+      ocpiIntegrationId
+      ${TENANT_PARTNER_OCPI_GRAPHQL_RELATION} {
+        id
+        partnerProfileOCPI
+      }
       tenantId
       tenant: Tenant {
         id
@@ -106,8 +141,10 @@ export const GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT = gql`
     }
   }
 `;
+}
 
-export const LIST_TENANT_PARTNERS_BY_CPO = gql`
+export function LIST_TENANT_PARTNERS_BY_CPO(): string {
+  return `
   query TenantPartnersList(
     $cpoCountryCode: String!
     $cpoPartyId: String!
@@ -119,15 +156,21 @@ export const LIST_TENANT_PARTNERS_BY_CPO = gql`
           countryCode: { _eq: $cpoCountryCode }
           partyId: { _eq: $cpoPartyId }
         }
-        partnerProfileOCPI: {
-          _contains: { endpoints: [{ identifier: $endpointIdentifier }] }
+        ${TENANT_PARTNER_OCPI_GRAPHQL_RELATION}: {
+          partnerProfileOCPI: {
+            _contains: { endpoints: [{ identifier: $endpointIdentifier }] }
+          }
         }
       }
     ) {
       id
       countryCode
       partyId
-      partnerProfileOCPI
+      ocpiIntegrationId
+      ${TENANT_PARTNER_OCPI_GRAPHQL_RELATION} {
+        id
+        partnerProfileOCPI
+      }
       tenantId
       tenant: Tenant {
         id
@@ -138,3 +181,6 @@ export const LIST_TENANT_PARTNERS_BY_CPO = gql`
     }
   }
 `;
+}
+
+
