@@ -7,8 +7,6 @@ import { TokensModuleApi } from './module/TokensModuleApi.js';
 import {
   AbstractDtoModule,
   AsDtoEventHandler,
-  Role,
-  shouldBroadcast,
   type IDtoEvent,
   type OcpiConfig,
 } from '@citrineos/ocpi-base';
@@ -63,7 +61,12 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       'Handling Authorization Insert:',
       event,
     );
-    if (event._payload.tenantPartnerId) return;
+    if (event._payload.tenantPartnerId) {
+      this._logger.debug(
+        'Authorization Insert for tenant partner, skipping broadcast.',
+      );
+      return;
+    }
     const authorizationDto = event._payload;
 
     const tenants = authorizationDto.tenants as unknown as
@@ -78,16 +81,7 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
     for (const tenant of tenants) {
-      if (
-        !tenant ||
-        !shouldBroadcast(
-          tenant,
-          Role.EMSP,
-          event._context,
-          this._logger,
-          String(authorizationDto.id),
-        )
-      ) {
+      if (!tenant) {
         continue;
       }
       await this.tokenBroadcaster.broadcastPutToken(tenant, authorizationDto);
@@ -108,7 +102,12 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       'Handling Authorization Update:',
       event,
     );
-    if (event._payload.tenantPartnerId) return;
+    if (event._payload.tenantPartnerId) {
+      this._logger.debug(
+        'Authorization Update for tenant partner, skipping broadcast.',
+      );
+      return;
+    }
     const authorizationDto = event._payload;
     const tenants = authorizationDto.tenants as unknown as
       | TenantDto[]
@@ -122,16 +121,7 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
     for (const tenant of tenants) {
-      if (
-        !tenant ||
-        !shouldBroadcast(
-          tenant,
-          Role.EMSP,
-          event._context,
-          this._logger,
-          String(authorizationDto.id),
-        )
-      ) {
+      if (!tenant) {
         return;
       }
       await this.tokenBroadcaster.broadcastPatchToken(
@@ -155,7 +145,15 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       'Handling Authorization Delete:',
       event,
     );
-    if (event._payload.tenantPartnerId) return;
+    if (event._payload.tenantPartnerId) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        'Authorization Delete for tenant partner, skipping broadcast.',
+        event,
+      );
+      return;
+    }
     const authorizationDto = event._payload;
     const tenants = authorizationDto.tenants as unknown as
       | TenantDto[]
@@ -168,16 +166,7 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
     for (const tenant of tenants) {
-      if (
-        !tenant ||
-        !shouldBroadcast(
-          tenant,
-          Role.EMSP,
-          event._context,
-          this._logger,
-          String(authorizationDto.id),
-        )
-      ) {
+      if (!tenant) {
         continue;
       }
       await this.tokenBroadcaster.broadcastDeleteToken(

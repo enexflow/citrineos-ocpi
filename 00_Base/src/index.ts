@@ -301,6 +301,7 @@ export {
 export { ResponseSchema } from './openapi-spec-helper/decorators.js';
 export { BaseClientApi } from './trigger/BaseClientApi.js';
 export { LocationsClientApi } from './trigger/LocationsClientApi.js';
+export { PartnerMtlsCertificateService } from './util/PartnerMtlsCertificateService.js';
 
 export { CommandsService } from './services/CommandsService.js';
 export { CredentialsService } from './services/CredentialsService.js';
@@ -450,6 +451,7 @@ export class OcpiServer extends KoaServer {
             '[Request]',
             ctx.method,
             ctx.path,
+            ctx.url,
             rawBody || '(empty)',
           );
 
@@ -538,4 +540,4 @@ export {
 export { ChargingProfileResponseSchemaName } from './model/ChargingProfileResponse.js';
 export { ChargingProfileResponseSchema } from './model/ChargingProfileResponse.js';
 export { DB_BROADCAST_LOG_PREFIX, logDbBroadcast } from './util/logging.js';
-export { shouldBroadcast } from './util/helpers.js';
+export { shouldBroadcastToPartner } from './util/helpers.js';

@@ -68,11 +68,11 @@ export class TokensClientApi extends BaseClientApi {
     tokenId: string,
     tokenType?: TokenType,
     body?: LocationReferences,
+    awsSecretCertificateArn?: string | null,
   ): Promise<AuthorizationInfoResponse> {
     const path = `${tokenId}/authorize`;
-    const otherParams: Record<string, string> | undefined = tokenType && {
-      type: tokenType,
-    };
+    const tokenTypeParam = tokenType ? { type: tokenType } : undefined;
+
     return this.request(
       fromCountryCode,
       fromPartyId,
@@ -85,7 +85,9 @@ export class TokensClientApi extends BaseClientApi {
       `${this.getUrl(partnerProfile)}/${path}`,
       body,
       undefined,
-      otherParams,
+      tokenTypeParam,
+      undefined,
+      awsSecretCertificateArn ?? undefined,
     );
   }
 }

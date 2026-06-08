@@ -17,12 +17,18 @@ export const GET_TENANT_PARTNER_BY_SERVER_TOKEN = gql`
       countryCode
       partyId
       partnerProfileOCPI
+      awsSecretCertificateArn
       tenantId
       tenant: Tenant {
         id
         countryCode
         partyId
         serverProfileOCPI
+      }
+      roamingPartners: RoamingPartners {
+        id
+        countryCode
+        partyId
       }
     }
   }
@@ -50,6 +56,7 @@ export const GET_TENANT_PARTNER_BY_ID = gql`
       countryCode
       partyId
       partnerProfileOCPI
+      awsSecretCertificateArn
       tenantId
       tenant: Tenant {
         id
@@ -96,12 +103,18 @@ export const GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT = gql`
       countryCode
       partyId
       partnerProfileOCPI
+      awsSecretCertificateArn
       tenantId
       tenant: Tenant {
         id
         countryCode
         partyId
         serverProfileOCPI
+      }
+      roamingPartners: RoamingPartners {
+        id
+        countryCode
+        partyId
       }
     }
   }
@@ -128,6 +141,7 @@ export const LIST_TENANT_PARTNERS_BY_CPO = gql`
       countryCode
       partyId
       partnerProfileOCPI
+      awsSecretCertificateArn
       tenantId
       tenant: Tenant {
         id

@@ -18,7 +18,6 @@ import {
   OcpiGraphqlClient,
   OcpiModule,
   RabbitMqDtoReceiver,
-  Role,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -31,7 +30,7 @@ import type {
   TenantDto,
 } from '@zetra/citrineos-base';
 import { Inject, Service } from 'typedi';
-import { logDbBroadcast, shouldBroadcast } from '@citrineos/ocpi-base';
+import { logDbBroadcast } from '@citrineos/ocpi-base';
 
 export { LocationsModuleApi } from './module/LocationsModuleApi.js';
 export type { ILocationsModuleApi } from './module/ILocationsModuleApi.js';
@@ -89,19 +88,16 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     logDbBroadcast(this._logger, 'debug', 'Handling Location Insert:', event);
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.CPO,
-        event._context,
+    // if the location is owned by a tenant partner, don't broadcast
+    if ((locationDto as any).ownerTenantPartnerId != null) {
+      logDbBroadcast(
         this._logger,
-        String(locationDto.id),
-      )
-    ) {
+        'debug',
+        'Location Insert for tenant partner, skipping broadcast.',
+        event,
+      );
       return;
     }
-    // if the location is owned by a tenant partner, don't broadcast
-    if ((locationDto as any).ownerTenantPartnerId != null) return;
 
     await this.locationsBroadcaster.broadcastPutLocation(tenant!, locationDto);
   }
@@ -123,23 +119,19 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const locationDto = event._payload;
     const tenant = locationDto.tenant;
 
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.CPO,
-        event._context,
-        this._logger,
-        String(locationDto.id),
-      )
-    ) {
-      return;
-    }
     // if the location is owned by a tenant partner, don't broadcast
     if (
       locationDto.ownerTenantPartnerId != null ||
       event._payload?.ownerTenantPartnerId != null
-    )
+    ) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        'Location Update for tenant partner, skipping broadcast.',
+        event,
+      );
       return;
+    }
 
     // if the location is not owned by a tenant partner, we can broadcast the update
     await this.locationsBroadcaster.broadcastPatchLocation(
@@ -176,17 +168,6 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const evseDto = event._payload;
     if ((evseDto as any).ocpiUid != null) return;
     const tenant = evseDto.tenant;
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.CPO,
-        event._context,
-        this._logger,
-        String(evseDto.id),
-      )
-    ) {
-      return;
-    }
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
       GetChargingStationByIdQueryVariables
@@ -220,22 +201,13 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     if (
       evseDto.ocpiUid != null ||
       event._payload?.ownerTenantPartner?.id != null
-    )
+    ) {
+      this._logger.debug('Evse Update for tenant partner, skipping broadcast.');
       return;
+    }
 
     // if the evse is not owned by a tenant partner, we can broadcast the update
     const tenant = evseDto.tenant;
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.CPO,
-        event._context,
-        this._logger,
-        String(evseDto.id),
-      )
-    ) {
-      return;
-    }
 
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
@@ -267,17 +239,6 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const connectorDto = event._payload;
     const tenant = connectorDto.tenant;
     if ((connectorDto as any).ocpiId != null) return;
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.CPO,
-        event._context,
-        this._logger,
-        String(connectorDto.id),
-      )
-    ) {
-      return;
-    }
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
       GetChargingStationByIdQueryVariables
@@ -317,17 +278,6 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
 
     // if the connector is not owned by a tenant partner, we can broadcast the update
     const tenant = connectorDto.tenant;
-    if (
-      !shouldBroadcast(
-        tenant,
-        Role.CPO,
-        event._context,
-        this._logger,
-        String(connectorDto.id),
-      )
-    ) {
-      return;
-    }
 
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,

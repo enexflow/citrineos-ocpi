@@ -24,6 +24,8 @@ import {
   GET_TENANT_PARTNER_BY_SERVER_TOKEN,
   OcpiGraphqlClient,
 } from '../../graphql/index.js';
+import { getRoamingPartner } from '../helpers.js';
+import type { TenantPartnerDto } from '@zetra/citrineos-base';
 
 const permittedRoutes: string[] = ['/docs', '/docs/spec', '/favicon.png'];
 const registrationModules: string[] = ['versions', 'credentials'];
@@ -86,7 +88,6 @@ export class AuthMiddleware
             'Credentials not found for given token',
           );
         }
-
         if (
           !registrationModules.some((value) =>
             (context.request.originalUrl as string).includes(value),
@@ -113,18 +114,29 @@ export class AuthMiddleware
             fromCountryCode && fromPartyId && toCountryCode && toPartyId;
 
           if (hasRoutingHeaders) {
-            if (
-              tenantPartner.countryCode !== fromCountryCode ||
-              tenantPartner.partyId !== fromPartyId ||
-              tenantPartner.tenant.countryCode !== toCountryCode ||
-              tenantPartner.tenant.partyId !== toPartyId
-            ) {
+            const roamingPartner = getRoamingPartner(
+              tenantPartner as TenantPartnerDto,
+              fromCountryCode,
+              fromPartyId,
+            );
+            const isFromHeaderValid =
+              (tenantPartner.countryCode === fromCountryCode &&
+                tenantPartner.partyId === fromPartyId) ||
+              roamingPartner;
+            const isToHeaderValid =
+              tenantPartner.tenant &&
+              tenantPartner.tenant?.countryCode === toCountryCode &&
+              tenantPartner.tenant?.partyId === toPartyId;
+            if (!isFromHeaderValid || !isToHeaderValid) {
               logger.debug(
                 `String token matched tenantPartner with incorrect routing headers - ${tenantPartner.countryCode}:${fromCountryCode}, ${tenantPartner.partyId}:${fromPartyId}, ${tenantPartner.tenant.countryCode}:${toCountryCode}, ${tenantPartner.tenant.partyId}:${toPartyId}`,
               );
               throw new UnauthorizedException(
                 'Credentials not found for given token',
               );
+            }
+            if (roamingPartner) {
+              context.state.roamingPartner = roamingPartner;
             }
           } else {
             const match = (context.request.path as string).match(
