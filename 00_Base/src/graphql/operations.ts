@@ -22,18 +22,26 @@ export type Scalars = {
   numeric: { input: any; output: any; }
   timestamptz: { input: any; output: any; }
   citext: { input: string; output: string; }
+  authorization_status: { input: string; output: string; }
 };
 export type Authorizations_Set_Input = {
   additionalInfo?: InputMaybe<Scalars['jsonb']['input']>;
-  status?: InputMaybe<Scalars['String']['input']>;
   language1?: InputMaybe<Scalars['String']['input']>;
   groupAuthorizationId?: InputMaybe<Scalars['Int']['input']>;
   realTimeAuth?: InputMaybe<Scalars['String']['input']>;
   updatedAt: Scalars['timestamptz']['input'];
+  status?: InputMaybe<Scalars['authorization_status']['input']>;
 };
 export type Locations_Bool_Exp = {
+  ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  removed?: InputMaybe<Boolean_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
+};
+export type Boolean_Comparison_Exp = {
+  _eq?: InputMaybe<Scalars['Boolean']['input']>;
+  _is_null?: InputMaybe<Scalars['Boolean']['input']>;
 };
 export type Tariffs_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
@@ -632,6 +640,18 @@ export type DeleteOcpiConnectorTariffMutationVariables = Exact<{
 export type DeleteOcpiConnectorTariffMutationResult = {
   delete_ConnectorTariffs?: {
     affected_rows: number
+  } | null
+};
+
+export type MarkConnectorDeletedMutationVariables = Exact<{
+  connectorId: Scalars['Int']['input'];
+  deletedAt: Scalars['timestamptz']['input'];
+}>;
+
+
+export type MarkConnectorDeletedMutationResult = {
+  update_Connectors_by_pk?: {
+    id: number
   } | null
 };
 
@@ -1268,6 +1288,7 @@ export type GetLocationByOcpiIdAndPartnerIdQueryResult = {
           vendorErrorCode?: string | null,
           createdAt: any,
           updatedAt: any,
+          deletedAt?: any | null,
           tariffs: Array<{
             id: number,
             tariffOcpiId: string,
@@ -1382,6 +1403,7 @@ export type GetLocationByOcpiIdPartnerAndRoamingPartnerIdQueryResult = {
           vendorErrorCode?: string | null,
           createdAt: any,
           updatedAt: any,
+          deletedAt?: any | null,
           tariffs: Array<{
             id: number,
             tariffOcpiId: string,
@@ -1476,31 +1498,66 @@ export type UpdateLocationPatchMutationResult = {
   } | null
 };
 
-export type SessionFieldsFragment = {
-  id: number,
-  ocpiSessionId: string,
-  countryCode: string,
-  partyId: string,
-  startDateTime: any,
-  endDateTime?: any | null,
-  kwh: any,
-  cdrToken: any,
-  authMethod: string,
-  authorizationReference?: string | null,
-  locationId: string,
-  evseUid: string,
-  connectorId: string,
-  meterId?: string | null,
-  currency: string,
-  chargingPeriods?: any | null,
-  totalCost?: any | null,
-  status: string,
-  lastUpdated: any,
-  tenantId: number,
-  tenantPartnerId: number,
-  roamingPartnerId?: number | null,
-  createdAt?: any | null,
-  updatedAt?: any | null
+export type GetKnownLocationIdsWithRoamingPartnerIdQueryVariables = Exact<{
+  partnerId: Scalars['Int']['input'];
+  roamingPartnerId: Scalars['Int']['input'];
+}>;
+
+
+export type GetKnownLocationIdsWithRoamingPartnerIdQueryResult = {
+  Locations: Array<{
+    ocpiId?: string | null,
+    id: number
+  }>
+};
+
+export type GetKnownLocationIdsQueryVariables = Exact<{
+  partnerId: Scalars['Int']['input'];
+}>;
+
+
+export type GetKnownLocationIdsQueryResult = {
+  Locations: Array<{
+    ocpiId?: string | null,
+    id: number
+  }>
+};
+
+export type MarkLocationRemovedMutationVariables = Exact<{
+  locationId: Scalars['Int']['input'];
+  deletedAt: Scalars['timestamptz']['input'];
+}>;
+
+
+export type MarkLocationRemovedMutationResult = {
+  update_Locations_by_pk?: {
+    ocpiId?: string | null,
+    id: number
+  } | null
+};
+
+export type MarkEvseRemovedMutationVariables = Exact<{
+  evseId: Scalars['Int']['input'];
+}>;
+
+
+export type MarkEvseRemovedMutationResult = {
+  update_Evses_by_pk?: {
+    id: number
+  } | null
+};
+
+export type CreateRoamingPartnerMutationVariables = Exact<{
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+  tenantPartnerId: Scalars['Int']['input'];
+}>;
+
+
+export type CreateRoamingPartnerMutationResult = {
+  insert_RoamingPartners_one?: {
+    id: number
+  } | null
 };
 
 export type FindSessionP2pQueryVariables = Exact<{
@@ -2405,10 +2462,10 @@ export type DeleteTenantPartnerByServerTokenMutationResult = {
 };
 
 export type GetTenantPartnerByCpoClientAndModuleIdQueryVariables = Exact<{
-  cpoCountryCode: Scalars['String']['input'];
-  cpoPartyId: Scalars['String']['input'];
-  clientCountryCode?: InputMaybe<Scalars['String']['input']>;
-  clientPartyId?: InputMaybe<Scalars['String']['input']>;
+  ourCountryCode: Scalars['String']['input'];
+  ourPartyId: Scalars['String']['input'];
+  partnerCountryCode?: InputMaybe<Scalars['String']['input']>;
+  partnerPartyId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 
@@ -2425,7 +2482,12 @@ export type GetTenantPartnerByCpoClientAndModuleIdQueryResult = {
       countryCode?: string | null,
       partyId?: string | null,
       serverProfileOCPI?: any | null
-    }
+    },
+    roamingPartners: Array<{
+      id: number,
+      countryCode: string,
+      partyId: string
+    }>
   }>
 };
 
@@ -2482,7 +2544,7 @@ export type ReadAuthorizationsQueryResult = {
     idToken: any,
     idTokenType?: string | null,
     additionalInfo?: any | null,
-    status: string,
+    status: any,
     realTimeAuth: string,
     language1?: string | null,
     groupAuthorizationId?: number | null,
@@ -2521,7 +2583,7 @@ export type UpdateAuthorizationMutationResult = {
       idToken: any,
       idTokenType?: string | null,
       additionalInfo?: any | null,
-      status: string,
+      status: any,
       realTimeAuth: string,
       language1?: string | null,
       groupAuthorizationId?: number | null,
@@ -2558,7 +2620,7 @@ export type GetAuthorizationByTokenQueryResult = {
     idTokenType?: string | null,
     additionalInfo?: any | null,
     groupAuthorizationId?: number | null,
-    status: string,
+    status: any,
     realTimeAuth: string,
     language1?: string | null,
     createdAt: any,
@@ -2593,7 +2655,7 @@ export type GetAuthorizationByIdQueryResult = {
     idTokenType?: string | null,
     additionalInfo?: any | null,
     groupAuthorizationId?: number | null,
-    status: string,
+    status: any,
     realTimeAuth: string,
     language1?: string | null,
     createdAt: any,
@@ -2622,7 +2684,7 @@ export type CreateAuthorizationMutationVariables = Exact<{
   idToken: Scalars['citext']['input'];
   idTokenType: Scalars['String']['input'];
   additionalInfo?: InputMaybe<Scalars['jsonb']['input']>;
-  status: Scalars['String']['input'];
+  status: Scalars['authorization_status']['input'];
   language1?: InputMaybe<Scalars['String']['input']>;
   groupAuthorizationId?: InputMaybe<Scalars['Int']['input']>;
   realTimeAuth?: InputMaybe<Scalars['String']['input']>;
@@ -2639,7 +2701,7 @@ export type CreateAuthorizationMutationResult = {
     idToken: any,
     idTokenType?: string | null,
     additionalInfo?: any | null,
-    status: string,
+    status: any,
     realTimeAuth: string,
     language1?: string | null,
     groupAuthorizationId?: number | null,
@@ -2676,7 +2738,7 @@ export type GetAuthorizationsPaginatedQueryResult = {
     idToken: any,
     idTokenType?: string | null,
     additionalInfo?: any | null,
-    status: string,
+    status: any,
     realTimeAuth: string,
     language1?: string | null,
     groupAuthorizationId?: number | null,

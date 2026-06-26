@@ -27,7 +27,7 @@ import type {
   TenantPartnersListQueryVariables,
 } from '../graphql/index.js';
 import {
-  GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT,
+  GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY,
   LIST_TENANT_PARTNERS_BY_CPO,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
@@ -125,16 +125,18 @@ export abstract class BaseClientApi {
     otherParams?: Record<string, string | number | (string | number)[]>,
     path?: string,
     awsSecretCertificateArn?: string | null,
+    roamingPartnerCountryCode?: string | null,
+    roamingPartnerPartyId?: string | null,
   ): Promise<any> {
     if (!partnerProfile) {
       const response = await this.ocpiGraphqlClient.request<
         GetTenantPartnerByCpoClientAndModuleIdQueryResult,
         GetTenantPartnerByCpoClientAndModuleIdQueryVariables
-      >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
-        cpoCountryCode: fromCountryCode,
-        cpoPartyId: fromPartyId,
-        clientCountryCode: toCountryCode,
-        clientPartyId: toPartyId,
+      >(GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY, {
+        ourCountryCode: fromCountryCode,
+        ourPartyId: fromPartyId,
+        partnerCountryCode: toCountryCode,
+        partnerPartyId: toPartyId,
       });
       const partner = response.TenantPartners[0];
       partnerProfile = partner.partnerProfileOCPI!;
@@ -158,8 +160,14 @@ export abstract class BaseClientApi {
     if (routingHeaders) {
       additionalHeaders[OcpiHttpHeader.OcpiFromCountryCode] = fromCountryCode;
       additionalHeaders[OcpiHttpHeader.OcpiFromPartyId] = fromPartyId;
-      additionalHeaders[OcpiHttpHeader.OcpiToCountryCode] = toCountryCode;
-      additionalHeaders[OcpiHttpHeader.OcpiToPartyId] = toPartyId;
+      if (roamingPartnerCountryCode && roamingPartnerPartyId) {
+        additionalHeaders[OcpiHttpHeader.OcpiToCountryCode] =
+          roamingPartnerCountryCode;
+        additionalHeaders[OcpiHttpHeader.OcpiToPartyId] = roamingPartnerPartyId;
+      } else {
+        additionalHeaders[OcpiHttpHeader.OcpiToCountryCode] = toCountryCode;
+        additionalHeaders[OcpiHttpHeader.OcpiToPartyId] = toPartyId;
+      }
     }
     const options: IRequestOptions = { additionalHeaders };
     const queryParameters: IRequestQueryParams = {
@@ -215,27 +223,27 @@ export abstract class BaseClientApi {
 
     switch (httpMethod) {
       case HttpMethod.Get:
-        this.logger.debug(`Sending GET request to ${url}`);
+        this.logger.info(`Sending GET request to ${url}`);
         return this.getRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
       case HttpMethod.Post:
-        this.logger.debug(`Sending POST request to ${url}`);
+        this.logger.info(`Sending POST request to ${url}`);
         return this.createRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Put:
-        this.logger.debug(`Sending PUT request to ${url}`);
+        this.logger.info(`Sending PUT request to ${url}`);
         return this.replaceRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Patch:
-        this.logger.debug(`Sending PATCH request to ${url}`);
+        this.logger.info(`Sending PATCH request to ${url}`);
         return this.updateRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Delete:
-        this.logger.debug(`Sending DELETE request to ${url}`);
+        this.logger.info(`Sending DELETE request to ${url}`);
         return this.delRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
@@ -318,13 +326,11 @@ export abstract class BaseClientApi {
       otherParams,
       path,
     } = params;
-    this.logger.debug(
+    this.logger.info(
       `Broadcasting to clients for ${moduleId}_${interfaceRole}`,
     );
-    this.logger.debug(
-      `Requesting partners for ${cpoCountryCode}_${cpoPartyId}`,
-    );
-    this.logger.debug(`Using URL: ${url} with path ${path}`);
+    this.logger.info(`Requesting partners for ${cpoCountryCode}_${cpoPartyId}`);
+    this.logger.info(`Using URL: ${url} with path ${path}`);
     const responses: T[] = [];
     const response = await this.ocpiGraphqlClient.request<
       TenantPartnersListQueryResult,
@@ -348,23 +354,30 @@ export abstract class BaseClientApi {
       this.logger.debug(
         `Requesting partner ${partner.countryCode}_${partner.partyId}`,
       );
-      const response = await this.request(
-        cpoCountryCode,
-        cpoPartyId,
-        partner.countryCode!,
-        partner.partyId!,
-        HttpMethodForPartner,
-        schema,
-        partner.partnerProfileOCPI!,
-        routingHeaders,
-        url,
-        body,
-        paginatedParams,
-        otherParams,
-        path,
-        partner.awsSecretCertificateArn ?? undefined,
-      );
-      responses.push(response);
+      try {
+        const response = await this.request(
+          cpoCountryCode,
+          cpoPartyId,
+          partner.countryCode!,
+          partner.partyId!,
+          HttpMethodForPartner,
+          schema,
+          partner.partnerProfileOCPI!,
+          routingHeaders,
+          url,
+          body,
+          paginatedParams,
+          otherParams,
+          path,
+          partner.awsSecretCertificateArn ?? undefined,
+        );
+        responses.push(response);
+      } catch (e) {
+        this.logger.error(
+          `request failed for ${partner.countryCode}/${partner.partyId}`,
+          e,
+        );
+      }
     }
     return responses;
   }
@@ -404,7 +417,6 @@ export abstract class BaseClientApi {
           (result as any).offset = this.getOffsetFromLink(cleanedLink);
         }
       }
-
       // Parse and validate using Zod
       return schema.parse(result);
     } else {

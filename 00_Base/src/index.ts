@@ -232,6 +232,16 @@ export {
   PullPartnerModulesBodySchema,
   PullPartnerModulesBodySchemaName,
 } from './model/DTO/PullPartnerModulesBody.js';
+export type { OnboardRoamingPartnerBody } from './model/DTO/OnboardRoamingPartnerBody.js';
+export {
+  OnboardRoamingPartnerBodySchema,
+  OnboardRoamingPartnerBodySchemaName,
+} from './model/DTO/OnboardRoamingPartnerBody.js';
+export type { PushPartnerModulesBody } from './model/DTO/PushPartnerModulesBody.js';
+export {
+  PushPartnerModulesBodySchema,
+  PushPartnerModulesBodySchemaName,
+} from './model/DTO/PushPartnerModulesBody.js';
 export {
   UID_FORMAT,
   EXTRACT_EVSE_ID,
@@ -309,8 +319,10 @@ export { TokensService } from './services/TokensService.js';
 // export { TokensAdminService } from './services/TokensAdminService.js';
 export { LocationsService } from './services/LocationsService.js';
 export { LocationReceiverService } from './services/LocationReceiverService.js';
+export { LocationsPullService } from './services/LocationsPullService.js';
 export { VersionService } from './services/VersionService.js';
 export { SessionsService } from './services/SessionsService.js';
+export { RoamingPartnerService } from './services/RoamingPartnerService.js';
 // export { AdminLocationsService } from './services/AdminLocationsService.js';
 
 // Export AsyncJob types
@@ -438,7 +450,7 @@ export class OcpiServer extends KoaServer {
           });
 
           this.logger.info('[Headers for Request]', {
-            authorization: ctx.get('authorization') ? '[redacted]' : undefined,
+            authorization: ctx.get('authorization') || undefined,
             ocpiFromCountryCode: ctx.get('ocpi-from-country-code'),
             ocpiFromPartyId: ctx.get('ocpi-from-party-id'),
             ocpiToCountryCode: ctx.get('ocpi-to-country-code'),

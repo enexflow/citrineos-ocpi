@@ -51,7 +51,7 @@ import {
   GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY,
   OcpiGraphqlClient,
   DELETE_TARIFF_ELEMENTS_MUTATION,
-  GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT,
+  GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY,
   FIND_PARTNER_TARIFF_QUERY,
   FIND_PARTNER_TARIFF_P2P_QUERY,
   UPDATE_PARTNER_TARIFF_MUTATION,
@@ -408,30 +408,34 @@ export class TariffsService {
     const {
       ourCountryCode,
       ourPartyId,
-      cpoCountryCode,
-      cpoPartyId,
+      partnerCountryCode,
+      partnerPartyId,
       offset,
       limit,
       date_from,
       date_to,
+      roamingPartnerCountryCode,
+      roamingPartnerPartyId,
     } = body;
 
     this.logger.info(
       'PullPartnerTariffs',
       ourCountryCode,
       ourPartyId,
-      cpoCountryCode,
-      cpoPartyId,
+      partnerCountryCode,
+      partnerPartyId,
+      roamingPartnerCountryCode,
+      roamingPartnerPartyId,
     );
 
     const tenantPartner = await this.ocpiGraphqlClient.request<
       GetTenantPartnerByCpoClientAndModuleIdQueryResult,
       GetTenantPartnerByCpoClientAndModuleIdQueryVariables
-    >(GET_TENANT_PARTNER_BY_CPO_AND_AND_CLIENT, {
-      cpoCountryCode: ourCountryCode,
-      cpoPartyId: ourPartyId,
-      clientCountryCode: cpoCountryCode,
-      clientPartyId: cpoPartyId,
+    >(GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY, {
+      ourCountryCode: ourCountryCode,
+      ourPartyId: ourPartyId,
+      partnerCountryCode: partnerCountryCode,
+      partnerPartyId: partnerPartyId,
     });
 
     const partnerRow = tenantPartner.TenantPartners[0];
@@ -468,8 +472,8 @@ export class TariffsService {
       const resp = await this.tariffsClientApi.request(
         ourCountryCode,
         ourPartyId,
-        cpoCountryCode,
-        cpoPartyId,
+        partnerCountryCode,
+        partnerPartyId,
         HttpMethod.Get,
         z.any(),
         tenantPartner.TenantPartners[0].partnerProfileOCPI!,
@@ -480,6 +484,8 @@ export class TariffsService {
         undefined,
         undefined,
         partnerRow.awsSecretCertificateArn,
+        roamingPartnerCountryCode ?? null,
+        roamingPartnerPartyId ?? null,
       );
 
       for (const item of (resp as any).data) {
@@ -497,7 +503,7 @@ export class TariffsService {
             partner,
           );
           upsertSucceededTariffs++;
-          this.logger.info(
+          this.logger.debug(
             `PullPartnerModules: upserted tariff ${String(tariff.id)}`,
           );
         } catch (err) {
