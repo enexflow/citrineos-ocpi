@@ -48,6 +48,8 @@ type EvseNotifyPayload = Partial<EvseDto> & {
     countryCode?: string;
   };
   ocpiUid?: string | null;
+  // parent location's flag, carried by EvseNotify
+  disableOCPI?: boolean | null;
 };
 type ConnectorNotifyPayload = Partial<ConnectorDto> & {
   tenant?: TenantDto;
@@ -57,6 +59,8 @@ type ConnectorNotifyPayload = Partial<ConnectorDto> & {
     countryCode?: string;
   };
   ocpiId?: string | null;
+  // parent location's flag, carried by ConnectorNotify
+  disableOCPI?: boolean | null;
 };
 type ConnectorTariffNotifyPayload = {
   connectorId: number;
@@ -289,6 +293,17 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       event._payload?.ownerTenantPartner?.id != null
     )
       return;
+
+    // if OCPI is disabled for the parent location, don't broadcast
+    if (connectorDto.disableOCPI === true) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        'Connector Update with OCPI disabled, skipping broadcast.',
+        event,
+      );
+      return;
+    }
     // if the connector is not owned by a tenant partner, we can broadcast the update
     const tenant = connectorDto.tenant;
 
