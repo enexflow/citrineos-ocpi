@@ -182,7 +182,7 @@ export class CommandsService {
       this.logger.error('Charging station not found for evse_uid', {
         evseUid: startSession.evse_uid,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -196,7 +196,7 @@ export class CommandsService {
       this.logger.error('Charging station is offline', {
         stationId: chargingStation.id,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -214,7 +214,7 @@ export class CommandsService {
         stationId: chargingStation.id,
         connectorId: startSession.connector_id,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -234,7 +234,7 @@ export class CommandsService {
         connectorId: startSession.connector_id,
         status: evseAvailability.status,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -292,7 +292,7 @@ export class CommandsService {
       this.logger.error('Unknown transaction', {
         transactionId: stopSession.session_id,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.UNKNOWN_SESSION,
           timeout: this.config.commands.timeout,
@@ -325,7 +325,7 @@ export class CommandsService {
         'Session authorization is not linked to a tenant partner',
         { transactionId: transaction.transactionId },
       );
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -337,7 +337,7 @@ export class CommandsService {
       this.logger.error('Stop session transaction is not active', {
         transactionId: transaction.id,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -352,7 +352,7 @@ export class CommandsService {
       this.logger.error('Charging station not found for transaction', {
         transactionId: transaction.transactionId,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -360,17 +360,6 @@ export class CommandsService {
         'Unknown charging station',
       );
     }
-    if (!chargingStation.isOnline) {
-      this.logger.error('Charging station is offline', {
-        stationId: chargingStation.id,
-      });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
-        {
-          result: CommandResponseType.REJECTED,
-          timeout: this.config.commands.timeout,
-        },
-        'Charging station is offline',
-      );
     }
     this.commandExecutor
       .executeStopSession(
