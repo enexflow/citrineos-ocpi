@@ -13,6 +13,7 @@ import { ModuleId } from '../model/ModuleId.js';
 import type { ICache, PartnerProfile } from '@zetra/citrineos-base';
 import { HttpMethod } from '@zetra/citrineos-base';
 import type { CommandResult } from '../model/CommandResult.js';
+import { stripCommandResultMessageIfDisabled } from '../model/CommandResult.js';
 import {
   COMMAND_RESPONSE_URL_CACHE_NAMESPACE,
   COMMAND_RESPONSE_URL_CACHE_RESOLVED,
@@ -74,7 +75,7 @@ export class CommandsClientApi extends BaseClientApi {
       partnerProfile,
       true,
       url,
-      body,
+      stripCommandResultMessageIfDisabled(body),
       undefined,
       undefined,
       undefined,
