@@ -407,6 +407,17 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     // Skip partner-owned locations
     if (row.ChargingStation?.Location?.ownerTenantPartnerId != null) return;
 
+    // if OCPI is disabled for the parent location, don't broadcast
+    if (row.ChargingStation?.Location?.disableOCPI === true) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        'Connector Tariff change with OCPI disabled, skipping broadcast.',
+        event,
+      );
+      return;
+    }
+
     const tenant = payload.tenant;
     const locationId = row.ChargingStation!.locationId!;
     const tariffIds =

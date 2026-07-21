@@ -682,7 +682,8 @@ export type GetOwnConnectorForTariffBroadcastQueryResult = {
     ChargingStation: {
       locationId: number,
       Location: {
-        ownerTenantPartnerId?: number | null
+        ownerTenantPartnerId?: number | null,
+        disableOCPI?: boolean | null
       }
     },
     Evse?: {
