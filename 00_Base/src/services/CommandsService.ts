@@ -360,7 +360,6 @@ export class CommandsService {
         'Unknown charging station',
       );
     }
-    }
     this.commandExecutor
       .executeStopSession(
         stopSession,
