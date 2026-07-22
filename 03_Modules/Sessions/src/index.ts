@@ -29,6 +29,10 @@ import type { MeterValueDto, TransactionDto } from '@zetra/citrineos-base';
 import { logDbBroadcast } from '@citrineos/ocpi-base';
 export { SessionsModuleApi } from './module/SessionsModuleApi.js';
 export type { ISessionsModuleApi } from './module/ISessionsModuleApi.js';
+import {
+  getTransactionForBroadcast,
+  getTokenOwnerPartnerId,
+} from './sessionBroadcastHelpers.js';
 
 @Service()
 export class SessionsModule extends AbstractDtoModule implements OcpiModule {
@@ -65,31 +69,26 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
   async handleTransactionInsert(
     event: IDtoEvent<TransactionDto>,
   ): Promise<void> {
-    // logDbBroadcast(
-    //   this._logger,
-    //   'debug',
-    //   'Handling Transaction Insert:',
-    //   event,
-    // );
+    logDbBroadcast(
+      this._logger,
+      'debug',
+      'Handling Transaction Insert:',
+      event,
+    );
     const transactionDto = event._payload;
-    const transaction = await this.ocpiGraphqlClient.request<
-      GetTransactionByTransactionIdQueryResult,
-      GetTransactionByTransactionIdQueryVariables
-    >(GET_TRANSACTION_BY_TRANSACTION_ID_QUERY, {
-      transactionId: transactionDto.transactionId!,
-    });
-    if (!transaction.Transactions[0]) {
-      this._logger.error(
-        `Transaction not found for ID ${transactionDto.transactionId}, cannot broadcast.`,
-      );
-      return;
-    }
+    const transaction = await getTransactionForBroadcast(
+      this.ocpiGraphqlClient,
+      this._logger,
+      transactionDto.transactionId!,
+      'insert',
+    );
+    if (!transaction) return;
     const tenant = transactionDto.tenant;
 
     await this.sessionBroadcaster.broadcastPutSession(
       tenant!,
-      transaction.Transactions[0] as TransactionDto,
-      transaction.Transactions[0].authorization?.tenantPartner?.id,
+      transaction,
+      getTokenOwnerPartnerId(transaction),
     );
   }
 
@@ -113,14 +112,13 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
       transactionDto.totalKwh !== undefined ||
       transactionDto.meterStart !== undefined;
 
-    const fullTransactionDtoResponse = await this.ocpiGraphqlClient.request<
-      GetTransactionByTransactionIdQueryResult,
-      GetTransactionByTransactionIdQueryVariables
-    >(GET_TRANSACTION_BY_TRANSACTION_ID_QUERY, {
-      transactionId: transactionDto.transactionId!,
-    });
-
-    const fullTx = fullTransactionDtoResponse.Transactions[0];
+      const fullTx = await getTransactionForBroadcast(
+        this.ocpiGraphqlClient,
+        this._logger,
+        transactionDto.transactionId!,
+        'update',
+      );
+      if (!fullTx) return;
     const isEnd =
       transactionDto.isActive === false || fullTx.isActive === false;
     const hasChargingStateChange = transactionDto.chargingState !== undefined;
@@ -128,34 +126,29 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
       this._logger.info(
         `Transaction is not end and has no meter progress: ${event._eventId}`,
       );
-      return; // chargingState-only — don't PATCH
+      return;
     }
-    if (!fullTransactionDtoResponse.Transactions[0]) {
+    if (!fullTx) {
       this._logger.error(
         `Full Transaction DTO not found for ID ${transactionDto.transactionId}, cannot broadcast.`,
       );
       return;
     }
     const fullTransaction = {
-      ...fullTransactionDtoResponse.Transactions[0],
+      ...fullTx,
       ...transactionDto,
     } as TransactionDto;
 
     const tenant = transactionDto.tenant;
-    // if (fullTransaction.meterValues && fullTransaction.meterValues.length > 1) {
     await this.sessionBroadcaster.broadcastPatchSession(
       tenant!,
       fullTransaction,
-      fullTransactionDtoResponse.Transactions[0].authorization?.tenantPartner
-        ?.id,
+      getTokenOwnerPartnerId(fullTransaction),
     );
-    // }
     if (transactionDto.isActive === false) {
       this._logger.info(`Transaction is no longer active: ${event._eventId}`);
 
-      const fullTransactionDto = fullTransactionDtoResponse
-        .Transactions[0] as TransactionDto;
-      await this.cdrBroadcaster.broadcastPostCdr(fullTransactionDto);
+      await this.cdrBroadcaster.broadcastPostCdr(fullTransaction);
 
       this.sessionBroadcaster.clearSessionBroadcastDedupe(
         transactionDto.transactionId!,
