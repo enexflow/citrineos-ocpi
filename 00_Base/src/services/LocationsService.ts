@@ -90,6 +90,11 @@ export class LocationsService {
       ownerTenantPartnerId: { _is_null: true },
       roamingPartnerId: { _is_null: true },
       deletedAt: { _is_null: true },
+      // don't expose OCPI-disabled locations (null = not disabled)
+      _or: [
+        { disableOCPI: { _is_null: true } },
+        { disableOCPI: { _eq: false } },
+      ],
     };
     const dateFilters: any = {};
     if (paginatedParams?.dateFrom)
