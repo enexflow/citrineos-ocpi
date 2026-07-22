@@ -112,13 +112,13 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
       transactionDto.totalKwh !== undefined ||
       transactionDto.meterStart !== undefined;
 
-      const fullTx = await getTransactionForBroadcast(
-        this.ocpiGraphqlClient,
-        this._logger,
-        transactionDto.transactionId!,
-        'update',
-      );
-      if (!fullTx) return;
+    const fullTx = await getTransactionForBroadcast(
+      this.ocpiGraphqlClient,
+      this._logger,
+      transactionDto.transactionId!,
+      'update',
+    );
+    if (!fullTx) return;
     const isEnd =
       transactionDto.isActive === false || fullTx.isActive === false;
     const hasChargingStateChange = transactionDto.chargingState !== undefined;
