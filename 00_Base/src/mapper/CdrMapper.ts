@@ -57,7 +57,6 @@ export class CdrMapper extends BaseTransactionMapper {
         transactionIdToLocationMap,
         transactionIdToTariffMap,
         transactionIdToOcpiTariffMap,
-        chargingPeriodsMode,
       );
     } catch (error) {
       // Log the original error for debugging
@@ -85,7 +84,6 @@ export class CdrMapper extends BaseTransactionMapper {
     transactionIdToLocationMap: Map<string, LocationDTO>,
     transactionIdToTariffMap: Map<string, TariffDto>,
     transactionIdToOcpiTariffMap: Map<string, OcpiTariff>,
-    chargingPeriodsMode: ChargingPeriodsMode = ChargingPeriodsMode.Append,
   ): Promise<CdrDTO[]> {
     return Promise.all(
       sessions
@@ -96,7 +94,6 @@ export class CdrMapper extends BaseTransactionMapper {
             transactionIdToLocationMap.get(session.id)!,
             transactionIdToTariffMap.get(session.id)!,
             transactionIdToOcpiTariffMap.get(session.id)!,
-            chargingPeriodsMode,
           ),
         ),
     );
@@ -107,7 +104,6 @@ export class CdrMapper extends BaseTransactionMapper {
     location: LocationDTO,
     tariff: TariffDto,
     ocpiTariff: OcpiTariff,
-    chargingPeriodsMode: ChargingPeriodsMode = ChargingPeriodsMode.Append,
   ): Promise<CdrDTO> {
     return {
       country_code: session.country_code,
@@ -124,10 +120,7 @@ export class CdrMapper extends BaseTransactionMapper {
       currency: session.currency,
       tariffs: [ocpiTariff],
       charging_periods:
-        this.formatChargingPeriodsCdr(
-          session.charging_periods ?? [],
-          chargingPeriodsMode,
-        ) || [],
+        this.formatChargingPeriodsCdr(session.charging_periods ?? []) || [],
       signed_data: await this.getSignedData(session),
       // TODO: Map based on OCPI Tariff
       total_cost: this.calculateTotalCost(session.kwh, tariff),
@@ -152,7 +145,6 @@ export class CdrMapper extends BaseTransactionMapper {
 
   private formatChargingPeriodsCdr(
     chargingPeriods: ChargingPeriod[],
-    chargingPeriodsMode: ChargingPeriodsMode,
   ): ChargingPeriod[] {
     const SESSION_ONLY_DIMENSIONS = new Set([
       'CURRENT',

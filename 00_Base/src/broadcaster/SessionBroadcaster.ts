@@ -25,7 +25,13 @@ import {
   getOcpiToFromAuthorization,
   isGirevePartner,
   tokenOwnerPartnerFilter,
+  getChargingPeriodsMode,
 } from '../util/helpers.js';
+import {
+  getTokenOwnerFromAuthorization,
+  type AuthWithPartners,
+} from '../util/helpers.js';
+
 import { ChargingPeriodsMode } from '../model/ChargingPeriod.js';
 
 @Service()
@@ -82,55 +88,47 @@ export class SessionBroadcaster extends BaseBroadcaster {
     const { ocpiToCountryCode, ocpiToPartyId } = getOcpiToFromAuthorization(
       transactionDto.authorization,
     );
-    // const session =
-    //   await this.sessionMapper.mapPartialTransactionToPartialSession(
-    //     transactionDto,
-    //   );
-
-    // const path = `/${tenant.countryCode}/${tenant.partyId}/${session.id}`;
-    // await this.broadcastSession(
-    //   tenant,
-    //   session,
-    //   HttpMethod.Patch,
-    //   path,
-    //   tokenOwnerTenantPartnerId,
-    // );
-    const patchBody = await this.sessionMapper.mapIncrementalSessionPatch(
-      transactionDto as TransactionDto,
-    );
-    const putBody = await this.sessionMapper.mapTransactionToSession(
-      transactionDto as TransactionDto,
-      ChargingPeriodsMode.Cumulative,
-    );
     const txId = transactionDto.transactionId!;
 
     const path = `/${tenant.countryCode}/${tenant.partyId}/${transactionDto.transactionId}`;
     // Standard partners: PATCH incremental
 
     const ownerId = tokenOwnerTenantPartnerId;
+    const auth = (transactionDto.authorization ?? {}) as AuthWithPartners;
+    const tokenOwner = getTokenOwnerFromAuthorization(auth);
+    const mode = getChargingPeriodsMode(tokenOwner);
+    if (mode === ChargingPeriodsMode.Cumulative) {
+      const body = await this.sessionMapper.mapTransactionToSession(
+        transactionDto,
+        mode,
+      );
 
-    await this.broadcastSessionDeduped(
-      txId,
-      ownerId,
-      tenant,
-      patchBody,
-      HttpMethod.Patch,
-      path,
-      (p) => p.id === ownerId && !isGirevePartner(p),
-      ocpiToCountryCode,
-      ocpiToPartyId,
-    );
-    await this.broadcastSessionDeduped(
-      txId,
-      ownerId,
-      tenant,
-      putBody,
-      HttpMethod.Put,
-      path,
-      (p) => p.id === ownerId && isGirevePartner(p),
-      ocpiToCountryCode,
-      ocpiToPartyId,
-    );
+      await this.broadcastSessionDeduped(
+        txId,
+        ownerId,
+        tenant,
+        body,
+        HttpMethod.Put,
+        path,
+        (p) => p.id === ownerId && isGirevePartner(p),
+        ocpiToCountryCode,
+        ocpiToPartyId,
+      );
+    } else {
+      const body =
+        await this.sessionMapper.mapIncrementalSessionPatch(transactionDto);
+      await this.broadcastSessionDeduped(
+        txId,
+        ownerId,
+        tenant,
+        body,
+        HttpMethod.Patch,
+        path,
+        (p) => p.id === ownerId && !isGirevePartner(p),
+        ocpiToCountryCode,
+        ocpiToPartyId,
+      );
+    }
   }
 
   async broadcastPatchSessionChargingPeriod(

@@ -16,8 +16,10 @@ import { CdrMapper } from '../mapper/index.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
 import {
   getOcpiToFromAuthorization,
-  isGirevePartner,
+  getChargingPeriodsMode,
   tokenOwnerPartnerFilter,
+  getTokenOwnerFromAuthorization,
+  type AuthWithPartners,
 } from '../util/helpers.js';
 import { ChargingPeriodsMode } from '../model/ChargingPeriod.js';
 
@@ -32,20 +34,9 @@ export class CdrBroadcaster extends BaseBroadcaster {
   }
 
   async broadcastPostCdr(transactionDto: TransactionDto): Promise<void> {
-    const tokenOwner = transactionDto.authorization?.tenantPartner;
-    const tokenOwnerTenantPartnerId = tokenOwner?.id;
-    if (tokenOwnerTenantPartnerId == null) {
-      this.logger.debug('No token owner partner, skipping CDR broadcast');
-      return;
-    }
-    const mode =
-      tokenOwner &&
-      isGirevePartner({
-        countryCode: tokenOwner.countryCode!,
-        partyId: tokenOwner.partyId!,
-      })
-        ? ChargingPeriodsMode.Cumulative
-        : ChargingPeriodsMode.Append;
+    const auth = (transactionDto.authorization ?? {}) as AuthWithPartners;
+    const tokenOwner = getTokenOwnerFromAuthorization(auth);
+    const mode = getChargingPeriodsMode(tokenOwner);
     const cdrs = await this.cdrMapper.mapTransactionsToCdrs(
       [transactionDto],
       mode,
@@ -58,6 +49,7 @@ export class CdrBroadcaster extends BaseBroadcaster {
       return;
     }
     const cdrDto = cdrs[0];
+    const tokenOwnerTenantPartnerId = tokenOwner?.id;
     if (tokenOwnerTenantPartnerId == null) {
       this.logger.debug('No token owner partner, skipping CDR broadcast');
       return;

@@ -647,20 +647,4 @@ export class SessionMapper extends BaseTransactionMapper {
     }
     return transaction.endTime ? SessionStatus.COMPLETED : SessionStatus.ACTIVE;
   }
-
-  // public getCumulativeChargingPeriod(
-  //   transaction: TransactionDto,
-  //   tariffId: string,
-  // ): ChargingPeriod[] {
-  //   const start = transaction.startTime ?? transaction.createdAt;
-  //   return [{
-  //     start_date_time: new Date(start!),
-  //     dimensions: [
-  //       { type: 'ENERGY', volume: transaction.totalKwh ?? 0 },
-  //       { type: 'TIME', volume: /* hours since start */ },
-  //       // optional PARKING_TIME if you have it
-  //     ],
-  //     tariff_id: tariffId,
-  //   }];
-  // }
 }
