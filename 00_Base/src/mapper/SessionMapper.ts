@@ -512,25 +512,23 @@ export class SessionMapper extends BaseTransactionMapper {
       });
 
     if (chargingPeriodsMode === ChargingPeriodsMode.Cumulative) {
-      return this.collapseToCumulativePeriod(transaction, periods, tariffId);
+      return this.getCumulativePeriod(transaction, periods, tariffId);
     }
 
     return periods;
   }
 
-  private collapseToCumulativePeriod(
+  private getCumulativePeriod(
     transaction: TransactionDto,
-    periods: ChargingPeriod[],
     tariffId: string,
   ): ChargingPeriod[] {
-    if (periods.length === 0) return [];
-    const sum = (type: CdrDimensionType) =>
-      periods.reduce(
-        (acc, p) =>
-          acc + (p.dimensions.find((d) => d.type === type)?.volume ?? 0),
-        0,
-      );
-
+    const meterValues = transaction.meterValues ?? [];
+    if (meterValues.length === 0) return [];
+    const earliest = meterValues.reduce((a, b) =>
+      new Date(a.timestamp).getTime() <= new Date(b.timestamp).getTime()
+        ? a
+        : b,
+    );
     const start = new Date(transaction.startTime ?? transaction.createdAt!);
     const end = transaction.endTime
       ? new Date(transaction.endTime)
@@ -542,10 +540,9 @@ export class SessionMapper extends BaseTransactionMapper {
 
     return [
       {
-        start_date_time: periods[0].start_date_time,
+        start_date_time: new Date(earliest.timestamp),
         dimensions: [
           { type: CdrDimensionType.ENERGY, volume: transaction.totalKwh ?? 0 },
-          // { type: CdrDimensionType.TIME, volume: sum(CdrDimensionType.TIME) },
           { type: CdrDimensionType.TIME, volume: timeHours },
         ].filter((d) => d.volume > 0 || d.type === CdrDimensionType.ENERGY),
         tariff_id: tariffId,
