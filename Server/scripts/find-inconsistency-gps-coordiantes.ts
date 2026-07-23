@@ -331,7 +331,9 @@ async function main() {
   // only fix swapped locations
   if (FIX_SWAPPED) {
     for (const row of toFix) {
-      console.log(`${DRY_RUN ? '[DRY] ' : ''}swap Location ${row.id}: [${row.lon},${row.lat}] → [${row.lat},${row.lon}]`);
+      console.log(
+        `${DRY_RUN ? '[DRY] ' : ''}swap Location ${row.id}: [${row.lon},${row.lat}] → [${row.lat},${row.lon}]`,
+      );
       if (!DRY_RUN) await swapLocationCoordinates(row.id, row.lon, row.lat);
     }
   }
