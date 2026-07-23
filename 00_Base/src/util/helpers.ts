@@ -19,6 +19,7 @@ import { Logger } from 'tslog';
 import type { ILogObj } from 'tslog';
 
 import type { BroadcastParams } from '../trigger/BaseClientApi.js';
+import { ChargingPeriodsMode } from '../model/ChargingPeriod.js';
 type BroadcastPartner = TenantPartnersListQueryResult['TenantPartners'][number];
 
 export const shouldBroadcastToPartner = (
@@ -160,8 +161,8 @@ export const handleHttpMethodForPartner = (
 };
 
 export const isGirevePartner = (partner: {
-  countryCode?: string;
-  partyId?: string;
+  countryCode?: string | null;
+  partyId?: string | null;
 }) => {
   const config = Container.get<OcpiConfig>(OcpiConfigToken);
   return (
@@ -169,6 +170,14 @@ export const isGirevePartner = (partner: {
     partner.partyId === config.gireve?.partyId
   );
 };
+
+export function getChargingPeriodsMode(
+  partner?: { countryCode?: string | null; partyId?: string | null } | null,
+): ChargingPeriodsMode {
+  return partner && isGirevePartner(partner)
+    ? ChargingPeriodsMode.Cumulative
+    : ChargingPeriodsMode.Append;
+}
 
 export function tokenOwnerPartnerFilter(
   tokenOwnerTenantPartnerId: number,
