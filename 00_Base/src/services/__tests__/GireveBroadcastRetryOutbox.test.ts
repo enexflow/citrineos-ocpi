@@ -41,9 +41,7 @@ describe('GireveBroadcastRetryOutbox', () => {
       request: jest
         .fn()
         .mockResolvedValueOnce({ GireveBroadcastRetryQueues: [] })
-        .mockResolvedValueOnce({
-          insert_GireveBroadcastRetryQueues_one: { id: 'new' },
-        }),
+        .mockResolvedValueOnce({ insert_GireveBroadcastRetryQueues_one: { id: 'new' } }),
     };
 
     const outbox = new GireveBroadcastRetryOutbox(

@@ -32,15 +32,18 @@ jest.mock('../../util/helpers', () => ({
 
 describe('Gireve broadcast retry mechanism', () => {
   beforeEach(() => {
-    Container.set(OcpiConfigToken, {
-      gireve: {
-        countryCode: 'FR',
-        partyId: '007',
-        retryIntervalSeconds: 300,
-        retryBatchSize: 50,
-        retryStaleLockSeconds: 900,
-      },
-    } as any);
+    Container.set(
+      OcpiConfigToken,
+      {
+        gireve: {
+          countryCode: 'FR',
+          partyId: '007',
+          retryIntervalSeconds: 300,
+          retryBatchSize: 50,
+          retryStaleLockSeconds: 900,
+        },
+      } as any,
+    );
   });
 
   describe('upsertOnFailure (BaseClientApi broadcastToClients)', () => {
@@ -121,9 +124,7 @@ describe('Gireve broadcast retry mechanism', () => {
 
   describe('retry runner runOnce', () => {
     it('marks the retry item as sent when the push succeeds', async () => {
-      const {
-        GireveBroadcastRetryWorker,
-      } = require('../GireveBroadcastRetryWorker');
+      const { GireveBroadcastRetryWorker } = require('../GireveBroadcastRetryWorker');
       const { HttpMethod } = require('@zetra/citrineos-base');
 
       const mockLogger = {
