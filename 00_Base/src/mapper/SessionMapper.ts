@@ -512,7 +512,7 @@ export class SessionMapper extends BaseTransactionMapper {
       });
 
     if (chargingPeriodsMode === ChargingPeriodsMode.Cumulative) {
-      return this.getCumulativePeriod(transaction, periods, tariffId);
+      return this.getCumulativePeriod(transaction, tariffId);
     }
 
     return periods;
