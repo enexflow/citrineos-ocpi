@@ -18,6 +18,7 @@ import { LocationsService } from '../services/LocationsService.js';
 import type { TariffDto, TransactionDto } from '@zetra/citrineos-base';
 import type { CdrDTO, CdrEntity } from '../model/DTO/CdrDTO.js';
 import type { ChargingPeriod } from '../model/ChargingPeriod.js';
+import { ChargingPeriodsMode } from '../model/ChargingPeriod.js';
 
 @Service()
 export class CdrMapper extends BaseTransactionMapper {
@@ -32,10 +33,14 @@ export class CdrMapper extends BaseTransactionMapper {
 
   public async mapTransactionsToCdrs(
     transactions: TransactionDto[],
+    chargingPeriodsMode: ChargingPeriodsMode = ChargingPeriodsMode.Append,
   ): Promise<CdrDTO[]> {
     try {
       const validTransactions = this.getCompletedTransactions(transactions);
-      const sessions = await this.mapTransactionsToSessions(validTransactions);
+      const sessions = await this.mapTransactionsToSessions(
+        validTransactions,
+        chargingPeriodsMode,
+      );
 
       const [transactionIdToTariffMap, transactionIdToLocationMap] =
         await Promise.all([
@@ -52,6 +57,7 @@ export class CdrMapper extends BaseTransactionMapper {
         transactionIdToLocationMap,
         transactionIdToTariffMap,
         transactionIdToOcpiTariffMap,
+        chargingPeriodsMode,
       );
     } catch (error) {
       // Log the original error for debugging
@@ -66,8 +72,12 @@ export class CdrMapper extends BaseTransactionMapper {
 
   private async mapTransactionsToSessions(
     transactions: TransactionDto[],
+    chargingPeriodsMode: ChargingPeriodsMode,
   ): Promise<Session[]> {
-    return this.sessionMapper.mapTransactionsToSessions(transactions);
+    return this.sessionMapper.mapTransactionsToSessions(
+      transactions,
+      chargingPeriodsMode,
+    );
   }
 
   private async mapSessionsToCDRs(
@@ -75,6 +85,7 @@ export class CdrMapper extends BaseTransactionMapper {
     transactionIdToLocationMap: Map<string, LocationDTO>,
     transactionIdToTariffMap: Map<string, TariffDto>,
     transactionIdToOcpiTariffMap: Map<string, OcpiTariff>,
+    chargingPeriodsMode: ChargingPeriodsMode = ChargingPeriodsMode.Append,
   ): Promise<CdrDTO[]> {
     return Promise.all(
       sessions
@@ -85,6 +96,7 @@ export class CdrMapper extends BaseTransactionMapper {
             transactionIdToLocationMap.get(session.id)!,
             transactionIdToTariffMap.get(session.id)!,
             transactionIdToOcpiTariffMap.get(session.id)!,
+            chargingPeriodsMode,
           ),
         ),
     );
@@ -95,6 +107,7 @@ export class CdrMapper extends BaseTransactionMapper {
     location: LocationDTO,
     tariff: TariffDto,
     ocpiTariff: OcpiTariff,
+    chargingPeriodsMode: ChargingPeriodsMode = ChargingPeriodsMode.Append,
   ): Promise<CdrDTO> {
     return {
       country_code: session.country_code,
@@ -111,7 +124,10 @@ export class CdrMapper extends BaseTransactionMapper {
       currency: session.currency,
       tariffs: [ocpiTariff],
       charging_periods:
-        this.formatChargingPeriodsCdr(session.charging_periods ?? []) || [],
+        this.formatChargingPeriodsCdr(
+          session.charging_periods ?? [],
+          chargingPeriodsMode,
+        ) || [],
       signed_data: await this.getSignedData(session),
       // TODO: Map based on OCPI Tariff
       total_cost: this.calculateTotalCost(session.kwh, tariff),
@@ -136,6 +152,7 @@ export class CdrMapper extends BaseTransactionMapper {
 
   private formatChargingPeriodsCdr(
     chargingPeriods: ChargingPeriod[],
+    chargingPeriodsMode: ChargingPeriodsMode,
   ): ChargingPeriod[] {
     const SESSION_ONLY_DIMENSIONS = new Set([
       'CURRENT',

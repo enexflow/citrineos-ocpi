@@ -12,3 +12,8 @@ export const ChargingPeriodSchema = z.object({
 });
 
 export type ChargingPeriod = z.infer<typeof ChargingPeriodSchema>;
+
+export enum ChargingPeriodsMode {
+  Append = 'append',
+  Cumulative = 'cumulative',
+}

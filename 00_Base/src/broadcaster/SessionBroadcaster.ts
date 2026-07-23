@@ -26,6 +26,7 @@ import {
   isGirevePartner,
   tokenOwnerPartnerFilter,
 } from '../util/helpers.js';
+import { ChargingPeriodsMode } from '../model/ChargingPeriod.js';
 
 @Service()
 export class SessionBroadcaster extends BaseBroadcaster {
@@ -47,8 +48,10 @@ export class SessionBroadcaster extends BaseBroadcaster {
       this.logger.debug('No token owner partner, skipping session broadcast');
       return;
     }
-    const session =
-      await this.sessionMapper.mapTransactionToSession(transactionDto);
+    const session = await this.sessionMapper.mapTransactionToSession(
+      transactionDto,
+      ChargingPeriodsMode.Cumulative,
+    );
     const path = `/${tenant.countryCode}/${tenant.partyId}/${session.id}`;
     const { ocpiToCountryCode, ocpiToPartyId } = getOcpiToFromAuthorization(
       transactionDto.authorization,
@@ -97,6 +100,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
     );
     const putBody = await this.sessionMapper.mapTransactionToSession(
       transactionDto as TransactionDto,
+      ChargingPeriodsMode.Cumulative,
     );
     const txId = transactionDto.transactionId!;
 
@@ -134,9 +138,19 @@ export class SessionBroadcaster extends BaseBroadcaster {
     meterValueDto: MeterValueDto,
     tokenOwnerTenantPartnerId?: number | null,
   ): Promise<void> {
-    const charging_periods = await this.sessionMapper.getChargingPeriods(
-      [meterValueDto],
+    // const charging_periods = await this.sessionMapper.getChargingPeriods(
+    //   [meterValueDto],
+    //   meterValueDto.tariffId!.toString(),
+    // );
+    const charging_periods = this.sessionMapper.getChargingPeriods(
+      {
+        transactionId: meterValueDto.transactionId!,
+        meterValues: [meterValueDto],
+        totalKwh: undefined,
+        // other TransactionDto fields unused by Append mapping for a single meter
+      } as TransactionDto,
       meterValueDto.tariffId!.toString(),
+      ChargingPeriodsMode.Append,
     );
     const path = `/${tenant.countryCode}/${tenant.partyId}/${meterValueDto.transactionId}`;
     await this.broadcastSession(

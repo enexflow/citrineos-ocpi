@@ -13,6 +13,7 @@ import type {
 import { OCPP2_0_1 } from '@zetra/citrineos-base';
 import { AuthMethod } from '../model/AuthMethod.js';
 import type { ChargingPeriod } from '../model/ChargingPeriod.js';
+import { ChargingPeriodsMode } from '../model/ChargingPeriod.js';
 import { CdrDimensionType } from '../model/CdrDimensionType.js';
 import type { CdrToken } from '../model/CdrToken.js';
 import { SessionStatus } from '../model/SessionStatus.js';
@@ -42,6 +43,7 @@ export class SessionMapper extends BaseTransactionMapper {
    */
   public async mapTransactionToSession(
     transaction: TransactionDto,
+    chargingPeriodsMode: ChargingPeriodsMode,
   ): Promise<Session> {
     const [locationMap, tokenMap, tariffMap] =
       await this.getLocationsTokensAndTariffsMapsForTransactions([transaction]);
@@ -66,6 +68,7 @@ export class SessionMapper extends BaseTransactionMapper {
       location,
       token,
       tariff,
+      chargingPeriodsMode,
     );
   }
 
@@ -131,6 +134,7 @@ export class SessionMapper extends BaseTransactionMapper {
 
   public async mapTransactionsToSessions(
     transactions: TransactionDto[],
+    chargingPeriodsMode: ChargingPeriodsMode = ChargingPeriodsMode.Append,
   ): Promise<Session[]> {
     const [
       transactionIdToLocationMap,
@@ -143,6 +147,7 @@ export class SessionMapper extends BaseTransactionMapper {
       transactionIdToLocationMap,
       transactionIdToTokenMap,
       transactionIdToTariffMap,
+      chargingPeriodsMode,
     );
   }
 
@@ -151,6 +156,7 @@ export class SessionMapper extends BaseTransactionMapper {
     transactionIdToLocationMap: Map<string, LocationDTO>,
     transactionIdToTokenMap: Map<string, TokenDTO>,
     transactionIdToTariffMap: Map<string, TariffDto>,
+    chargingPeriodsMode: ChargingPeriodsMode = ChargingPeriodsMode.Append,
   ): Promise<Session[]> {
     const result: Session[] = [];
     for (const transaction of transactions) {
@@ -167,6 +173,7 @@ export class SessionMapper extends BaseTransactionMapper {
             location,
             token,
             tariff,
+            chargingPeriodsMode ?? ChargingPeriodsMode.Append,
           ),
         );
       } else {
@@ -194,8 +201,9 @@ export class SessionMapper extends BaseTransactionMapper {
     const periods =
       sorted.length > 1
         ? this.getChargingPeriods(
-            sorted.slice(-2),
+            { ...transaction, meterValues: sorted.slice(-2) },
             String(tariff.ocpiTariffId),
+            ChargingPeriodsMode.Append,
           ).slice(-1)
         : undefined;
 
@@ -219,6 +227,7 @@ export class SessionMapper extends BaseTransactionMapper {
     location?: LocationDTO,
     token?: TokenDTO,
     tariff?: TariffDto,
+    chargingPeriodsMode: ChargingPeriodsMode = ChargingPeriodsMode.Append,
   ): Partial<Session> {
     const session: Partial<Session> = {};
 
@@ -284,10 +293,11 @@ export class SessionMapper extends BaseTransactionMapper {
     }
 
     // Map meter values if available
-    if (transaction.meterValues && tariff) {
+    if (transaction.meterValues && tariff && transaction.transactionId) {
       session.charging_periods = this.getChargingPeriods(
-        transaction.meterValues,
+        transaction as TransactionDto,
         String(tariff.ocpiTariffId),
+        chargingPeriodsMode ?? ChargingPeriodsMode.Append,
       );
     }
 
@@ -369,6 +379,7 @@ export class SessionMapper extends BaseTransactionMapper {
     location: LocationDTO,
     token: TokenDTO,
     tariff: TariffDto,
+    chargingPeriodsMode: ChargingPeriodsMode,
   ): Session {
     return {
       country_code: location.country_code,
@@ -385,19 +396,18 @@ export class SessionMapper extends BaseTransactionMapper {
       end_date_time: transaction.endTime ? new Date(transaction.endTime) : null,
       kwh: transaction.totalKwh || 0,
       cdr_token: this.createCdrToken(token),
-      // TODO: Implement other auth methods
       auth_method: this.resolveAuthMethod(transaction),
       location_id: this.getLocationId(location),
       evse_uid: this.getEvseUid(transaction, location),
       connector_id: transaction.connectorId!.toString(),
       currency: tariff.currency,
       charging_periods: this.getChargingPeriods(
-        transaction.meterValues,
+        transaction,
         String(tariff?.ocpiTariffId),
+        chargingPeriodsMode,
       ),
       status: this.getTransactionStatus(transaction),
       last_updated: transaction.updatedAt!,
-      // TODO: Fill in optional values
       authorization_reference:
         transaction.authorization?.ocpiAuthReference ?? null,
       total_cost: transaction.endTime
@@ -480,10 +490,13 @@ export class SessionMapper extends BaseTransactionMapper {
   }
 
   public getChargingPeriods(
-    meterValues: MeterValueDto[] = [],
+    transaction: TransactionDto,
     tariffId: string,
+    chargingPeriodsMode: ChargingPeriodsMode,
   ): ChargingPeriod[] {
-    return meterValues
+    const meterValues = transaction.meterValues ?? [];
+
+    const periods = meterValues
       .sort(
         (a, b) =>
           new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
@@ -497,6 +510,47 @@ export class SessionMapper extends BaseTransactionMapper {
           previousMeterValue,
         );
       });
+
+    if (chargingPeriodsMode === ChargingPeriodsMode.Cumulative) {
+      return this.collapseToCumulativePeriod(transaction, periods, tariffId);
+    }
+
+    return periods;
+  }
+
+  private collapseToCumulativePeriod(
+    transaction: TransactionDto,
+    periods: ChargingPeriod[],
+    tariffId: string,
+  ): ChargingPeriod[] {
+    if (periods.length === 0) return [];
+    const sum = (type: CdrDimensionType) =>
+      periods.reduce(
+        (acc, p) =>
+          acc + (p.dimensions.find((d) => d.type === type)?.volume ?? 0),
+        0,
+      );
+
+    const start = new Date(transaction.startTime ?? transaction.createdAt!);
+    const end = transaction.endTime
+      ? new Date(transaction.endTime)
+      : new Date(transaction.updatedAt ?? Date.now());
+    const timeHours = Math.max(
+      0,
+      (end.getTime() - start.getTime()) / 3_600_000,
+    );
+
+    return [
+      {
+        start_date_time: periods[0].start_date_time,
+        dimensions: [
+          { type: CdrDimensionType.ENERGY, volume: transaction.totalKwh ?? 0 },
+          // { type: CdrDimensionType.TIME, volume: sum(CdrDimensionType.TIME) },
+          { type: CdrDimensionType.TIME, volume: timeHours },
+        ].filter((d) => d.volume > 0 || d.type === CdrDimensionType.ENERGY),
+        tariff_id: tariffId,
+      },
+    ];
   }
 
   private mapMeterValueToChargingPeriod(
@@ -593,4 +647,20 @@ export class SessionMapper extends BaseTransactionMapper {
     }
     return transaction.endTime ? SessionStatus.COMPLETED : SessionStatus.ACTIVE;
   }
+
+  // public getCumulativeChargingPeriod(
+  //   transaction: TransactionDto,
+  //   tariffId: string,
+  // ): ChargingPeriod[] {
+  //   const start = transaction.startTime ?? transaction.createdAt;
+  //   return [{
+  //     start_date_time: new Date(start!),
+  //     dimensions: [
+  //       { type: 'ENERGY', volume: transaction.totalKwh ?? 0 },
+  //       { type: 'TIME', volume: /* hours since start */ },
+  //       // optional PARKING_TIME if you have it
+  //     ],
+  //     tariff_id: tariffId,
+  //   }];
+  // }
 }
