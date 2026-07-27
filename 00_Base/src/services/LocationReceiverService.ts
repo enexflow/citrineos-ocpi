@@ -1071,7 +1071,7 @@ export class LocationReceiverService {
     evse: Partial<LocationEvseDTO>,
     tenantPartner: TenantPartnerDto,
   ): Promise<LocationResponse | undefined> {
-    this.logger.info(
+    this.logger.debug(
       `Receiver PATCH evse ${countryCode}/${partyId}/${locationId}/${evseUid} body=${JSON.stringify(evse)}`,
     );
     if (!tenantPartner.id) {
