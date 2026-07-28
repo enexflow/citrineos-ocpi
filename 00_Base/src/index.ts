@@ -459,7 +459,7 @@ export class OcpiServer extends KoaServer {
             ctx.req.on('error', reject);
           });
 
-          this.logger.info('[Headers for Request]', {
+          this.logger.debug('[Headers for Request]', {
             authorization: ctx.get('authorization') || undefined,
             ocpiFromCountryCode: ctx.get('ocpi-from-country-code'),
             ocpiFromPartyId: ctx.get('ocpi-from-party-id'),
