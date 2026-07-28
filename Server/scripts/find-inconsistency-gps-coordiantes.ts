@@ -49,10 +49,6 @@ function looksSwapped(lon: number, lat: number): boolean {
   return lon >= LAT_MIN && lon <= LAT_MAX && lat >= LON_MIN && lat <= LON_MAX;
 }
 
-function shouldReport(lon: number, lat: number): boolean {
-  return looksSwapped(lon, lat) || !isInsideEurope(lon, lat);
-}
-
 if (!HASURA_URL || !ADMIN_SECRET) {
   throw new Error('Missing HASURA_URL / ADMIN_SECRET');
 }
@@ -154,8 +150,9 @@ function partnerLocationWhere() {
 async function scanLocations(): Promise<ReportRow[]> {
   const out: ReportRow[] = [];
   let offset = 0;
+  let hasMore = true;
 
-  while (true) {
+  while (hasMore) {
     const data = await gql<{ Locations: LocRow[] }>(
       `
       query GetLocations($where: Locations_bool_exp!, $limit: Int!, $offset: Int!) {
@@ -178,7 +175,10 @@ async function scanLocations(): Promise<ReportRow[]> {
     );
 
     const rows = data.Locations ?? [];
-    if (rows.length === 0) break;
+    if (rows.length === 0) {
+      hasMore = false;
+      continue;
+    }
 
     for (const row of rows) {
       const point = parsePoint(row.coordinates);
@@ -201,7 +201,7 @@ async function scanLocations(): Promise<ReportRow[]> {
     }
 
     offset += rows.length;
-    if (rows.length < BATCH_SIZE) break;
+    hasMore = rows.length >= BATCH_SIZE;
   }
 
   return out;
@@ -216,7 +216,9 @@ async function scanEvses(): Promise<ReportRow[]> {
     coordinates: { _is_null: false },
   };
 
-  while (true) {
+  let hasMore = true;
+
+  while (hasMore) {
     const data = await gql<{ Evses: EvseRow[] }>(
       `
       query GetEvses($where: Evses_bool_exp!, $limit: Int!, $offset: Int!) {
@@ -243,7 +245,10 @@ async function scanEvses(): Promise<ReportRow[]> {
     );
 
     const rows = data.Evses ?? [];
-    if (rows.length === 0) break;
+    if (rows.length === 0) {
+      hasMore = false;
+      continue;
+    }
 
     for (const row of rows) {
       const point = parsePoint(row.coordinates);
@@ -267,7 +272,7 @@ async function scanEvses(): Promise<ReportRow[]> {
     }
 
     offset += rows.length;
-    if (rows.length < BATCH_SIZE) break;
+    hasMore = rows.length >= BATCH_SIZE;
   }
 
   return out;
