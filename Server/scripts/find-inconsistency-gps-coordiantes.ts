@@ -155,7 +155,7 @@ async function scanLocations(): Promise<ReportRow[]> {
   const out: ReportRow[] = [];
   let offset = 0;
 
-  for (;;) {
+  while (true) {
     const data = await gql<{ Locations: LocRow[] }>(
       `
       query GetLocations($where: Locations_bool_exp!, $limit: Int!, $offset: Int!) {
@@ -216,7 +216,7 @@ async function scanEvses(): Promise<ReportRow[]> {
     coordinates: { _is_null: false },
   };
 
-  for (;;) {
+  while (true) {
     const data = await gql<{ Evses: EvseRow[] }>(
       `
       query GetEvses($where: Evses_bool_exp!, $limit: Int!, $offset: Int!) {
@@ -281,13 +281,12 @@ function formatTags(row: ReportRow): string {
 }
 
 const FIX_SWAPPED = process.env.FIX_SWAPPED === 'true';
-const DRY_RUN = process.env.DRY_RUN !== 'false'; // default dry-run safe
+const DRY_RUN = process.env.DRY_RUN !== 'false';
 
 async function swapLocationCoordinates(id: number, lon: number, lat: number) {
-  // stored as [lon, lat] GeoJSON → swap means write [lat, lon] as new [lon, lat]
   const fixed = {
     type: 'Point',
-    coordinates: [lat, lon], // was [wrongLon≈lat, wrongLat≈lon]
+    coordinates: [lat, lon],
     crs: { type: 'name', properties: { name: 'urn:ogc:def:crs:EPSG::4326' } },
   };
   await gql(
