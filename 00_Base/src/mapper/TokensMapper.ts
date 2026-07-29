@@ -18,21 +18,28 @@ import {
 import { TokenType } from '../model/TokenType.js';
 import type { TokenDTO } from '../model/DTO/TokenDTO.js';
 import { WhitelistType } from '../model/WhitelistType.js';
+import {
+  getTokenOwnerFromAuthorization,
+  type AuthWithPartners,
+} from '../util/helpers.js';
 
 export class TokensMapper {
   public static toDto(authorization: AuthorizationDto): TokenDTO {
     const tenant = authorization.tenants?.[0]?.tenant;
 
+    const owner = getTokenOwnerFromAuthorization(
+      authorization as AuthWithPartners,
+    );
+
     const tokenDto: TokenDTO = {
-      country_code:
-        authorization.tenantPartner?.countryCode ?? tenant?.countryCode ?? '',
-      party_id: authorization.tenantPartner?.partyId ?? tenant?.partyId ?? '',
+      country_code: owner?.countryCode ?? tenant?.countryCode ?? '',
+      party_id: owner?.partyId ?? tenant?.partyId ?? '',
       uid: authorization.idToken,
       type: TokensMapper.mapOcppIdTokenTypeToOcpiTokenType(
         authorization.idTokenType ? authorization.idTokenType : null,
       ),
       contract_id: this.getContractId(authorization),
-      visual_number: TokensMapper.getVisualNumber(authorization),
+      visual_number: TokensMapper.getVisualNumber(authorization) ?? undefined,
       issuer: TokensMapper.getIssuer(authorization),
       group_id: authorization.groupAuthorization?.idToken,
       valid: authorization.status === AuthorizationStatusEnum.Accepted,
@@ -259,14 +266,17 @@ export class TokensMapper {
     return contractId;
   }
 
-  public static getVisualNumber(authorization: AuthorizationDto): string {
+  public static getVisualNumber(
+    authorization: AuthorizationDto,
+  ): string | null {
     const visualNumber = authorization.additionalInfo!.find(
       (info) => info.type === 'visual_number',
     )?.additionalIdToken;
     if (!visualNumber) {
-      throw new Error(
-        'Visual number not found in authorization additional info, authorization is incomplete for OCPI token mapping. Please add additional info with type visual_number.',
-      );
+      return null;
+      // throw new Error(
+      //   'Visual number not found in authorization additional info, authorization is incomplete for OCPI token mapping. Please add additional info with type visual_number.',
+      // );
     }
     return visualNumber;
   }

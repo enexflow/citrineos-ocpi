@@ -37,7 +37,12 @@ import { PartnerMtlsCertificateService } from '../util/PartnerMtlsCertificateSer
 import {
   handleHttpMethodForPartner,
   shouldBroadcastToPartner,
+  isGirevePartner,
 } from '../util/helpers.js';
+import { GireveBroadcastRetryOutbox } from '../services/GireveBroadcastRetryOutbox.js';
+
+import { appendFileSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 
 export interface RequiredOcpiParams {
   clientUrl: string;
@@ -70,6 +75,11 @@ export interface BroadcastParams<T extends ZodTypeAny> {
   paginatedParams?: PaginatedParams;
   otherParams?: Record<string, string | number | (string | number)[]>;
   path?: string;
+  partnerFilter?: (
+    partner: TenantPartnersListQueryResult['TenantPartners'][number],
+  ) => boolean;
+  ocpiToCountryCode?: string | null;
+  ocpiToPartyId?: string | null;
 }
 
 export interface TriggerRequestOptions extends IRequestOptions {
@@ -85,6 +95,8 @@ export abstract class BaseClientApi {
   protected ocpiGraphqlClient!: OcpiGraphqlClient;
   @Inject()
   protected partnerMtlsCertificateService!: PartnerMtlsCertificateService;
+  @Inject()
+  protected gireveBroadcastRetryOutbox!: GireveBroadcastRetryOutbox;
 
   CONTROLLER_PATH = 'null';
   private restClient!: RestClient;
@@ -223,27 +235,29 @@ export abstract class BaseClientApi {
 
     switch (httpMethod) {
       case HttpMethod.Get:
-        this.logger.info(`Sending GET request to ${url}`);
+        this.logger.debug(`Sending GET request to ${url}`);
         return this.getRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
       case HttpMethod.Post:
-        this.logger.info(`Sending POST request to ${url}`);
+        this.logger.debug(`Sending POST request to ${url}`);
         return this.createRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Put:
-        this.logger.info(`Sending PUT request to ${url}`);
+        this.logger.debug(`Sending PUT request to ${url}`);
+        this.logger.debug(`PUT BODY ${JSON.stringify(body)}`);
         return this.replaceRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Patch:
-        this.logger.info(`Sending PATCH request to ${url}`);
+        this.logger.debug(`Sending PATCH request to ${url}`);
+        this.logger.debug(`PATCH BODY ${JSON.stringify(body)}`);
         return this.updateRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Delete:
-        this.logger.info(`Sending DELETE request to ${url}`);
+        this.logger.debug(`Sending DELETE request to ${url}`);
         return this.delRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
@@ -325,6 +339,9 @@ export abstract class BaseClientApi {
       paginatedParams,
       otherParams,
       path,
+      partnerFilter,
+      ocpiToCountryCode,
+      ocpiToPartyId,
     } = params;
     this.logger.info(
       `Broadcasting to clients for ${moduleId}_${interfaceRole}`,
@@ -343,6 +360,9 @@ export abstract class BaseClientApi {
     const partners = response.TenantPartners;
     for (const partner of partners) {
       if (!shouldBroadcastToPartner(partner, moduleId, this.logger)) {
+        continue;
+      }
+      if (partnerFilter && !partnerFilter(partner)) {
         continue;
       }
       const HttpMethodForPartner = handleHttpMethodForPartner(
@@ -370,6 +390,8 @@ export abstract class BaseClientApi {
           otherParams,
           path,
           partner.awsSecretCertificateArn ?? undefined,
+          ocpiToCountryCode ?? undefined,
+          ocpiToPartyId ?? undefined,
         );
         responses.push(response);
       } catch (e) {
@@ -377,6 +399,77 @@ export abstract class BaseClientApi {
           `request failed for ${partner.countryCode}/${partner.partyId}`,
           e,
         );
+
+        // Best-effort: store failed Gireve pushes in an outbox so a worker can retry them later.
+        try {
+          const isRetryableModule =
+            moduleId === ModuleId.Sessions ||
+            moduleId === ModuleId.Cdrs ||
+            moduleId === ModuleId.Tariffs;
+
+          const targetIsGireve = isGirevePartner({
+            countryCode: partner.countryCode,
+            partyId: partner.partyId,
+          });
+
+          if (isRetryableModule && targetIsGireve) {
+            const computedResourceId =
+              body && typeof body === 'object' && (body as any).id != null
+                ? String((body as any).id)
+                : path
+                  ? path.split('/').filter(Boolean).pop()
+                  : undefined;
+
+            if (computedResourceId) {
+              const resourceType =
+                moduleId === ModuleId.Sessions
+                  ? 'session'
+                  : moduleId === ModuleId.Cdrs
+                    ? 'cdr'
+                    : 'tariff';
+
+              const lastError =
+                e instanceof Error
+                  ? (e.stack ?? e.message)
+                  : typeof e === 'string'
+                    ? e
+                    : (() => {
+                        try {
+                          return JSON.stringify(e);
+                        } catch {
+                          return String(e);
+                        }
+                      })();
+
+              await this.gireveBroadcastRetryOutbox.upsertOnFailure({
+                partnerTenantPartnerId: partner.id!,
+                cpoCountryCode,
+                cpoPartyId,
+                moduleId,
+                interfaceRole,
+                httpMethod: HttpMethodForPartner,
+                resourceType,
+                resourceId: computedResourceId,
+                ocpiPath: path,
+                payload: body ?? {},
+                lastError,
+              });
+            } else {
+              this.logger.warn(
+                'Gireve retry outbox: cannot compute resourceId, skipping',
+                {
+                  partner: `${partner.countryCode}/${partner.partyId}`,
+                  path,
+                },
+              );
+            }
+          }
+        } catch (queueErr) {
+          this.logger.error(
+            'Failed to upsert Gireve retry outbox (best-effort)',
+            queueErr,
+          );
+        }
       }
     }
     return responses;
@@ -417,6 +510,10 @@ export abstract class BaseClientApi {
           (result as any).offset = this.getOffsetFromLink(cleanedLink);
         }
       }
+      this.logger.info('OCPI response before Zod parse', {
+        statusCode: response.statusCode,
+        body: result,
+      });
       // Parse and validate using Zod
       return schema.parse(result);
     } else {

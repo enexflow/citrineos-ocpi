@@ -72,6 +72,16 @@ import type {
 } from '../model/DTO/PushPartnerModulesBody.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
 import { HttpMethod } from '@zetra/citrineos-base';
+import { WhitelistType } from '../model/WhitelistType.js';
+import { AuthMethod } from '../model/AuthMethod.js';
+export type UpsertTokenOptions = {
+  cacheExpiryDateTime?: Date;
+  ocpiAuthMethod?: AuthMethod;
+  ocpiAuthReference?: string;
+};
+
+import { getRoamingPartner } from '../util/helpers.js';
+import type { TenantPartnerDto } from '@zetra/citrineos-base';
 
 @Service()
 export class TokensService {
@@ -109,11 +119,13 @@ export class TokensService {
     return TokensMapper.toDto(result.Authorizations[0] as AuthorizationDto);
   }
 
-  async upsertToken(
+  private async upsertTokenInternal(
     token: TokenDTO,
     tenantId: number,
     tenantPartnerId: number,
-  ): Promise<TokenDTO> {
+    roamingPartnerId?: number,
+    options?: UpsertTokenOptions,
+  ): Promise<AuthorizationDto> {
     const authorization =
       TokensMapper.mapOcpiTokenToPartialOcppAuthorization(token);
 
@@ -125,6 +137,10 @@ export class TokensService {
       idTokenType: authorization.idTokenType!,
       tenantPartnerId,
     });
+
+    const cacheExpiryDateTime = options?.cacheExpiryDateTime?.toISOString();
+    const ocpiAuthMethod = options?.ocpiAuthMethod;
+    const ocpiAuthReference = options?.ocpiAuthReference;
 
     let groupAuthorizationId: number | undefined;
     if (token.group_id) {
@@ -148,41 +164,89 @@ export class TokensService {
           status: authorization.status!,
           language1: authorization.language1,
           groupAuthorizationId,
+          ...(roamingPartnerId != null && { roamingPartnerId }),
           ...(authorization.realTimeAuth != null && {
             realTimeAuth: authorization.realTimeAuth,
           }),
+          ...(cacheExpiryDateTime != null && { cacheExpiryDateTime }),
+          ...(ocpiAuthMethod != null && { ocpiAuthMethod }),
+          ...(ocpiAuthReference != null && { ocpiAuthReference }),
           updatedAt: token.last_updated,
         },
       });
 
-      return TokensMapper.toDto(
-        result.update_Authorizations?.returning[0] as AuthorizationDto,
-      );
-    } else {
-      const timestamp = token.last_updated;
-      const result = await this.ocpiGraphqlClient.request<
-        CreateAuthorizationMutationResult,
-        CreateAuthorizationMutationVariables
-      >(CREATE_AUTHORIZATION_MUTATION, {
-        tenantId,
-        tenantPartnerId,
-        idToken: authorization.idToken!,
-        idTokenType: authorization.idTokenType!,
-        additionalInfo: authorization.additionalInfo,
-        status: authorization.status!,
-        language1: authorization.language1,
-        groupAuthorizationId,
-        ...(authorization.realTimeAuth != null && {
-          realTimeAuth: authorization.realTimeAuth,
-        }),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
+      const row = result.update_Authorizations?.returning[0];
+      if (!row) {
+        throw new Error(
+          `Failed to update authorization for token ${authorization.idToken}`,
+        );
+      }
+      return row as AuthorizationDto;
+    }
 
-      return TokensMapper.toDto(
-        result.insert_Authorizations_one as AuthorizationDto,
+    const timestamp = token.last_updated;
+    const result = await this.ocpiGraphqlClient.request<
+      CreateAuthorizationMutationResult,
+      CreateAuthorizationMutationVariables
+    >(CREATE_AUTHORIZATION_MUTATION, {
+      tenantId,
+      tenantPartnerId,
+      roamingPartnerId,
+      idToken: authorization.idToken!,
+      idTokenType: authorization.idTokenType!,
+      additionalInfo: authorization.additionalInfo,
+      status: authorization.status!,
+      language1: authorization.language1,
+      ...(roamingPartnerId != null && { roamingPartnerId }),
+      groupAuthorizationId,
+      ...(authorization.realTimeAuth != null && {
+        realTimeAuth: authorization.realTimeAuth,
+      }),
+      ...(cacheExpiryDateTime != null && { cacheExpiryDateTime }),
+      ...(ocpiAuthMethod != null && { ocpiAuthMethod }),
+      ...(ocpiAuthReference != null && { ocpiAuthReference }),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    const row = result.insert_Authorizations_one;
+    if (!row) {
+      throw new Error(
+        `Failed to create authorization for token ${authorization.idToken}`,
       );
     }
+    return row as AuthorizationDto;
+  }
+
+  async upsertToken(
+    token: TokenDTO,
+    tenantId: number,
+    tenantPartnerId: number,
+    options?: UpsertTokenOptions,
+  ): Promise<TokenDTO> {
+    const authorization = await this.upsertTokenInternal(
+      token,
+      tenantId,
+      tenantPartnerId,
+      undefined,
+      options,
+    );
+    return TokensMapper.toDto(authorization);
+  }
+  async persistRoamingAuthorization(
+    token: TokenDTO,
+    tenantId: number,
+    tenantPartnerId: number,
+    roamingPartnerId?: number,
+    options?: UpsertTokenOptions,
+  ): Promise<void> {
+    await this.upsertTokenInternal(
+      token,
+      tenantId,
+      tenantPartnerId,
+      roamingPartnerId,
+      options,
+    );
   }
 
   async patchToken(
@@ -376,12 +440,11 @@ export class TokensService {
           `Unknown charging station ${realTimeAuthRequest.stationId} at location ${realTimeAuthRequest.locationId}`,
         );
       }
-      const chargingStation = chargingStationResponse
-        .ChargingStations[0] as ChargingStationDto;
+      const chargingStation = chargingStationResponse.ChargingStations[0];
       locationReferences = {
         location_id: realTimeAuthRequest.locationId.toString(),
         evse_uids: chargingStation.evses!.map((evse) =>
-          UID_FORMAT(chargingStation.id, evse.id!),
+          UID_FORMAT(chargingStation.id, evse.evseTypeId!),
         ),
       };
     }
@@ -408,6 +471,35 @@ export class TokensService {
     ) {
       throw new InvalidParamException(
         `Failed to authorize token ${realTimeAuthRequest.idToken}`,
+      );
+    }
+    if (
+      postTokenResult.data!.token &&
+      tenantPartner.tenant.id &&
+      tenantPartner.id
+    ) {
+      const roamingToken = {
+        ...postTokenResult.data!.token,
+        whitelist: WhitelistType.NEVER,
+      };
+      const cacheExpiryDateTime = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+      const roamingPartner = getRoamingPartner(
+        tenantPartner as TenantPartnerDto,
+        roamingToken.country_code,
+        roamingToken.party_id,
+      );
+
+      await this.persistRoamingAuthorization(
+        roamingToken,
+        tenantPartner.tenant.id,
+        tenantPartner.id,
+        roamingPartner?.id,
+        {
+          cacheExpiryDateTime,
+          ocpiAuthMethod: AuthMethod.AUTH_REQUEST,
+          ocpiAuthReference:
+            postTokenResult.data?.authorization_reference ?? undefined,
+        },
       );
     }
 

@@ -81,6 +81,7 @@ export const UPDATE_TOKEN_MUTATION = gql`
           countryCode
           partyId
         }
+        roamingPartnerId
         groupAuthorization: GroupAuthorization {
           idToken
         }
@@ -113,6 +114,12 @@ export const GET_AUTHORIZATION_BY_TOKEN = gql`
       idToken
       idTokenType
       tenantPartner: TenantPartner {
+        id
+        countryCode
+        partyId
+      }
+      roamingPartnerId
+      roamingPartner: RoamingPartner {
         id
         countryCode
         partyId
@@ -174,6 +181,7 @@ export const CREATE_AUTHORIZATION_MUTATION = gql`
   mutation CreateAuthorization(
     $tenantId: Int!
     $tenantPartnerId: Int!
+    $roamingPartnerId: Int
     $idToken: citext!
     $idTokenType: String!
     $additionalInfo: jsonb
@@ -181,12 +189,16 @@ export const CREATE_AUTHORIZATION_MUTATION = gql`
     $language1: String
     $groupAuthorizationId: Int
     $realTimeAuth: String
+    $ocpiAuthMethod: String
+    $ocpiAuthReference: String
+    $cacheExpiryDateTime: timestamptz
     $createdAt: timestamptz!
     $updatedAt: timestamptz!
   ) {
     insert_Authorizations_one(
       object: {
         tenantPartnerId: $tenantPartnerId
+        roamingPartnerId: $roamingPartnerId
         idToken: $idToken
         idTokenType: $idTokenType
         additionalInfo: $additionalInfo
@@ -194,6 +206,9 @@ export const CREATE_AUTHORIZATION_MUTATION = gql`
         language1: $language1
         groupAuthorizationId: $groupAuthorizationId
         realTimeAuth: $realTimeAuth
+        ocpiAuthMethod: $ocpiAuthMethod
+        ocpiAuthReference: $ocpiAuthReference
+        cacheExpiryDateTime: $cacheExpiryDateTime
         createdAt: $createdAt
         updatedAt: $updatedAt
         tenants: { data: [{ tenantId: $tenantId }] }
@@ -214,6 +229,12 @@ export const CREATE_AUTHORIZATION_MUTATION = gql`
         countryCode
         partyId
       }
+      roamingPartnerId
+      roamingPartner: RoamingPartner {
+        id
+        countryCode
+        partyId
+      }
       groupAuthorization: GroupAuthorization {
         idToken
       }
@@ -223,6 +244,9 @@ export const CREATE_AUTHORIZATION_MUTATION = gql`
       status
       realTimeAuth
       language1
+      ocpiAuthMethod
+      ocpiAuthReference
+      cacheExpiryDateTime
       groupAuthorizationId
     }
   }

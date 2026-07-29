@@ -4,7 +4,10 @@
 
 import type { ICommandsModuleApi } from './ICommandsModuleApi.js';
 import { Body, Ctx, JsonController, Param, Post } from 'routing-controllers';
-import type { TenantPartnerDto } from '@zetra/citrineos-base';
+import type {
+  RoamingPartnerDto,
+  TenantPartnerDto,
+} from '@zetra/citrineos-base';
 import { HttpStatus, OCPPVersion } from '@zetra/citrineos-base';
 import type {
   CancelReservation,
@@ -26,9 +29,11 @@ import {
   CommandsService,
   CommandType,
   EnumParam,
+  FunctionalEndpointParams,
   generateMockForSchema,
   ModuleId,
   MultipleTypes,
+  OcpiHeaders,
   ReserveNowSchema,
   ReserveNowSchemaName,
   ResponseGenerator,
@@ -48,7 +53,7 @@ const MOCK_COMMAND_RESPONSE = await generateMockForSchema(
   CommandResponseSchemaName,
 );
 
-@JsonController(`/emsp/:${versionIdParam}/${ModuleId.Commands}`)
+@JsonController(`/cpo/:${versionIdParam}/${ModuleId.Commands}`)
 @Service()
 export class CommandsModuleApi
   extends BaseController
@@ -87,6 +92,7 @@ export class CommandsModuleApi
       | StartSession
       | StopSession
       | UnlockConnector,
+    @FunctionalEndpointParams() ocpiHeaders: OcpiHeaders,
     @Ctx() ctx: any,
   ): Promise<OcpiCommandResponse> {
     this.logger.debug('postCommand', commandType, payload);
@@ -135,6 +141,8 @@ export class CommandsModuleApi
       commandType,
       validationResult.data,
       ctx!.state!.tenantPartner as TenantPartnerDto,
+      ctx!.state!.roamingPartner as RoamingPartnerDto,
+      ocpiHeaders,
     );
   }
 

@@ -92,7 +92,7 @@ export abstract class AbstractDtoModule implements IDtoModule {
       ) as Array<IDtoEventHandlerDefinition>;
       logDbBroadcast(
         this._logger,
-        'info',
+        'debug',
         'message._context',
         message._context,
       );

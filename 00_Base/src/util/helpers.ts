@@ -18,6 +18,7 @@ import {
 import { Logger } from 'tslog';
 import type { ILogObj } from 'tslog';
 
+import type { BroadcastParams } from '../trigger/BaseClientApi.js';
 type BroadcastPartner = TenantPartnersListQueryResult['TenantPartners'][number];
 
 export const shouldBroadcastToPartner = (
@@ -61,14 +62,14 @@ export const shouldBroadcastToPartner = (
     return false;
   }
 
-  if (
-    moduleId !== ModuleId.Tokens &&
-    tenantPartner.partyId === config.gireve?.partyId &&
-    tenantPartner.countryCode === config.gireve?.countryCode
-  ) {
-    logDbBroadcast(logger, 'info', `Broadcast as CPO to Gireve disabled`);
-    return false;
-  }
+  // if (
+  //   moduleId !== ModuleId.Tokens &&
+  //   tenantPartner.partyId === config.gireve?.partyId &&
+  //   tenantPartner.countryCode === config.gireve?.countryCode
+  // ) {
+  //   logDbBroadcast(logger, 'info', `Broadcast as CPO to Gireve disabled`);
+  //   return false;
+  // }
   return true;
 };
 
@@ -149,12 +150,59 @@ export const handleHttpMethodForPartner = (
 ) => {
   const config = Container.get<OcpiConfig>(OcpiConfigToken);
   if (
-    moduleId === ModuleId.Tokens &&
+    (moduleId === ModuleId.Tokens || moduleId === ModuleId.Sessions) &&
     httpMethod === HttpMethod.Patch &&
-    partner.countryCode === config.gireve?.countryCode &&
-    partner.partyId === config.gireve?.partyId
+    isGirevePartner(partner)
   ) {
     return HttpMethod.Put;
   }
   return httpMethod;
 };
+
+export const isGirevePartner = (partner: {
+  countryCode?: string;
+  partyId?: string;
+}) => {
+  const config = Container.get<OcpiConfig>(OcpiConfigToken);
+  return (
+    partner.countryCode === config.gireve?.countryCode &&
+    partner.partyId === config.gireve?.partyId
+  );
+};
+
+export function tokenOwnerPartnerFilter(
+  tokenOwnerTenantPartnerId: number,
+): NonNullable<BroadcastParams<never>['partnerFilter']> {
+  return (partner: BroadcastPartner) =>
+    partner.id === tokenOwnerTenantPartnerId;
+}
+
+type TokenOwnerPartner = {
+  id?: number;
+  countryCode?: string | null;
+  partyId?: string | null;
+};
+
+export type AuthWithPartners = {
+  roamingPartner?: TokenOwnerPartner | null;
+  tenantPartner?: TokenOwnerPartner | null;
+};
+
+export function getTokenOwnerFromAuthorization(
+  auth: AuthWithPartners,
+): TokenOwnerPartner | null | undefined {
+  return auth.roamingPartner ?? auth.tenantPartner;
+}
+
+export function getOcpiToFromAuthorization(
+  auth: AuthWithPartners | null | undefined,
+): { ocpiToCountryCode?: string; ocpiToPartyId?: string } {
+  const owner = getTokenOwnerFromAuthorization(auth ?? {});
+  if (!owner?.countryCode || !owner?.partyId) {
+    return {};
+  }
+  return {
+    ocpiToCountryCode: owner.countryCode,
+    ocpiToPartyId: owner.partyId,
+  };
+}

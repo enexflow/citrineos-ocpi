@@ -12,6 +12,7 @@ import { CommandType } from '../model/CommandType.js';
 import type { OcpiCommandResponse } from '../model/CommandResponse.js';
 import { CommandResponseType } from '../model/CommandResponse.js';
 // import { CommandExecutor } from '../util/CommandExecutor.js';
+import { AuthMethod } from '../model/AuthMethod.js';
 import { ResponseGenerator } from '../util/response.generator.js';
 import { CommandExecutor } from '../util/CommandExecutor.js';
 import type {
@@ -31,9 +32,18 @@ import type { OcpiConfig } from '../config/ocpi.types.js';
 import { OcpiConfigToken } from '../config/ocpi.types.js';
 import type {
   ChargingStationDto,
+  ConnectorDto,
   TenantPartnerDto,
+  RoamingPartnerDto,
 } from '@zetra/citrineos-base';
-import { EXTRACT_STATION_ID } from '../model/DTO/EvseDTO.js';
+import { EXTRACT_EVSE_ID, EXTRACT_STATION_ID } from '../model/DTO/EvseDTO.js';
+import { ChargingStationMapper } from '../mapper/ChargingStationMapper.js';
+import { EvseMapper } from '../mapper/LocationMapper.js';
+import { EvseStatus } from '../model/EvseStatus.js';
+import type { OcpiHeaders } from '../model/OcpiHeaders.js';
+import { TokensService } from './TokensService.js';
+import { WhitelistType } from '../model/WhitelistType.js';
+import { getTokenOwnerFromAuthorization } from '../util/helpers.js';
 
 @Service()
 export class CommandsService {
@@ -48,6 +58,9 @@ export class CommandsService {
 
   @Inject(OcpiConfigToken) readonly config!: OcpiConfig;
 
+  @Inject()
+  protected tokensService!: TokensService;
+
   public async postCommand(
     commandType: CommandType,
     payload:
@@ -57,6 +70,8 @@ export class CommandsService {
       | StopSession
       | UnlockConnector,
     tenantPartner: TenantPartnerDto,
+    roamingPartner: RoamingPartnerDto,
+    ocpiHeaders: OcpiHeaders,
   ): Promise<OcpiCommandResponse> {
     switch (commandType) {
       case CommandType.CANCEL_RESERVATION:
@@ -67,13 +82,24 @@ export class CommandsService {
       case CommandType.RESERVE_NOW:
         return this.handleReserveNow(payload as ReserveNow, tenantPartner);
       case CommandType.START_SESSION:
-        return this.handleStartSession(payload as StartSession, tenantPartner);
+        return this.handleStartSession(
+          payload as StartSession,
+          tenantPartner,
+          roamingPartner,
+          ocpiHeaders,
+        );
       case CommandType.STOP_SESSION:
-        return this.handleStopSession(payload as StopSession, tenantPartner);
+        return this.handleStopSession(
+          payload as StopSession,
+          tenantPartner,
+          roamingPartner,
+          ocpiHeaders,
+        );
       case CommandType.UNLOCK_CONNECTOR:
         return this.handleUnlockConnector(
           payload as UnlockConnector,
           tenantPartner,
+          ocpiHeaders,
         );
       default:
         return ResponseGenerator.buildGenericClientErrorResponse(
@@ -110,6 +136,8 @@ export class CommandsService {
   private async handleStartSession(
     startSession: StartSession,
     tenantPartner: TenantPartnerDto,
+    roamingPartner: RoamingPartnerDto,
+    ocpiHeaders: OcpiHeaders,
   ): Promise<OcpiCommandResponse> {
     if (!startSession.evse_uid) {
       this.logger.error('EVSE UID is required for StartSession command');
@@ -122,8 +150,12 @@ export class CommandsService {
       );
     }
     if (
-      tenantPartner.countryCode !== startSession.token.country_code ||
-      tenantPartner.partyId !== startSession.token.party_id
+      (!roamingPartner &&
+        (tenantPartner.countryCode !== startSession.token.country_code ||
+          tenantPartner.partyId !== startSession.token.party_id)) ||
+      (roamingPartner &&
+        (roamingPartner.countryCode !== startSession.token.country_code ||
+          roamingPartner.partyId !== startSession.token.party_id))
     ) {
       this.logger.error('Token information does not match credentials');
       return ResponseGenerator.buildInvalidOrMissingParametersResponse(
@@ -140,15 +172,17 @@ export class CommandsService {
     >(GET_CHARGING_STATION_BY_ID_QUERY, {
       id: EXTRACT_STATION_ID(startSession.evse_uid!),
     });
+    const stationContext = ChargingStationMapper.fromGetByIdQueryRowWithContext(
+      chargingStationResponse.ChargingStations[0],
+    );
     if (
-      !chargingStationResponse.ChargingStations[0] ||
-      chargingStationResponse.ChargingStations[0].locationId?.toString() !==
-        startSession.location_id
+      !stationContext ||
+      stationContext.station.locationId?.toString() !== startSession.location_id
     ) {
       this.logger.error('Charging station not found for evse_uid', {
         evseUid: startSession.evse_uid,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -156,13 +190,13 @@ export class CommandsService {
         'Unknown charging station',
       );
     }
-    const chargingStation = chargingStationResponse
-      .ChargingStations[0] as ChargingStationDto;
+    const { station: chargingStation, activeTransactionConnectorIds } =
+      stationContext;
     if (!chargingStation.isOnline) {
       this.logger.error('Charging station is offline', {
         stationId: chargingStation.id,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -180,7 +214,7 @@ export class CommandsService {
         stationId: chargingStation.id,
         connectorId: startSession.connector_id,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -188,11 +222,54 @@ export class CommandsService {
         'Unknown connector',
       );
     }
+    const evseAvailability = this.getEvseAvailabilityForStartSession(
+      chargingStation,
+      startSession.evse_uid,
+      startSession.connector_id,
+      activeTransactionConnectorIds,
+    );
+    if (!evseAvailability.available) {
+      this.logger.warn('EVSE is not available for StartSession command', {
+        evseUid: startSession.evse_uid,
+        connectorId: startSession.connector_id,
+        status: evseAvailability.status,
+      });
+      return ResponseGenerator.buildGenericSuccessResponse(
+        {
+          result: CommandResponseType.REJECTED,
+          timeout: this.config.commands.timeout,
+        },
+        `EVSE is not available (${evseAvailability.status})`,
+      );
+    }
+    const tenantId = tenantPartner.tenant?.id;
+    const tenantPartnerId = tenantPartner.id;
+    if (tenantId && tenantPartnerId) {
+      await this.tokensService.persistRoamingAuthorization(
+        { ...startSession.token, whitelist: WhitelistType.NEVER },
+        tenantId,
+        tenantPartnerId,
+        roamingPartner?.id,
+        {
+          cacheExpiryDateTime: new Date(
+            Date.now() + this.config.commands.timeout * 1000,
+          ),
+          ocpiAuthMethod: AuthMethod.COMMAND,
+          ocpiAuthReference: startSession.authorization_reference ?? undefined,
+        },
+      );
+    }
     this.commandExecutor
-      .executeStartSession(startSession, tenantPartner, chargingStation)
+      .executeStartSession(
+        startSession,
+        tenantPartner,
+        chargingStation,
+        ocpiHeaders,
+      )
       .catch((error) => {
         this.logger.error('Failed to execute StartSession command', error);
       });
+
     return ResponseGenerator.buildGenericSuccessResponse({
       result: CommandResponseType.ACCEPTED,
       timeout: this.config.commands.timeout,
@@ -202,6 +279,8 @@ export class CommandsService {
   private async handleStopSession(
     stopSession: StopSession,
     tenantPartner: TenantPartnerDto,
+    roamingPartner: RoamingPartnerDto | null | undefined,
+    ocpiHeaders: OcpiHeaders,
   ): Promise<OcpiCommandResponse> {
     const transactionResponse = await this.ocpiGraphqlClient.request<
       GetTransactionByTransactionIdQueryResult,
@@ -213,7 +292,7 @@ export class CommandsService {
       this.logger.error('Unknown transaction', {
         transactionId: stopSession.session_id,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.UNKNOWN_SESSION,
           timeout: this.config.commands.timeout,
@@ -222,14 +301,31 @@ export class CommandsService {
       );
     }
     const transaction = transactionResponse.Transactions[0];
-    if (
-      tenantPartner.countryCode !==
-        transaction.authorization!.tenantPartner!.countryCode! ||
-      tenantPartner.partyId !==
-        transaction.authorization!.tenantPartner!.partyId!
-    ) {
-      this.logger.error('Token information does not match credentials');
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+    // const sessionTenantPartner = transaction.authorization?.tenantPartner;
+    const sessionTokenOwner = getTokenOwnerFromAuthorization(
+      transaction.authorization ?? {},
+    );
+    const requestingPartner = roamingPartner ?? tenantPartner;
+    if (sessionTokenOwner) {
+      if (
+        requestingPartner.countryCode !== sessionTokenOwner.countryCode ||
+        requestingPartner.partyId !== sessionTokenOwner.partyId
+      ) {
+        this.logger.error('Token information does not match credentials');
+        return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+          {
+            result: CommandResponseType.REJECTED,
+            timeout: this.config.commands.timeout,
+          },
+          'Token information does not match credentials',
+        );
+      }
+    } else if (transaction.remoteStartId == null) {
+      this.logger.error(
+        'Session authorization is not linked to a tenant partner',
+        { transactionId: transaction.transactionId },
+      );
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -241,7 +337,7 @@ export class CommandsService {
       this.logger.error('Stop session transaction is not active', {
         transactionId: transaction.id,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
@@ -249,21 +345,28 @@ export class CommandsService {
         'Session is already stopped',
       );
     }
-    const chargingStation = transaction.chargingStation as ChargingStationDto;
-    if (!chargingStation.isOnline) {
-      this.logger.error('Charging station is offline', {
-        stationId: chargingStation.id,
+    const chargingStation = ChargingStationMapper.fromTransactionQueryRow(
+      transaction.chargingStation,
+    );
+    if (!chargingStation) {
+      this.logger.error('Charging station not found for transaction', {
+        transactionId: transaction.transactionId,
       });
-      return ResponseGenerator.buildInvalidOrMissingParametersResponse(
+      return ResponseGenerator.buildGenericSuccessResponse(
         {
           result: CommandResponseType.REJECTED,
           timeout: this.config.commands.timeout,
         },
-        'Charging station is offline',
+        'Unknown charging station',
       );
     }
     this.commandExecutor
-      .executeStopSession(stopSession, tenantPartner, chargingStation)
+      .executeStopSession(
+        stopSession,
+        tenantPartner,
+        chargingStation,
+        ocpiHeaders,
+      )
       .catch((error) => {
         this.logger.error('Failed to execute StopSession command', error);
       });
@@ -276,6 +379,7 @@ export class CommandsService {
   private async handleUnlockConnector(
     unlockConnector: UnlockConnector,
     tenantPartner: TenantPartnerDto,
+    ocpiHeaders: OcpiHeaders,
   ): Promise<OcpiCommandResponse> {
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
@@ -283,10 +387,12 @@ export class CommandsService {
     >(GET_CHARGING_STATION_BY_ID_QUERY, {
       id: EXTRACT_STATION_ID(unlockConnector.evse_uid!),
     });
+    const chargingStation = ChargingStationMapper.fromGetByIdQueryRow(
+      chargingStationResponse.ChargingStations[0],
+    );
     if (
-      !chargingStationResponse.ChargingStations[0] ||
-      chargingStationResponse.ChargingStations[0].locationId?.toString() !==
-        unlockConnector.location_id
+      !chargingStation ||
+      chargingStation.locationId?.toString() !== unlockConnector.location_id
     ) {
       this.logger.error('Charging station not found for evse_uid', {
         evseUid: unlockConnector.evse_uid,
@@ -299,8 +405,6 @@ export class CommandsService {
         'Unknown charging station',
       );
     }
-    const chargingStation = chargingStationResponse
-      .ChargingStations[0] as ChargingStationDto;
     if (!chargingStation.isOnline) {
       this.logger.error('Charging station is offline', {
         stationId: chargingStation.id,
@@ -332,7 +436,12 @@ export class CommandsService {
       );
     }
     this.commandExecutor
-      .executeUnlockConnector(unlockConnector, tenantPartner, chargingStation)
+      .executeUnlockConnector(
+        unlockConnector,
+        tenantPartner,
+        chargingStation,
+        ocpiHeaders,
+      )
       .catch((error) => {
         this.logger.error('Failed to execute UnlockConnector command', error);
       });
@@ -340,5 +449,41 @@ export class CommandsService {
       result: CommandResponseType.ACCEPTED,
       timeout: this.config.commands.timeout,
     });
+  }
+
+  private getEvseAvailabilityForStartSession(
+    chargingStation: ChargingStationDto,
+    evseUid: string,
+    connectorId?: string | null,
+    activeTransactionConnectorIds?: ReadonlySet<number>,
+  ): { available: boolean; status: EvseStatus } {
+    const evseTypeId = Number(EXTRACT_EVSE_ID(evseUid));
+    const evse = Array.from(chargingStation.evses || []).find(
+      (value) => value.evseTypeId === evseTypeId,
+    );
+    if (!evse) {
+      return { available: false, status: EvseStatus.UNKNOWN };
+    }
+    if (evse.removed) {
+      return { available: false, status: EvseStatus.REMOVED };
+    }
+
+    let connectors: ConnectorDto[] = Array.from(
+      chargingStation.connectors || [],
+    ).filter((value) => value.evseId === evse.id);
+    if (connectorId) {
+      connectors = connectors.filter(
+        (value) => value.id?.toString() === connectorId,
+      );
+    }
+
+    const status = EvseMapper.mapEvseStatusFromConnectors(
+      connectors,
+      activeTransactionConnectorIds,
+    );
+    return {
+      available: status === EvseStatus.AVAILABLE,
+      status,
+    };
   }
 }

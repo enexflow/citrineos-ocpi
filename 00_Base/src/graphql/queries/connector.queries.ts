@@ -128,7 +128,7 @@ export const GET_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID_AND_ROAMING_PARTNER_ID = gql`
       vendorErrorCode
       createdAt
       updatedAt
-      tariffs: ConnectorTariffsOcpiPartner {
+      tariffs: ConnectorTariffs {
         id
         tariffOcpiId
         connectorOcpiId
@@ -180,7 +180,7 @@ export const GET_CONNECTOR_BY_OCPI_ID_AND_EVSE_ID = gql`
       vendorErrorCode
       createdAt
       updatedAt
-      tariffs: ConnectorTariffsOcpiPartner {
+      tariffs: ConnectorTariffs {
         id
         tariffOcpiId
         connectorOcpiId
@@ -233,6 +233,55 @@ export const MARK_CONNECTOR_DELETED_QUERY = gql`
       _set: { deletedAt: $deletedAt }
     ) {
       id
+    }
+  }
+`;
+
+// one query to get the connector and the tariffs and evse with all the connectors (for gireve receiver)
+export const GET_OWN_CONNECTOR_FOR_TARIFF_BROADCAST_QUERY = gql`
+  query GetOwnConnectorForTariffBroadcast($connectorId: Int!) {
+    Connectors_by_pk(id: $connectorId) {
+      id
+      evseId
+      stationId
+      updatedAt
+      tariffs: ConnectorTariffs(
+        where: { tenantPartnerId: { _is_null: true } }
+      ) {
+        tariffOcpiId
+      }
+      ChargingStation {
+        locationId
+        Location {
+          ownerTenantPartnerId
+          disableOCPI
+        }
+      }
+      Evse {
+        evseTypeId
+        Connectors(order_by: { connectorId: asc }) {
+          id
+          stationId
+          evseId
+
+          timestamp
+          ocpiId
+          connectorId
+          format
+          type
+          powerType
+          maximumAmperage
+          maximumVoltage
+          maximumPowerWatts
+          status
+          updatedAt
+          tariffs: ConnectorTariffs(
+            where: { tenantPartnerId: { _is_null: true } }
+          ) {
+            tariffOcpiId
+          }
+        }
+      }
     }
   }
 `;

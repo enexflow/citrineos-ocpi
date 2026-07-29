@@ -25,6 +25,20 @@ export const CommandResultSchema = z.object({
 
 export type CommandResult = z.infer<typeof CommandResultSchema>;
 
+/**
+ * When `CITRINEOS_OCPI_INCLUDE_COMMAND_RESULT_MESSAGE=false`, omit `message`
+ * from CommandResult payloads POSTed to the eMSP `response_url`.
+ * Defaults to including it.
+ */
+export const includeCommandResultMessage = (): boolean =>
+  process.env.CITRINEOS_OCPI_INCLUDE_COMMAND_RESULT_MESSAGE?.toLowerCase() !==
+  'false';
+
+export const stripCommandResultMessageIfDisabled = (
+  body: CommandResult,
+): CommandResult =>
+  includeCommandResultMessage() ? body : { result: body.result };
+
 export const OcpiCommandResultSchema = OcpiResponseSchema(CommandResultSchema);
 
 export type OcpiCommandResult = z.infer<typeof OcpiCommandResultSchema>;
