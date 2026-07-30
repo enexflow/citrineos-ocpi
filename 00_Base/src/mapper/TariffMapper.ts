@@ -11,6 +11,7 @@ import { MINUTES_IN_HOUR } from '../util/Consts.js';
 import type { TariffDto, RoamingPartnerDto } from '@zetra/citrineos-base';
 import type { Price } from '../model/Price.js';
 import type { EnergyMix } from '../model/EnergyMix.js';
+import type { Tariffs_Insert_Input } from '../graphql/operations.js';
 
 export type TariffMapInput = {
   id?: number;
@@ -18,9 +19,6 @@ export type TariffMapInput = {
   stationId?: string | null;
   authorizationAmount?: unknown;
   paymentFee?: unknown;
-  pricePerKwh?: unknown;
-  pricePerMin?: unknown;
-  pricePerSession?: unknown;
   taxRate?: unknown;
   currency?: string;
   tariffAltText?: string | Record<string, unknown> | null | unknown[];
@@ -67,41 +65,6 @@ function toTariffType(v: string | null | undefined): TariffType | null {
 export class TariffMapper {
   constructor() {}
 
-  public static mapForSender(coreTariff: TariffMapInput): TariffDTO {
-    let tariffAltText: Array<{ language: string; text: string }> | undefined;
-    if (coreTariff.tariffAltText) {
-      if (typeof coreTariff.tariffAltText === 'string') {
-        try {
-          tariffAltText = JSON.parse(coreTariff.tariffAltText);
-        } catch {
-          tariffAltText = undefined;
-        }
-      } else if (Array.isArray(coreTariff.tariffAltText)) {
-        tariffAltText = coreTariff.tariffAltText as Array<{
-          language: string;
-          text: string;
-        }>;
-      }
-    }
-
-    return {
-      id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
-      country_code: coreTariff.tenant!.countryCode!,
-      party_id: coreTariff.tenant!.partyId!,
-      currency: coreTariff.currency!,
-      type: TariffType.AD_HOC_PAYMENT,
-      tariff_alt_text: tariffAltText,
-      tariff_alt_url: undefined,
-      min_price: undefined,
-      max_price: undefined,
-      elements: [TariffMapper.getTariffElement(coreTariff)],
-      energy_mix: undefined,
-      start_date_time: undefined,
-      end_date_time: undefined,
-      last_updated: toDate(coreTariff.updatedAt),
-    };
-  }
-
   public static mapForReceiver(coreTariff: TariffMapInput): TariffDTO {
     let tariffAltText: Array<{ language: string; text: string }> | undefined;
     if (coreTariff.tariffAltText) {
@@ -119,13 +82,16 @@ export class TariffMapper {
       }
     }
 
-    const elements: TariffElement[] =
-      (coreTariff as any).TariffElements?.length > 0
-        ? (coreTariff as any).TariffElements.map((el: any) => ({
+    if((coreTariff as any).TariffElements?.length === 0) {
+      throw new Error(
+        `Tariff ${coreTariff.ocpiTariffId} has no TariffElements`,
+      );
+    }
+
+    const elements: TariffElement[] =(coreTariff as any).TariffElements.map((el: any) => ({
             price_components: el.priceComponents,
             restrictions: el.restrictions ?? undefined,
           }))
-        : [TariffMapper.getTariffElement(coreTariff)];
 
     const countryCode =
       coreTariff.tenantPartner?.countryCode ?? coreTariff.tenant?.countryCode;
@@ -231,78 +197,6 @@ export class TariffMapper {
     };
   }
 
-  private static getTariffElement(coreTariff: TariffMapInput): TariffElement {
-    const pricePerKwh = Number(coreTariff.pricePerKwh ?? 0);
-    const pricePerMinRaw = coreTariff.pricePerMin;
-    const pricePerSessionRaw = coreTariff.pricePerSession;
-    const taxRateRaw = coreTariff.taxRate;
-    const pricePerMin =
-      pricePerMinRaw != null && pricePerMinRaw !== ''
-        ? Number(pricePerMinRaw)
-        : undefined;
-    const pricePerSession =
-      pricePerSessionRaw != null && pricePerSessionRaw !== ''
-        ? Number(pricePerSessionRaw)
-        : undefined;
-    const taxRate =
-      taxRateRaw != null && taxRateRaw !== '' ? Number(taxRateRaw) : undefined;
-    return {
-      price_components: [
-        {
-          type: TariffDimensionType.ENERGY,
-          price: pricePerKwh,
-          vat: taxRate,
-          step_size: 1,
-        },
-        ...(pricePerMin != null && !Number.isNaN(pricePerMin)
-          ? [
-              {
-                type: TariffDimensionType.TIME,
-                price: pricePerMin * MINUTES_IN_HOUR,
-                vat: taxRate,
-                step_size: 1,
-              },
-            ]
-          : []),
-        ...(pricePerSession != null && !Number.isNaN(pricePerSession)
-          ? [
-              {
-                type: TariffDimensionType.FLAT,
-                price: pricePerSession,
-                vat: taxRate,
-                step_size: 1,
-              },
-            ]
-          : []),
-      ],
-      restrictions: undefined,
-    };
-  }
-
-  public static mapElementsToCoreTariff(
-    TariffElements: TariffElement[],
-  ): Partial<TariffDto> {
-    const tariffElement = TariffElements[0];
-    const priceComponents = tariffElement?.price_components ?? [];
-    const pricePerKwh =
-      priceComponents.find((pc) => pc.type === TariffDimensionType.ENERGY)
-        ?.price ?? 0;
-    const pricePerMin =
-      (priceComponents.find((pc) => pc.type === TariffDimensionType.TIME)
-        ?.price ?? 0) / MINUTES_IN_HOUR;
-    const pricePerSession =
-      priceComponents.find((pc) => pc.type === TariffDimensionType.FLAT)
-        ?.price ?? 0;
-    const taxRate = priceComponents.find((pc) => pc.vat)?.vat ?? 0;
-
-    return {
-      pricePerKwh,
-      pricePerMin,
-      pricePerSession,
-      taxRate,
-    };
-  }
-
   public static mapFromOcpi(
     tariff: PutTariffRequest,
     tenantId?: number,
@@ -317,7 +211,6 @@ export class TariffMapper {
       updatedAt: string;
     }>;
   } {
-    const coreFields = TariffMapper.mapElementsToCoreTariff(tariff.elements);
     const now = new Date().toISOString();
 
     const coreTariff = {
@@ -340,8 +233,7 @@ export class TariffMapper {
       }),
       ...(tenantId !== undefined && { tenantId }),
       ...(tenantPartnerId !== undefined && { tenantPartnerId }),
-      ...coreFields,
-    } as Partial<TariffDto> & { ocpiTariffId?: string };
+    } as Partial<Tariffs_Insert_Input> & { ocpiTariffId?: string };
 
     const TariffElements = tariff.elements.map((el) => ({
       priceComponents: el.price_components,

@@ -154,7 +154,7 @@ export abstract class BaseTransactionMapper {
           if (tariff) {
             transactionIdToOcpiTariffMap.set(
               session.id,
-              TariffMapper.mapForSender(tariff),
+              TariffMapper.mapForReceiverOCPI(tariff),
             );
           }
         }),
