@@ -209,7 +209,7 @@ export class TariffsService {
     const mappedTariffs: TariffDTO[] = [];
     for (const tariff of result.Tariffs) {
       mappedTariffs.push(
-        TariffMapper.mapForReceiverOCPI(tariff as TariffMapInput),
+        TariffMapper.mapForSender(tariff as TariffMapInput),
       );
     }
     return {
@@ -612,7 +612,7 @@ export class TariffsService {
       for (const tariff of batch) {
         processed++;
         try {
-          const tariffDto = TariffMapper.mapForReceiverOCPI(
+          const tariffDto = TariffMapper.mapForSender(
             tariff as TariffMapInput,
           );
           const path = `/${tariffDto.country_code}/${tariffDto.party_id}/${encodeURIComponent(tariffDto.id)}`;

@@ -104,6 +104,8 @@ export class TariffMapper {
       );
     }
 
+    console.log('coreTariff !!!!', coreTariff);
+
     return {
       id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
       country_code: countryCode,
@@ -123,7 +125,14 @@ export class TariffMapper {
     };
   }
 
-  public static mapForReceiverOCPI(coreTariff: TariffMapInput): TariffDTO {
+  public static formatOwnTariffId(coreTariff: TariffMapInput): string {
+    const countryCode = coreTariff.tenant?.countryCode ?? '';
+    const partyId = coreTariff.tenant?.partyId ?? '';
+    const paddedId = String(coreTariff.id).padStart(6, '0');
+    return `${countryCode}${partyId}T${paddedId}`;
+  }
+
+  public static mapForSender(coreTariff: TariffMapInput): TariffDTO {
     let tariffAltText: Array<{ language: string; text: string }> | undefined;
     if (coreTariff.tariffAltText) {
       if (typeof coreTariff.tariffAltText === 'string') {
@@ -165,8 +174,10 @@ export class TariffMapper {
       );
     }
 
+    console.log('coreTariff OCPI !!!!', coreTariff);
+
     return {
-      id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
+      id: (coreTariff as any).ocpiTariffId ? (coreTariff as any).ocpiTariffId : TariffMapper.formatOwnTariffId(coreTariff),
       country_code: countryCode,
       party_id: partyId,
       currency: coreTariff.currency!,

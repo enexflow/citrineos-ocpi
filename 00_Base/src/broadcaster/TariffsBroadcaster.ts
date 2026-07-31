@@ -79,7 +79,7 @@ export class TariffsBroadcaster extends BaseBroadcaster {
       return;
     }
 
-    const tariff = TariffMapper.mapForReceiverOCPI(tariffResponse.Tariffs[0]);
+    const tariff = TariffMapper.mapForSender(tariffResponse.Tariffs[0]);
     const path = `/${tenant.countryCode}/${tenant.partyId}/${tariff.id}`;
     await this.broadcast(tenant, HttpMethod.Put, path, tariff);
   }
