@@ -4,10 +4,8 @@
 
 import type { TariffDTO } from '../model/DTO/tariffs/TariffDTO.js';
 import type { PutTariffRequest } from '../model/DTO/tariffs/PutTariffRequest.js';
-import { TariffDimensionType } from '../model/TariffDimensionType.js';
 import type { TariffElement } from '../model/TariffElement.js';
 import { TariffType } from '../model/TariffType.js';
-import { MINUTES_IN_HOUR } from '../util/Consts.js';
 import type { TariffDto, RoamingPartnerDto } from '@zetra/citrineos-base';
 import type { Price } from '../model/Price.js';
 import type { EnergyMix } from '../model/EnergyMix.js';
@@ -63,76 +61,12 @@ function toTariffType(v: string | null | undefined): TariffType | null {
 }
 
 export class TariffMapper {
-  constructor() {}
-
+  /**
+   * Is used to read back a tariff from the database to OCPI format.
+   * @param coreTariff - The partial tariff from the database.
+   * @returns The tariff in OCPI format.
+   */
   public static mapForReceiver(coreTariff: TariffMapInput): TariffDTO {
-    let tariffAltText: Array<{ language: string; text: string }> | undefined;
-    if (coreTariff.tariffAltText) {
-      if (typeof coreTariff.tariffAltText === 'string') {
-        try {
-          tariffAltText = JSON.parse(coreTariff.tariffAltText);
-        } catch {
-          tariffAltText = undefined;
-        }
-      } else if (Array.isArray(coreTariff.tariffAltText)) {
-        tariffAltText = coreTariff.tariffAltText as Array<{
-          language: string;
-          text: string;
-        }>;
-      }
-    }
-
-    if((coreTariff as any).TariffElements?.length === 0) {
-      throw new Error(
-        `Tariff ${coreTariff.ocpiTariffId} has no TariffElements`,
-      );
-    }
-
-    const elements: TariffElement[] =(coreTariff as any).TariffElements.map((el: any) => ({
-            price_components: el.priceComponents,
-            restrictions: el.restrictions ?? undefined,
-          }))
-
-    const countryCode =
-      coreTariff.tenantPartner?.countryCode ?? coreTariff.tenant?.countryCode;
-    const partyId =
-      coreTariff.tenantPartner?.partyId ?? coreTariff.tenant?.partyId;
-
-    if (!countryCode || !partyId) {
-      throw new Error(
-        `Tariff ${coreTariff.id ?? coreTariff.ocpiTariffId} has neither tenantPartner nor tenant country/party identifiers`,
-      );
-    }
-
-    console.log('coreTariff !!!!', coreTariff);
-
-    return {
-      id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
-      country_code: countryCode,
-      party_id: partyId,
-      currency: coreTariff.currency!,
-      type: toTariffType(coreTariff.tariffType),
-      tariff_alt_text: tariffAltText,
-      tariff_alt_url: coreTariff?.tariffAltUrl ?? undefined,
-      min_price: coreTariff.minPrice as Price | undefined,
-      max_price: coreTariff.maxPrice as Price | undefined,
-      elements: elements,
-      energy_mix: coreTariff.energyMix as EnergyMix | undefined,
-
-      start_date_time: toOptionalDate(coreTariff.startDateTime),
-      end_date_time: toOptionalDate(coreTariff.endDateTime),
-      last_updated: toDate(coreTariff.updatedAt),
-    };
-  }
-
-  public static formatOwnTariffId(coreTariff: TariffMapInput): string {
-    const countryCode = coreTariff.tenant?.countryCode ?? '';
-    const partyId = coreTariff.tenant?.partyId ?? '';
-    const paddedId = String(coreTariff.id).padStart(6, '0');
-    return `${countryCode}${partyId}T${paddedId}`;
-  }
-
-  public static mapForSender(coreTariff: TariffMapInput): TariffDTO {
     let tariffAltText: Array<{ language: string; text: string }> | undefined;
     if (coreTariff.tariffAltText) {
       if (typeof coreTariff.tariffAltText === 'string') {
@@ -155,13 +89,16 @@ export class TariffMapper {
       );
     }
 
-    const elements: TariffElement[] = (coreTariff.TariffElements ?? []).map(
-      (el) => ({
-        price_components:
-          el.priceComponents as TariffElement['price_components'],
-        restrictions: el.restrictions ?? undefined,
-      }),
-    );
+    const els = coreTariff.TariffElements;
+    if (!els?.length) {
+      throw new Error(
+        `Tariff ${coreTariff.ocpiTariffId} has no TariffElements`,
+      );
+    }
+    const elements = els.map((el: any) => ({
+      price_components: el.priceComponents,
+      restrictions: el.restrictions ?? undefined,
+    }));
 
     const countryCode =
       coreTariff.tenantPartner?.countryCode ?? coreTariff.tenant?.countryCode;
@@ -174,40 +111,41 @@ export class TariffMapper {
       );
     }
 
-    console.log('coreTariff OCPI !!!!', coreTariff);
-
     return {
-      id: (coreTariff as any).ocpiTariffId ? (coreTariff as any).ocpiTariffId : TariffMapper.formatOwnTariffId(coreTariff),
+      id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
       country_code: countryCode,
       party_id: partyId,
       currency: coreTariff.currency!,
+      type: toTariffType(coreTariff.tariffType),
+      tariff_alt_text: tariffAltText,
+      tariff_alt_url: coreTariff?.tariffAltUrl ?? undefined,
+      min_price: coreTariff.minPrice as Price | undefined,
+      max_price: coreTariff.maxPrice as Price | undefined,
       elements: elements,
-      start_date_time: toDate(coreTariff.startDateTime),
+      energy_mix: coreTariff.energyMix as EnergyMix | undefined,
+      start_date_time: toOptionalDate(coreTariff.startDateTime),
       end_date_time: toOptionalDate(coreTariff.endDateTime),
       last_updated: toDate(coreTariff.updatedAt),
-      ...(coreTariff.tariffType != null &&
-        toTariffType(coreTariff.tariffType) != null && {
-          type: toTariffType(coreTariff.tariffType)!,
-        }),
-      ...(tariffAltText != null &&
-        tariffAltText.length > 0 && {
-          tariff_alt_text: tariffAltText,
-        }),
-      ...(coreTariff.tariffAltUrl != null && {
-        tariff_alt_url: coreTariff.tariffAltUrl,
-      }),
-      ...(coreTariff.minPrice != null && {
-        min_price: coreTariff.minPrice as Price,
-      }),
-      ...(coreTariff.maxPrice != null && {
-        max_price: coreTariff.maxPrice as Price,
-      }),
-      ...(coreTariff.energyMix != null && {
-        energy_mix: coreTariff.energyMix as EnergyMix,
-      }),
     };
   }
 
+  public static formatOwnTariffId(coreTariff: TariffMapInput): string {
+    if (!coreTariff.tenant?.countryCode || !coreTariff.tenant?.partyId) {
+      throw new Error(
+        'Tenant country/party identifiers are required to format own tariff ID',
+      );
+    }
+    const countryCode = coreTariff.tenant?.countryCode;
+    const partyId = coreTariff.tenant?.partyId;
+    const paddedId = String(coreTariff.id).padStart(6, '0');
+    return `${countryCode}${partyId}T${paddedId}`;
+  }
+
+  /**
+   * Maps an OCPI tariff to our own tariff DB insert/upsert input.
+   * @param tariff - The OCPI tariff in PutTariffRequest format.
+   * @returns The tariff in our own format.
+   */
   public static mapFromOcpi(
     tariff: PutTariffRequest,
     tenantId?: number,
@@ -254,5 +192,86 @@ export class TariffMapper {
     }));
 
     return { coreTariff, TariffElements };
+  }
+
+  /**
+   * Maps our own tariff to an OCPI tariff.
+   * @param coreTariff - The core tariff to map.
+   * @returns The OCPI tariff.
+   */
+  public static mapForSender(coreTariff: TariffMapInput): TariffDTO {
+    let tariffAltText: Array<{ language: string; text: string }> | undefined;
+    if (coreTariff.tariffAltText) {
+      if (typeof coreTariff.tariffAltText === 'string') {
+        try {
+          tariffAltText = JSON.parse(coreTariff.tariffAltText);
+        } catch {
+          tariffAltText = undefined;
+        }
+      } else if (Array.isArray(coreTariff.tariffAltText)) {
+        tariffAltText = coreTariff.tariffAltText as Array<{
+          language: string;
+          text: string;
+        }>;
+      }
+    }
+
+    if ((coreTariff as any).TariffElements?.length === 0) {
+      throw new Error(
+        `Tariff ${coreTariff.ocpiTariffId} has no TariffElements`,
+      );
+    }
+
+    const elements: TariffElement[] = (coreTariff.TariffElements ?? []).map(
+      (el) => ({
+        price_components:
+          el.priceComponents as TariffElement['price_components'],
+        restrictions: el.restrictions ?? undefined,
+      }),
+    );
+
+    const countryCode =
+      coreTariff.tenantPartner?.countryCode ?? coreTariff.tenant?.countryCode;
+    const partyId =
+      coreTariff.tenantPartner?.partyId ?? coreTariff.tenant?.partyId;
+
+    if (!countryCode || !partyId) {
+      throw new Error(
+        `Tariff ${coreTariff.id ?? coreTariff.ocpiTariffId} has neither tenantPartner nor tenant country/party identifiers`,
+      );
+    }
+
+    return {
+      id: (coreTariff as any).ocpiTariffId
+        ? (coreTariff as any).ocpiTariffId
+        : TariffMapper.formatOwnTariffId(coreTariff),
+      country_code: countryCode,
+      party_id: partyId,
+      currency: coreTariff.currency!,
+      elements: elements,
+      start_date_time: toDate(coreTariff.startDateTime),
+      end_date_time: toOptionalDate(coreTariff.endDateTime),
+      last_updated: toDate(coreTariff.updatedAt),
+      ...(coreTariff.tariffType != null &&
+        toTariffType(coreTariff.tariffType) != null && {
+          type: toTariffType(coreTariff.tariffType)!,
+        }),
+      ...(tariffAltText != null &&
+        tariffAltText.length > 0 && {
+          tariff_alt_text: tariffAltText,
+        }),
+      ...(coreTariff.tariffAltUrl != null && {
+        tariff_alt_url: coreTariff.tariffAltUrl,
+      }),
+      ...(coreTariff.minPrice != null && {
+        min_price: coreTariff.minPrice as Price,
+      }),
+      ...(coreTariff.maxPrice != null && {
+        max_price: coreTariff.maxPrice as Price,
+      }),
+      ...(coreTariff.energyMix != null && {
+        energy_mix: coreTariff.energyMix as EnergyMix,
+      }),
+    };
   }
 }
