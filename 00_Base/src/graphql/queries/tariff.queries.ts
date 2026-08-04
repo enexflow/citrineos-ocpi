@@ -21,10 +21,6 @@ export const GET_TARIFF_BY_KEY_QUERY = gql`
       id
       ocpiTariffId
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tenantPartnerId
@@ -134,10 +130,6 @@ export const CREATE_OR_UPDATE_TARIFF_MUTATION = gql`
           currency
           ocpiTariffId
           paymentFee
-          pricePerKwh
-          pricePerMin
-          pricePerSession
-          stationId
           tariffAltText
           tariffType
           tariffType
@@ -159,10 +151,6 @@ export const CREATE_OR_UPDATE_TARIFF_MUTATION = gql`
       createdAt
       currency
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tenantPartnerId
@@ -198,10 +186,6 @@ export const CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION = gql`
           currency
           ocpiTariffId
           paymentFee
-          pricePerKwh
-          pricePerMin
-          pricePerSession
-          stationId
           tariffAltText
           tariffType
           tariffAltUrl
@@ -221,10 +205,6 @@ export const CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION = gql`
       createdAt
       currency
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tariffType
@@ -267,10 +247,6 @@ export const CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION_ROAMING_PARTNER = gql`
           currency
           ocpiTariffId
           paymentFee
-          pricePerKwh
-          pricePerMin
-          pricePerSession
-          stationId
           tariffAltText
           tariffType
           tariffAltUrl
@@ -290,10 +266,6 @@ export const CREATE_OR_UPDATE_PARTNER_TARIFF_MUTATION_ROAMING_PARTNER = gql`
       createdAt
       currency
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tariffType
@@ -388,10 +360,6 @@ export const GET_TARIFF_BY_OCPI_ID_QUERY = gql`
       id
       ocpiTariffId
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tariffType
@@ -436,10 +404,6 @@ export const GET_TARIFF_BY_PARTNER_QUERY = gql`
       id
       ocpiTariffId
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tariffType
@@ -488,10 +452,6 @@ export const GET_TARIFF_BY_PARTNER_ROAMING_PARTNER_QUERY = gql`
       id
       ocpiTariffId
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tariffType
@@ -592,10 +552,6 @@ export const UPDATE_PARTNER_TARIFF_BY_PK_MUTATION = gql`
       createdAt
       currency
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tariffType
@@ -635,10 +591,6 @@ export const INSERT_PARTNER_TARIFF_MUTATION = gql`
       createdAt
       currency
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tariffType
@@ -686,10 +638,6 @@ export const UPDATE_PARTNER_TARIFF_MUTATION = gql`
       createdAt
       currency
       paymentFee
-      pricePerKwh
-      pricePerMin
-      pricePerSession
-      stationId
       taxRate
       tariffAltText
       tariffType
