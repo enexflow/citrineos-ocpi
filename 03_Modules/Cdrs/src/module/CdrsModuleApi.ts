@@ -170,7 +170,4 @@ export class CdrsModuleApi extends BaseController implements ICdrsModuleApi {
   //     summary,
   //   );
   // }
-
-  
 }
-

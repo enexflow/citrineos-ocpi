@@ -16,7 +16,8 @@ export const PushPartnerSessionInfoBodySchema = z.object({
   transactionId: z.string().min(1).max(255),
 });
 
-export const PushPartnerSessionInfoBodySchemaName = 'PushPartnerSessionInfoBodySchema';
+export const PushPartnerSessionInfoBodySchemaName =
+  'PushPartnerSessionInfoBodySchema';
 
 export type PushPartnerSessionInfoBody = z.infer<
   typeof PushPartnerSessionInfoBodySchema

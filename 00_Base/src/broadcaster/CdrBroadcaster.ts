@@ -53,14 +53,17 @@ export class CdrBroadcaster extends BaseBroadcaster {
       transactionDto.authorization,
     );
 
-    const auth = transactionDto.authorization as AuthWithPartners & { roamingPartnerId?: number | null };
+    const auth = transactionDto.authorization as AuthWithPartners & {
+      roamingPartnerId?: number | null;
+    };
     const tenantId = transactionDto.authorization?.tenantPartner?.tenant?.id;
     await this.cdrsService.insertSentCdr(
       transactionDto.authorization!.tenantPartner!,
       cdrDto,
       {
         tenantId: tenantId!,
-        roamingPartnerId: auth.roamingPartner?.id ?? auth.roamingPartnerId ?? null,
+        roamingPartnerId:
+          auth.roamingPartner?.id ?? auth.roamingPartnerId ?? null,
         transactionId: transactionDto.id ?? null,
       },
     );

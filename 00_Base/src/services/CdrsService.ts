@@ -240,21 +240,26 @@ export class CdrsService {
   async insertSentCdr(
     toTenantPartner: TenantPartnerDto,
     cdr: any,
-    ctx: { tenantId: number; roamingPartnerId?: number | null; transactionId?: number | null },
+    ctx: {
+      tenantId: number;
+      roamingPartnerId?: number | null;
+      transactionId?: number | null;
+    },
   ): Promise<any | undefined> {
-
-
-  if (!toTenantPartner.id) {
-    throw new Error('Tenant partner not found');
-  }
-  const existing = await this.ocpiGraphqlClient.request<FindSentCdrQueryResult, FindSentCdrQueryVariables>(
-    FIND_SENT_CDR_QUERY,
-    { ocpiCdrId: cdr.id, toTenantPartnerId: toTenantPartner.id },
-  );
-  if (existing.Cdrs[0]) {
-    return existing.Cdrs[0].id;
-  }
-  const objectToInsert = {
+    if (!toTenantPartner.id) {
+      throw new Error('Tenant partner not found');
+    }
+    const existing = await this.ocpiGraphqlClient.request<
+      FindSentCdrQueryResult,
+      FindSentCdrQueryVariables
+    >(FIND_SENT_CDR_QUERY, {
+      ocpiCdrId: cdr.id,
+      toTenantPartnerId: toTenantPartner.id,
+    });
+    if (existing.Cdrs[0]) {
+      return existing.Cdrs[0].id;
+    }
+    const objectToInsert = {
       ocpiCdrId: cdr.id,
       countryCode: cdr.country_code,
       partyId: cdr.party_id,
@@ -290,10 +295,10 @@ export class CdrsService {
       roamingPartnerId: ctx.roamingPartnerId ?? null,
       transactionId: ctx.transactionId ?? null,
     };
-    const result = await this.ocpiGraphqlClient.request<InsertCdrMutationResult, InsertCdrMutationVariables>(
-      INSERT_CDR_MUTATION,
-      { object: objectToInsert },
-    );
+    const result = await this.ocpiGraphqlClient.request<
+      InsertCdrMutationResult,
+      InsertCdrMutationVariables
+    >(INSERT_CDR_MUTATION, { object: objectToInsert });
     return result.insert_Cdrs_one!.id;
   }
 
