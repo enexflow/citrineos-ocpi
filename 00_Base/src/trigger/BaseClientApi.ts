@@ -238,24 +238,12 @@ export abstract class BaseClientApi {
         this.logger.info(
           `Sending GET request to ${url}, ${JSON.stringify(body)}`,
         );
-        this.logOutboundRequest(
-          httpMethod,
-          url,
-          body,
-          options.additionalHeaders,
-        );
         return this.getRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
       case HttpMethod.Post:
         this.logger.info(
           `Sending POST request to ${url}, ${JSON.stringify(body)}`,
-        );
-        this.logOutboundRequest(
-          httpMethod,
-          url,
-          body,
-          options.additionalHeaders,
         );
         return this.createRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
@@ -264,12 +252,6 @@ export abstract class BaseClientApi {
         this.logger.info(
           `Sending PUT request to ${url}, ${JSON.stringify(body)}`,
         );
-        this.logOutboundRequest(
-          httpMethod,
-          url,
-          body,
-          options.additionalHeaders,
-        );
         return this.replaceRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
@@ -277,24 +259,12 @@ export abstract class BaseClientApi {
         this.logger.info(
           `Sending PATCH request to ${url}, ${JSON.stringify(body)}`,
         );
-        this.logOutboundRequest(
-          httpMethod,
-          url,
-          body,
-          options.additionalHeaders,
-        );
         return this.updateRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Delete:
-        this.logger.debug(
+        this.logger.info(
           `Sending DELETE request to ${url}, ${JSON.stringify(body)}`,
-        );
-        this.logOutboundRequest(
-          httpMethod,
-          url,
-          body,
-          options.additionalHeaders,
         );
         return this.delRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
