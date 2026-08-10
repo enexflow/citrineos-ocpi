@@ -122,43 +122,6 @@ export abstract class BaseClientApi {
     return headers;
   }
 
-  private readonly outboundLogFile = '/var/log/ocpi/outbound-requests.log';
-
-  private logOutboundRequest(
-    method: string,
-    url: string,
-    body: unknown,
-    headers?: IHeaders,
-  ): void {
-    const entry = {
-      timestamp: new Date().toISOString(),
-      method,
-      url,
-      body,
-      headers: headers ? this.redactHeaders(headers) : undefined,
-    };
-
-    // still visible in docker logs
-    this.logger.info('[OCPI Outbound]', entry);
-
-    // pretty-printed, human-readable, all requests in one file
-    try {
-      mkdirSync(dirname(this.outboundLogFile), { recursive: true });
-      const block =
-        JSON.stringify(entry, null, 2) + '\n' + '-'.repeat(80) + '\n';
-      appendFileSync(this.outboundLogFile, block, 'utf8');
-    } catch (err) {
-      this.logger.error('Failed to write outbound request log', err);
-    }
-  }
-  private redactHeaders(headers: IHeaders): IHeaders {
-    const clone = { ...headers };
-    if ('authorization' in clone && clone.authorization) {
-      clone.authorization = '[REDACTED]';
-    }
-    return clone;
-  }
-
   async request<T extends ZodTypeAny>(
     fromCountryCode: string,
     fromPartyId: string,
