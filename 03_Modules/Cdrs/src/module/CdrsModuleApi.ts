@@ -13,6 +13,7 @@ import type {
 import type {
   OcpiErrorResponse,
   PullPartnerModulesBody,
+  PushPartnerSessionInfoBody,
 } from '@citrineos/ocpi-base';
 
 import type {
@@ -43,6 +44,8 @@ import {
   BodyWithSchema,
   PullPartnerModulesBodySchemaName,
   PullPartnerModulesBodySchema,
+  PushPartnerSessionInfoBodySchema,
+  PushPartnerSessionInfoBodySchemaName,
   AsAdminEndpoint,
   buildOcpiResponse,
 } from '@citrineos/ocpi-base';
@@ -145,4 +148,29 @@ export class CdrsModuleApi extends BaseController implements ICdrsModuleApi {
       summary,
     );
   }
+
+  /**
+   * Route to send a CDR to a partner (in case we had a problem sending the CDR to the partner)
+   */
+  // @Post('/send-cdr-to-partner')
+  // @AsAdminEndpoint()
+  // async SendCdrToPartner(
+  // @BodyWithSchema(
+  //   PushPartnerSessionInfoBodySchema,
+  //   PushPartnerSessionInfoBodySchemaName,
+  // )
+  // body: PushPartnerSessionInfoBody,
+  // ) {
+  //   this.logger.info('SendCdrToPartner', body);
+
+  //   const summary = await this.cdrsService.sendCdrToPartner(body);
+
+  //   return buildOcpiResponse(
+  //     OcpiResponseStatusCode.GenericSuccessCode,
+  //     summary,
+  //   );
+  // }
+
+  
 }
+

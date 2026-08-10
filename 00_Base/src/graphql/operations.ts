@@ -22,6 +22,7 @@ export type Scalars = {
   numeric: { input: any; output: any; }
   timestamptz: { input: any; output: any; }
   citext: { input: string; output: string; }
+  uuid: { input: string; output: string; }
   authorization_status: { input: string; output: string; }
 };
 export type Authorizations_Set_Input = {
@@ -35,13 +36,14 @@ export type Authorizations_Set_Input = {
   roamingPartnerId?: InputMaybe<Scalars['Int']['input']>;
 };
 export type Locations_Bool_Exp = {
+  _or?: InputMaybe<Array<Locations_Bool_Exp>>;
+  _and?: InputMaybe<Array<Locations_Bool_Exp>>;
+  disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
   deletedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
-  disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
-  _or?: InputMaybe<Array<Locations_Bool_Exp>>;
 };
 export type Boolean_Comparison_Exp = {
   _eq?: InputMaybe<Scalars['Boolean']['input']>;
@@ -118,6 +120,7 @@ export type Cdrs_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   lastUpdated?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
+  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;
@@ -152,7 +155,7 @@ export type GetCdrByiIdQueryVariables = Exact<{
   countryCode: Scalars['String']['input'];
   partyId: Scalars['String']['input'];
   id: Scalars['Int']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
+  fromTenantPartnerId: Scalars['Int']['input'];
 }>;
 
 
@@ -190,7 +193,10 @@ export type GetCdrByiIdQueryResult = {
     homeChargingCompensation?: boolean | null,
     lastUpdated: any,
     tenantId: number,
-    tenantPartnerId: number,
+    fromTenantPartnerId?: number | null,
+    toTenantPartnerId?: number | null,
+    transactionId?: number | null,
+    successfullySentAt?: any | null,
     createdAt?: any | null,
     updatedAt?: any | null
   }>
@@ -200,7 +206,7 @@ export type GetCdrByiIdAndRoamingPartnerQueryVariables = Exact<{
   countryCode: Scalars['String']['input'];
   partyId: Scalars['String']['input'];
   id: Scalars['Int']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
+  fromTenantPartnerId: Scalars['Int']['input'];
   roamingPartnerId: Scalars['Int']['input'];
 }>;
 
@@ -239,7 +245,10 @@ export type GetCdrByiIdAndRoamingPartnerQueryResult = {
     homeChargingCompensation?: boolean | null,
     lastUpdated: any,
     tenantId: number,
-    tenantPartnerId: number,
+    fromTenantPartnerId?: number | null,
+    toTenantPartnerId?: number | null,
+    transactionId?: number | null,
+    successfullySentAt?: any | null,
     createdAt?: any | null,
     updatedAt?: any | null
   }>
@@ -286,7 +295,10 @@ export type GetCdrsPaginatedQueryResult = {
     homeChargingCompensation?: boolean | null,
     lastUpdated: any,
     tenantId: number,
-    tenantPartnerId: number,
+    fromTenantPartnerId?: number | null,
+    toTenantPartnerId?: number | null,
+    transactionId?: number | null,
+    successfullySentAt?: any | null,
     createdAt?: any | null,
     updatedAt?: any | null
   }>
@@ -331,7 +343,10 @@ export type InsertCdrMutationResult = {
     homeChargingCompensation?: boolean | null,
     lastUpdated: any,
     tenantId: number,
-    tenantPartnerId: number,
+    fromTenantPartnerId?: number | null,
+    toTenantPartnerId?: number | null,
+    transactionId?: number | null,
+    successfullySentAt?: any | null,
     createdAt?: any | null,
     updatedAt?: any | null,
     roamingPartnerId?: number | null
@@ -340,7 +355,7 @@ export type InsertCdrMutationResult = {
 
 export type FindCdrP2pQueryVariables = Exact<{
   ocpiCdrId: Scalars['String']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
+  fromTenantPartnerId: Scalars['Int']['input'];
 }>;
 
 
@@ -352,12 +367,24 @@ export type FindCdrP2pQueryResult = {
 
 export type FindCdrRoamingQueryVariables = Exact<{
   ocpiCdrId: Scalars['String']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
+  fromTenantPartnerId: Scalars['Int']['input'];
   roamingPartnerId: Scalars['Int']['input'];
 }>;
 
 
 export type FindCdrRoamingQueryResult = {
+  Cdrs: Array<{
+    id: number
+  }>
+};
+
+export type FindSentCdrQueryVariables = Exact<{
+  ocpiCdrId: Scalars['String']['input'];
+  toTenantPartnerId: Scalars['Int']['input'];
+}>;
+
+
+export type FindSentCdrQueryResult = {
   Cdrs: Array<{
     id: number
   }>
@@ -901,6 +928,144 @@ export type GetEvseByOcpiIdPartnerAndRoamingPartnerIdQueryResult = {
       }>
     }>
   }>
+};
+
+export type FindGireveRetryQueueQueryVariables = Exact<{
+  moduleId: Scalars['String']['input'];
+  partnerTenantPartnerId: Scalars['Int']['input'];
+  resourceType: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+}>;
+
+
+export type FindGireveRetryQueueQueryResult = {
+  GireveBroadcastRetryQueues: Array<{
+    id: any
+  }>
+};
+
+export type InsertGireveRetryQueueMutationVariables = Exact<{
+  id: Scalars['uuid']['input'];
+  partnerTenantPartnerId: Scalars['Int']['input'];
+  cpoCountryCode: Scalars['String']['input'];
+  cpoPartyId: Scalars['String']['input'];
+  moduleId: Scalars['String']['input'];
+  interfaceRole: Scalars['String']['input'];
+  httpMethod: Scalars['String']['input'];
+  resourceType: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  ocpiPath?: InputMaybe<Scalars['String']['input']>;
+  payload: Scalars['jsonb']['input'];
+  now: Scalars['timestamptz']['input'];
+  nextRetryAt: Scalars['timestamptz']['input'];
+  lastError: Scalars['String']['input'];
+}>;
+
+
+export type InsertGireveRetryQueueMutationResult = {
+  insert_GireveBroadcastRetryQueues_one?: {
+    id: any
+  } | null
+};
+
+export type UpdateGireveRetryQueueMutationVariables = Exact<{
+  id: Scalars['uuid']['input'];
+  updatedAt: Scalars['timestamptz']['input'];
+  nextRetryAt: Scalars['timestamptz']['input'];
+  payload: Scalars['jsonb']['input'];
+  ocpiPath?: InputMaybe<Scalars['String']['input']>;
+  lastError: Scalars['String']['input'];
+}>;
+
+
+export type UpdateGireveRetryQueueMutationResult = {
+  update_GireveBroadcastRetryQueues_by_pk?: {
+    id: any
+  } | null
+};
+
+export type FetchDueGireveRetriesQueryVariables = Exact<{
+  now: Scalars['timestamptz']['input'];
+  limit: Scalars['Int']['input'];
+}>;
+
+
+export type FetchDueGireveRetriesQueryResult = {
+  GireveBroadcastRetryQueues: Array<{
+    id: any,
+    partnerTenantPartnerId: number,
+    cpoCountryCode: string,
+    cpoPartyId: string,
+    moduleId: string,
+    interfaceRole: string,
+    httpMethod: string,
+    resourceType: string,
+    resourceId: string,
+    ocpiPath?: string | null,
+    payload: any,
+    attemptCount: number,
+    nextRetryAt: any
+  }>
+};
+
+export type ClaimGireveBroadcastRetriesMutationVariables = Exact<{
+  batchLimit: Scalars['Int']['input'];
+}>;
+
+
+export type ClaimGireveBroadcastRetriesMutationResult = {
+  claim_gireve_broadcast_retries: Array<{
+    id: any,
+    partnerTenantPartnerId: number,
+    cpoCountryCode: string,
+    cpoPartyId: string,
+    moduleId: string,
+    interfaceRole: string,
+    httpMethod: string,
+    resourceType: string,
+    resourceId: string,
+    ocpiPath?: string | null,
+    payload: any,
+    attemptCount: number,
+    nextRetryAt: any
+  }>
+};
+
+export type ReleaseStaleGireveRetryLocksMutationVariables = Exact<{
+  staleBefore: Scalars['timestamptz']['input'];
+}>;
+
+
+export type ReleaseStaleGireveRetryLocksMutationResult = {
+  update_GireveBroadcastRetryQueues?: {
+    affected_rows: number
+  } | null
+};
+
+export type MarkGireveRetrySentMutationVariables = Exact<{
+  id: Scalars['uuid']['input'];
+  sentAt: Scalars['timestamptz']['input'];
+}>;
+
+
+export type MarkGireveRetrySentMutationResult = {
+  update_GireveBroadcastRetryQueues?: {
+    affected_rows: number
+  } | null
+};
+
+export type RescheduleGireveRetryMutationVariables = Exact<{
+  id: Scalars['uuid']['input'];
+  attemptCount: Scalars['Int']['input'];
+  nextRetryAt: Scalars['timestamptz']['input'];
+  lastError: Scalars['String']['input'];
+}>;
+
+
+export type RescheduleGireveRetryMutationResult = {
+  update_GireveBroadcastRetryQueues?: {
+    affected_rows: number
+  } | null
 };
 
 export type GetOurLocationsQueryVariables = Exact<{
@@ -1895,10 +2060,6 @@ export type GetTariffByKeyQueryResult = {
     id: number,
     ocpiTariffId?: string | null,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tenantPartnerId?: number | null,
@@ -1998,10 +2159,6 @@ export type CreateOrUpdateTariffMutationResult = {
     createdAt: any,
     currency: any,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tenantPartnerId?: number | null,
@@ -2038,10 +2195,6 @@ export type CreateOrUpdatePartnerTariffMutationResult = {
     createdAt: any,
     currency: any,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tariffType?: string | null,
@@ -2084,10 +2237,6 @@ export type CreateOrUpdatePartnerTariffRoamingPartnerMutationResult = {
     createdAt: any,
     currency: any,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tariffType?: string | null,
@@ -2168,10 +2317,6 @@ export type GetTariffByOcpiIdQueryResult = {
     id: number,
     ocpiTariffId?: string | null,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tariffType?: string | null,
@@ -2214,10 +2359,6 @@ export type GetTariffByPartnerQueryResult = {
     id: number,
     ocpiTariffId?: string | null,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tariffType?: string | null,
@@ -2261,10 +2402,6 @@ export type GetTariffByPartnerRoamingPartnerQueryResult = {
     id: number,
     ocpiTariffId?: string | null,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tariffType?: string | null,
@@ -2355,10 +2492,6 @@ export type UpdatePartnerTariffByPkMutationResult = {
     createdAt: any,
     currency: any,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tariffType?: string | null,
@@ -2401,10 +2534,6 @@ export type InsertPartnerTariffMutationResult = {
     createdAt: any,
     currency: any,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tariffType?: string | null,
@@ -2459,10 +2588,6 @@ export type UpdatePartnerTariffMutationResult = {
     createdAt: any,
     currency: any,
     paymentFee?: any | null,
-    pricePerKwh: any,
-    pricePerMin?: any | null,
-    pricePerSession?: any | null,
-    stationId?: string | null,
     taxRate?: any | null,
     tariffAltText?: string | null,
     tariffType?: string | null,

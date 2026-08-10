@@ -43,6 +43,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
     transactionDto: TransactionDto,
     tokenOwnerTenantPartnerId?: number | null,
   ): Promise<void> {
+    console.log('broadcastPutSession', tenant, transactionDto, tokenOwnerTenantPartnerId);
     if (!tokenOwnerTenantPartnerId) {
       this.logger.debug('No token owner partner, skipping session broadcast');
       return;

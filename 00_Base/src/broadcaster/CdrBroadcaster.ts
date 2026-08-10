@@ -17,7 +17,9 @@ import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
 import {
   getOcpiToFromAuthorization,
   tokenOwnerPartnerFilter,
+  type AuthWithPartners,
 } from '../util/helpers.js';
+import { CdrsService } from '../services/CdrsService.js';
 
 @Service()
 export class CdrBroadcaster extends BaseBroadcaster {
@@ -25,6 +27,7 @@ export class CdrBroadcaster extends BaseBroadcaster {
     readonly logger: Logger<ILogObj>,
     readonly cdrMapper: CdrMapper,
     readonly cdrsClientApi: CdrsClientApi,
+    readonly cdrsService: CdrsService,
   ) {
     super();
   }
@@ -48,6 +51,18 @@ export class CdrBroadcaster extends BaseBroadcaster {
     }
     const { ocpiToCountryCode, ocpiToPartyId } = getOcpiToFromAuthorization(
       transactionDto.authorization,
+    );
+
+    const auth = transactionDto.authorization as AuthWithPartners & { roamingPartnerId?: number | null };
+    const tenantId = transactionDto.authorization?.tenantPartner?.tenant?.id;
+    await this.cdrsService.insertSentCdr(
+      transactionDto.authorization!.tenantPartner!,
+      cdrDto,
+      {
+        tenantId: tenantId!,
+        roamingPartnerId: auth.roamingPartner?.id ?? auth.roamingPartnerId ?? null,
+        transactionId: transactionDto.id ?? null,
+      },
     );
 
     try {
