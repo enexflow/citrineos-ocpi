@@ -235,29 +235,37 @@ export abstract class BaseClientApi {
 
     switch (httpMethod) {
       case HttpMethod.Get:
-        this.logger.debug(`Sending GET request to ${url}`);
+        this.logger.info(
+          `Sending GET request to ${url}, ${JSON.stringify(body)}`,
+        );
         return this.getRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
       case HttpMethod.Post:
-        this.logger.debug(`Sending POST request to ${url}`);
+        this.logger.info(
+          `Sending POST request to ${url}, ${JSON.stringify(body)}`,
+        );
         return this.createRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Put:
-        this.logger.debug(`Sending PUT request to ${url}`);
-        this.logger.debug(`PUT BODY ${JSON.stringify(body)}`);
+        this.logger.info(
+          `Sending PUT request to ${url}, ${JSON.stringify(body)}`,
+        );
         return this.replaceRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Patch:
-        this.logger.debug(`Sending PATCH request to ${url}`);
-        this.logger.debug(`PATCH BODY ${JSON.stringify(body)}`);
+        this.logger.info(
+          `Sending PATCH request to ${url}, ${JSON.stringify(body)}`,
+        );
         return this.updateRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Delete:
-        this.logger.debug(`Sending DELETE request to ${url}`);
+        this.logger.info(
+          `Sending DELETE request to ${url}, ${JSON.stringify(body)}`,
+        );
         return this.delRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
