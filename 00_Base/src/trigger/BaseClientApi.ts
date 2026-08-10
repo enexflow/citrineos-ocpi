@@ -122,6 +122,43 @@ export abstract class BaseClientApi {
     return headers;
   }
 
+  private readonly outboundLogFile = '/var/log/ocpi/outbound-requests.log';
+
+  private logOutboundRequest(
+    method: string,
+    url: string,
+    body: unknown,
+    headers?: IHeaders,
+  ): void {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      method,
+      url,
+      body,
+      headers: headers ? this.redactHeaders(headers) : undefined,
+    };
+
+    // still visible in docker logs
+    this.logger.info('[OCPI Outbound]', entry);
+
+    // pretty-printed, human-readable, all requests in one file
+    try {
+      mkdirSync(dirname(this.outboundLogFile), { recursive: true });
+      const block =
+        JSON.stringify(entry, null, 2) + '\n' + '-'.repeat(80) + '\n';
+      appendFileSync(this.outboundLogFile, block, 'utf8');
+    } catch (err) {
+      this.logger.error('Failed to write outbound request log', err);
+    }
+  }
+  private redactHeaders(headers: IHeaders): IHeaders {
+    const clone = { ...headers };
+    if ('authorization' in clone && clone.authorization) {
+      clone.authorization = '[REDACTED]';
+    }
+    return clone;
+  }
+
   async request<T extends ZodTypeAny>(
     fromCountryCode: string,
     fromPartyId: string,
@@ -235,29 +272,67 @@ export abstract class BaseClientApi {
 
     switch (httpMethod) {
       case HttpMethod.Get:
-        this.logger.debug(`Sending GET request to ${url}`);
+        this.logger.info(
+          `Sending GET request to ${url}, ${JSON.stringify(body)}`,
+        );
+        this.logOutboundRequest(
+          httpMethod,
+          url,
+          body,
+          options.additionalHeaders,
+        );
         return this.getRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
       case HttpMethod.Post:
-        this.logger.debug(`Sending POST request to ${url}`);
+        this.logger.info(
+          `Sending POST request to ${url}, ${JSON.stringify(body)}`,
+        );
+        this.logOutboundRequest(
+          httpMethod,
+          url,
+          body,
+          options.additionalHeaders,
+        );
         return this.createRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Put:
-        this.logger.debug(`Sending PUT request to ${url}`);
-        this.logger.debug(`PUT BODY ${JSON.stringify(body)}`);
+        this.logger.info(
+          `Sending PUT request to ${url}, ${JSON.stringify(body)}`,
+        );
+        this.logOutboundRequest(
+          httpMethod,
+          url,
+          body,
+          options.additionalHeaders,
+        );
         return this.replaceRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Patch:
-        this.logger.debug(`Sending PATCH request to ${url}`);
-        this.logger.debug(`PATCH BODY ${JSON.stringify(body)}`);
+        this.logger.info(
+          `Sending PATCH request to ${url}, ${JSON.stringify(body)}`,
+        );
+        this.logOutboundRequest(
+          httpMethod,
+          url,
+          body,
+          options.additionalHeaders,
+        );
         return this.updateRaw<T>(url, body, options, restClient).then(
           (response) => this.handleResponse(schema, response),
         );
       case HttpMethod.Delete:
-        this.logger.debug(`Sending DELETE request to ${url}`);
+        this.logger.debug(
+          `Sending DELETE request to ${url}, ${JSON.stringify(body)}`,
+        );
+        this.logOutboundRequest(
+          httpMethod,
+          url,
+          body,
+          options.additionalHeaders,
+        );
         return this.delRaw<T>(url, options, restClient).then((response) =>
           this.handleResponse(schema, response),
         );
