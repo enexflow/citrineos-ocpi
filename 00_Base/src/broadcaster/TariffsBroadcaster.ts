@@ -19,7 +19,6 @@ import type {
   GetTariffForBroadcastQueryVariables,
 } from '../graphql/index.js';
 import {
-  GET_TARIFF_BY_KEY_QUERY,
   GET_TARIFF_FOR_BROADCAST_QUERY,
   OcpiGraphqlClient,
 } from '../graphql/index.js';

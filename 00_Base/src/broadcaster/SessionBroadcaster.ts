@@ -13,7 +13,6 @@ import { InterfaceRole } from '../model/InterfaceRole.js';
 import type {
   MeterValueDto,
   TenantDto,
-  TenantPartnerDto,
   TransactionDto,
 } from '@zetra/citrineos-base';
 import { HttpMethod } from '@zetra/citrineos-base';

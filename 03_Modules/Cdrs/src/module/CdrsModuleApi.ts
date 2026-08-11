@@ -151,6 +151,7 @@ export class CdrsModuleApi extends BaseController implements ICdrsModuleApi {
 
   /**
    * Route to send a CDR to a partner (in case we had a problem sending the CDR to the partner)
+   * // TODO to implement
    */
   // @Post('/send-cdr-to-partner')
   // @AsAdminEndpoint()
