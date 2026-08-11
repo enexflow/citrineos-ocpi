@@ -156,7 +156,8 @@ export class LocationMapper {
       suboperator: LocationMapper.mapBusinessDetails(location.suboperator),
       owner: LocationMapper.mapBusinessDetails(location.owner),
       publish_allowed_to: location.publishAllowedTo as
-        PublishTokenType[] | null,
+        | PublishTokenType[]
+        | null,
       last_updated: location.updatedAt!,
     };
   }
@@ -391,7 +392,8 @@ export class EvseMapper {
       directions: evse.directions ?? [],
       capabilities: evse.capabilities as Capability[] | null | undefined,
       parking_restrictions: evse.parkingRestrictions as
-        ParkingRestriction[] | undefined, // ← no station fallback needed
+        | ParkingRestriction[]
+        | undefined, // ← no station fallback needed
       coordinates:
         evse.coordinates && evse.coordinates.coordinates?.length === 2
           ? {
