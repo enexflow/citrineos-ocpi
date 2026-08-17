@@ -22,6 +22,8 @@ import type {
   GetCdrByiIdAndRoamingPartnerQueryVariables,
   FindSentCdrQueryResult,
   FindSentCdrQueryVariables,
+  UpdateCdrSentStatusMutationResult,
+  UpdateCdrSentStatusMutationVariables,
 } from '../graphql/index.js';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY } from '../graphql/index.js';
@@ -43,6 +45,7 @@ import {
   FIND_CDR_P2P_QUERY,
   GET_CDR_BY_OUR_ID_AND_ROAMING_PARTNER,
   FIND_SENT_CDR_QUERY,
+  UPDATE_CDR_SENT_STATUS_MUTATION,
 } from '../graphql/queries/cdr.queries.js';
 import type { CdrEntity } from '../model/DTO/CdrDTO.js';
 import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
@@ -300,6 +303,16 @@ export class CdrsService {
       InsertCdrMutationVariables
     >(INSERT_CDR_MUTATION, { object: objectToInsert });
     return result.insert_Cdrs_one!.id;
+  }
+
+  async markCdrAsSent(cdrId: number, sentAt: string): Promise<void> {
+    await this.ocpiGraphqlClient.request<
+      UpdateCdrSentStatusMutationResult,
+      UpdateCdrSentStatusMutationVariables
+    >(UPDATE_CDR_SENT_STATUS_MUTATION, {
+      id: cdrId,
+      successfullySentAt: sentAt,
+    });
   }
 
   async putCdrForTenantPartner(

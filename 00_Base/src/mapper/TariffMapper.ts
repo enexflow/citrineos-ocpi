@@ -83,12 +83,6 @@ export class TariffMapper {
       }
     }
 
-    if ((coreTariff as any).TariffElements?.length === 0) {
-      throw new Error(
-        `Tariff ${coreTariff.ocpiTariffId} has no TariffElements`,
-      );
-    }
-
     const els = coreTariff.TariffElements;
     if (!els?.length) {
       throw new Error(

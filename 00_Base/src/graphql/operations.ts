@@ -37,7 +37,6 @@ export type Authorizations_Set_Input = {
 };
 export type Locations_Bool_Exp = {
   _or?: InputMaybe<Array<Locations_Bool_Exp>>;
-  _and?: InputMaybe<Array<Locations_Bool_Exp>>;
   disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
@@ -388,6 +387,18 @@ export type FindSentCdrQueryResult = {
   Cdrs: Array<{
     id: number
   }>
+};
+
+export type UpdateCdrSentStatusMutationVariables = Exact<{
+  id: Scalars['Int']['input'];
+  successfullySentAt?: InputMaybe<Scalars['timestamptz']['input']>;
+}>;
+
+
+export type UpdateCdrSentStatusMutationResult = {
+  update_Cdrs_by_pk?: {
+    id: number
+  } | null
 };
 
 export type GetChargingStationByIdQueryVariables = Exact<{

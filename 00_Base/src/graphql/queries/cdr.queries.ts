@@ -262,3 +262,14 @@ export const FIND_SENT_CDR_QUERY = gql`
     }
   }
 `;
+
+export const UPDATE_CDR_SENT_STATUS_MUTATION = gql`
+  mutation UpdateCdrSentStatus($id: Int!, $successfullySentAt: timestamptz) {
+    update_Cdrs_by_pk(
+      pk_columns: { id: $id }
+      _set: { successfullySentAt: $successfullySentAt }
+    ) {
+      id
+    }
+  }
+`;
