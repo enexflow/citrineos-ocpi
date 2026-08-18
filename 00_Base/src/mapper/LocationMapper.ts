@@ -94,8 +94,8 @@ export class LocationMapper {
       }),
       country: location.country,
       coordinates: {
-        latitude: location.coordinates.coordinates[0].toString(),
-        longitude: location.coordinates.coordinates[1].toString(),
+        longitude: location.coordinates.coordinates[0].toString(),
+        latitude: location.coordinates.coordinates[1].toString(),
       },
       time_zone: location.timeZone,
       evses: location.chargingPool

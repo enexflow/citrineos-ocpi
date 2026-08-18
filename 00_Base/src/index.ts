@@ -232,6 +232,11 @@ export {
   PullPartnerModulesBodySchema,
   PullPartnerModulesBodySchemaName,
 } from './model/DTO/PullPartnerModulesBody.js';
+export type { PushPartnerSessionInfoBody } from './model/DTO/PushPartnerSessionInfo.js';
+export {
+  PushPartnerSessionInfoBodySchema,
+  PushPartnerSessionInfoBodySchemaName,
+} from './model/DTO/PushPartnerSessionInfo.js';
 export type { OnboardRoamingPartnerBody } from './model/DTO/OnboardRoamingPartnerBody.js';
 export {
   OnboardRoamingPartnerBodySchema,
