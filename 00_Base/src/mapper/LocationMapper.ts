@@ -854,19 +854,24 @@ export class ConnectorMapper {
   }
 
   static mapConnectorPowerType(
-    connectorPowerType: ConnectorPowerTypeEnumType | null | undefined,
+    connectorPowerType: ConnectorPowerTypeEnumType | string | null | undefined,
   ): PowerType | undefined {
     const logger = Container.get(Logger);
     switch (connectorPowerType) {
       case ConnectorPowerTypeEnum.AC1Phase:
+      case PowerType.AC_1_PHASE:
         return PowerType.AC_1_PHASE;
       case ConnectorPowerTypeEnum.AC2Phase:
+      case PowerType.AC_2_PHASE:
         return PowerType.AC_2_PHASE;
       case ConnectorPowerTypeEnum.AC2PhaseSplit:
+      case PowerType.AC_2_PHASE_SPLIT:
         return PowerType.AC_2_PHASE_SPLIT;
       case ConnectorPowerTypeEnum.AC3Phase:
+      case PowerType.AC_3_PHASE:
         return PowerType.AC_3_PHASE;
       case ConnectorPowerTypeEnum.DC:
+      case PowerType.DC:
         return PowerType.DC;
       default:
         logger.warn(`Unknown PowerType ${connectorPowerType}`);

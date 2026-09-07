@@ -19,7 +19,7 @@ npm run gireve-retry:dist
 Kubernetes (sizopt): CronJob example — same env as the OCPI pod, `concurrencyPolicy: Forbid`, schedule aligned with `CITRINEOS_OCPI_GIREVE_RETRY_INTERVAL_SECONDS`:
 
 ```yaml
-command: ["node", "Server/dist/gireve-retry/index.js"]
+command: ['node', 'Server/dist/gireve-retry/index.js']
 env:
   - name: APP_ENV
     value: docker
