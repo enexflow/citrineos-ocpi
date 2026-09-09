@@ -19,7 +19,6 @@ import type {
   GetTariffForBroadcastQueryVariables,
 } from '../graphql/index.js';
 import {
-  GET_TARIFF_BY_KEY_QUERY,
   GET_TARIFF_FOR_BROADCAST_QUERY,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
@@ -79,7 +78,7 @@ export class TariffsBroadcaster extends BaseBroadcaster {
       return;
     }
 
-    const tariff = TariffMapper.mapForReceiverOCPI(tariffResponse.Tariffs[0]);
+    const tariff = TariffMapper.mapForSender(tariffResponse.Tariffs[0]);
     const path = `/${tenant.countryCode}/${tenant.partyId}/${tariff.id}`;
     await this.broadcast(tenant, HttpMethod.Put, path, tariff);
   }

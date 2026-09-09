@@ -86,7 +86,7 @@ export abstract class BaseTransactionMapper {
         }
       }
       if (transaction.authorization) {
-        const tokenDto = await TokensMapper.toDto(transaction.authorization);
+        const tokenDto = TokensMapper.toDto(transaction.authorization);
         if (tokenDto) {
           transactionIdToTokenMap.set(transaction.transactionId!, tokenDto);
         } else {
@@ -181,7 +181,7 @@ export abstract class BaseTransactionMapper {
         (component) => component.type === TariffDimensionType.ENERGY,
       );
 
-      const pricePerKwh = energyComponent?.price ?? tariff.pricePerKwh ?? 0;
+      const pricePerKwh = energyComponent?.price ?? 0;
       const taxRate = energyComponent?.vat ?? tariff.taxRate ?? 0;
 
       if (pricePerKwh > 0 || totalKwh === 0) {
