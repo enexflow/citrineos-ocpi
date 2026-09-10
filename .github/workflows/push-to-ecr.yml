@@ -5,6 +5,19 @@ on:
     branches: [env/*]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      ocpi-monitor: ${{ steps.filter.outputs.ocpi-monitor }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ocpi-monitor:
+              - 'apps/ocpi-monitor/**'
+
   push-to-ecr:
     runs-on: ubuntu-latest
     permissions:
@@ -65,3 +78,58 @@ jobs:
           build-args: |
             NPM_TAG=${{ contains(steps.branch.outputs.branch, 'staging') && 'staging' || 'prod' }}
           tags: ${{ steps.login-ecr.outputs.registry }}/citrineos-ocpi:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }},${{ steps.login-ecr.outputs.registry }}/citrineos-ocpi:latest,ghcr.io/enexflow/citrineos-ocpi:latest,ghcr.io/enexflow/citrineos-ocpi:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }}
+
+  push-ocpi-monitor-to-ecr:
+    needs: changes
+    if: needs.changes.outputs.ocpi-monitor == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::085680810369:role/terraform
+          aws-region: eu-west-3
+
+      - name: Log in to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Log in to the Github Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-ocpi-monitor
+          key: ${{ runner.os }}-buildx-ocpi-monitor-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-ocpi-monitor
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Get current branch name
+        id: branch
+        run: echo "branch=$(echo ${GITHUB_REF:-dev} | sed s/.*\\///g)" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: ./apps/ocpi-monitor
+          file: ./apps/ocpi-monitor/Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/ocpi-monitor:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }},${{ steps.login-ecr.outputs.registry }}/ocpi-monitor:latest,ghcr.io/enexflow/ocpi-monitor:latest,ghcr.io/enexflow/ocpi-monitor:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }}

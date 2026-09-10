@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: OCPI Monitor Frontend CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [env/staging, env/prod]
+    paths:
+      - "citrineos-ocpi/apps/ocpi-monitor/**"
+      - ".github/workflows/ocpi-monitor-ci.yml"
+  pull_request:
+    branches: [env/*]
+    paths:
+      - "citrineos-ocpi/apps/ocpi-monitor/**"
+      - ".github/workflows/ocpi-monitor-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  frontend:
+    name: Lint + typecheck + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: citrineos-ocpi/apps/ocpi-monitor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: citrineos-ocpi/apps/ocpi-monitor/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm run lint
+      - name: Type-check
+        run: pnpm run type-check
+      - name: Build
+        run: pnpm run build

@@ -61,7 +61,21 @@ export class CdrBroadcaster extends BaseBroadcaster {
       roamingPartnerId?: number | null;
     };
     const tenantId = transactionDto.authorization?.tenantPartner?.tenant?.id;
+<<<<<<< HEAD
     let sentCdrId: number;
+=======
+    await this.cdrsService.insertSentCdr(
+      transactionDto.authorization!.tenantPartner!,
+      cdrDto,
+      {
+        tenantId: tenantId!,
+        roamingPartnerId:
+          auth.roamingPartner?.id ?? auth.roamingPartnerId ?? null,
+        transactionId: transactionDto.id ?? null,
+      },
+    );
+
+>>>>>>> 0f11ff1 (feat: UI to monitor OCPI)
     try {
       sentCdrId = await this.cdrsService.insertSentCdr(
         transactionDto.authorization!.tenantPartner!,

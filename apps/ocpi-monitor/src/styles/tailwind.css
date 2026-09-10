@@ -1,0 +1,200 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+@import 'tailwindcss/theme' layer(tailwind-theme);
+@import 'tailwindcss/preflight' layer(tailwind-reset);
+@import 'tailwindcss/utilities' layer(tailwind-utilities);
+
+@theme {
+  --font-heading: 'Roboto', sans-serif;
+  --font-body: 'Roboto', sans-serif;
+  --font-mono: 'Roboto Mono', monospace;
+
+  --color-bright-snow-50: #f0f4f4;
+  --color-bright-snow-100: #e2e9e9;
+  --color-bright-snow-200: #c5d3d3;
+  --color-bright-snow-300: #a8bdbd;
+  --color-bright-snow-400: #8ba7a7;
+  --color-bright-snow-500: #6e9191;
+  --color-bright-snow-600: #587474;
+  --color-bright-snow-700: #425757;
+  --color-bright-snow-800: #2c3a3a;
+  --color-bright-snow-900: #161d1d;
+  --color-bright-snow-950: #0f1414;
+
+  --color-alice-blue-50: #ebf3fa;
+  --color-alice-blue-100: #d7e7f4;
+  --color-alice-blue-200: #aecfea;
+  --color-alice-blue-300: #86b7df;
+  --color-alice-blue-400: #5e9fd4;
+  --color-alice-blue-500: #3687c9;
+  --color-alice-blue-600: #2b6ca1;
+  --color-alice-blue-700: #205179;
+  --color-alice-blue-800: #153651;
+  --color-alice-blue-900: #0b1b28;
+  --color-alice-blue-950: #07131c;
+
+  --color-teal-50: #e7fbfe;
+  --color-teal-100: #cff8fc;
+  --color-teal-200: #9ff0f9;
+  --color-teal-300: #6ee9f7;
+  --color-teal-400: #3ee2f4;
+  --color-teal-500: #0edaf1;
+  --color-teal-600: #0bafc1;
+  --color-teal-700: #088391;
+  --color-teal-800: #065760;
+  --color-teal-900: #032c30;
+  --color-teal-950: #021f22;
+
+  --color-space-indigo-50: #eceff8;
+  --color-space-indigo-100: #dadff1;
+  --color-space-indigo-200: #b5bfe3;
+  --color-space-indigo-300: #8fa0d6;
+  --color-space-indigo-400: #6a80c8;
+  --color-space-indigo-500: #4560ba;
+  --color-space-indigo-600: #374d95;
+  --color-space-indigo-700: #293a70;
+  --color-space-indigo-800: #1c264a;
+  --color-space-indigo-900: #0e1325;
+  --color-space-indigo-950: #0a0d1a;
+
+  --color-wisteria-blue-50: #eef1f7;
+  --color-wisteria-blue-100: #dde3ee;
+  --color-wisteria-blue-200: #bbc6dd;
+  --color-wisteria-blue-300: #98aacd;
+  --color-wisteria-blue-400: #768dbc;
+  --color-wisteria-blue-500: #5471ab;
+  --color-wisteria-blue-600: #435a89;
+  --color-wisteria-blue-700: #324467;
+  --color-wisteria-blue-800: #222d44;
+  --color-wisteria-blue-900: #111722;
+  --color-wisteria-blue-950: #0c1018;
+
+  --color-background: rgb(var(--v-theme-background));
+  --color-surface: rgb(var(--v-theme-surface));
+  --color-on-surface: rgb(var(--v-theme-on-surface));
+
+  --color-primary: rgb(var(--v-theme-primary));
+  --color-success: rgb(var(--v-theme-success));
+  --color-info: rgb(var(--v-theme-info));
+  --color-warning: rgb(var(--v-theme-warning));
+  --color-error: rgb(var(--v-theme-error));
+
+  --breakpoint-*: initial;
+  --breakpoint-xs: 0px;
+  --breakpoint-sm: 600px;
+  --breakpoint-md: 840px;
+  --breakpoint-lg: 1145px;
+  --breakpoint-xl: 1545px;
+  --breakpoint-xxl: 2138px;
+}
+
+@custom-variant light (&:where(.v-theme--light, .v-theme--light *));
+@custom-variant dark (&:where(.v-theme--dark, .v-theme--dark *));
+
+/* safelist to ensure variables are always available */
+@source inline('font-heading');
+@source inline('font-body');
+@source inline('font-mono');
+
+/*
+  note: adopt and extend values from TailwindCSS
+*/
+@utility rounded-pill {
+  border-radius: 9999px;
+}
+@utility rounded-circle {
+  border-radius: 50%;
+}
+@utility rounded-shaped {
+  border-radius: 24px 0;
+}
+
+@source inline('rounded'); /* .25rem */
+@source inline('rounded-{none,sm,md,lg,xl,2xl,3xl,full,pill,circle,shaped}');
+
+/* MD3 elevation */
+@utility elevation-0 {
+  box-shadow:
+    0px 0px 0px 0px
+      rgba(var(--v-shadow-color), var(--v-shadow-key-opacity, 0.3)),
+    0px 0px 0px 0px
+      rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
+  --v-elevation-overlay: color-mix(
+    in srgb,
+    var(--v-elevation-overlay-color) 0%,
+    transparent
+  );
+}
+@utility elevation-1 {
+  box-shadow:
+    0px 1px 2px 0px
+      rgba(var(--v-shadow-color), var(--v-shadow-key-opacity, 0.3)),
+    0px 1px 3px 1px
+      rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
+  --v-elevation-overlay: color-mix(
+    in srgb,
+    var(--v-elevation-overlay-color) 2%,
+    transparent
+  );
+}
+@utility elevation-2 {
+  box-shadow:
+    0px 1px 2px 0px
+      rgba(var(--v-shadow-color), var(--v-shadow-key-opacity, 0.3)),
+    0px 2px 6px 2px
+      rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
+  --v-elevation-overlay: color-mix(
+    in srgb,
+    var(--v-elevation-overlay-color) 4%,
+    transparent
+  );
+}
+@utility elevation-3 {
+  box-shadow:
+    0px 1px 3px 0px
+      rgba(var(--v-shadow-color), var(--v-shadow-key-opacity, 0.3)),
+    0px 4px 8px 3px
+      rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
+  --v-elevation-overlay: color-mix(
+    in srgb,
+    var(--v-elevation-overlay-color) 6%,
+    transparent
+  );
+}
+@utility elevation-4 {
+  box-shadow:
+    0px 2px 3px 0px
+      rgba(var(--v-shadow-color), var(--v-shadow-key-opacity, 0.3)),
+    0px 6px 10px 4px
+      rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
+  --v-elevation-overlay: color-mix(
+    in srgb,
+    var(--v-elevation-overlay-color) 8%,
+    transparent
+  );
+}
+@utility elevation-5 {
+  box-shadow:
+    0px 4px 4px 0px
+      rgba(var(--v-shadow-color), var(--v-shadow-key-opacity, 0.3)),
+    0px 8px 12px 6px
+      rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
+  --v-elevation-overlay: color-mix(
+    in srgb,
+    var(--v-elevation-overlay-color) 10%,
+    transparent
+  );
+}
+@utility elevation-overlay {
+  background-image: linear-gradient(
+    var(--v-elevation-overlay),
+    var(--v-elevation-overlay)
+  );
+}
+
+/* safelist for elevation="..." props */
+@source inline('elevation-{0,1,2,3,4,5}');

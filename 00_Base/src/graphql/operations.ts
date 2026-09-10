@@ -37,6 +37,10 @@ export type Authorizations_Set_Input = {
 };
 export type Locations_Bool_Exp = {
   _or?: InputMaybe<Array<Locations_Bool_Exp>>;
+<<<<<<< HEAD
+=======
+  _and?: InputMaybe<Array<Locations_Bool_Exp>>;
+>>>>>>> 0f11ff1 (feat: UI to monitor OCPI)
   disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
@@ -115,11 +119,17 @@ export type Cdrs_Bool_Exp = {
   countryCode?: InputMaybe<String_Comparison_Exp>;
   partyId?: InputMaybe<String_Comparison_Exp>;
   ocpiCdrId?: InputMaybe<String_Comparison_Exp>;
-  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  fromTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   lastUpdated?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
+<<<<<<< HEAD
   toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+=======
+  FromTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+  ToTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+>>>>>>> 0f11ff1 (feat: UI to monitor OCPI)
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;
@@ -389,6 +399,7 @@ export type FindSentCdrQueryResult = {
   }>
 };
 
+<<<<<<< HEAD
 export type UpdateCdrSentStatusMutationVariables = Exact<{
   id: Scalars['Int']['input'];
   successfullySentAt?: InputMaybe<Scalars['timestamptz']['input']>;
@@ -401,6 +412,8 @@ export type UpdateCdrSentStatusMutationResult = {
   } | null
 };
 
+=======
+>>>>>>> 0f11ff1 (feat: UI to monitor OCPI)
 export type GetChargingStationByIdQueryVariables = Exact<{
   id: Scalars['String']['input'];
 }>;
