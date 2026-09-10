@@ -9,13 +9,13 @@ on:
   push:
     branches: [env/staging, env/prod]
     paths:
-      - "citrineos-ocpi/apps/ocpi-monitor/**"
-      - ".github/workflows/ocpi-monitor-ci.yml"
+      - 'citrineos-ocpi/apps/ocpi-monitor/**'
+      - '.github/workflows/ocpi-monitor-ci.yml'
   pull_request:
     branches: [env/*]
     paths:
-      - "citrineos-ocpi/apps/ocpi-monitor/**"
-      - ".github/workflows/ocpi-monitor-ci.yml"
+      - 'citrineos-ocpi/apps/ocpi-monitor/**'
+      - '.github/workflows/ocpi-monitor-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

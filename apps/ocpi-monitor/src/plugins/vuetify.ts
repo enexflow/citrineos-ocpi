@@ -8,10 +8,10 @@
  * Framework documentation: https://vuetifyjs.com
  */
 
-import { createVuetify } from 'vuetify'
-import { darkTheme, lightTheme } from '@/theme/palette'
-import '@mdi/font/css/materialdesignicons.css'
-import 'vuetify/styles'
+import { createVuetify } from 'vuetify';
+import { darkTheme, lightTheme } from '@/theme/palette';
+import '@mdi/font/css/materialdesignicons.css';
+import 'vuetify/styles';
 
 export default createVuetify({
   theme: {
@@ -32,4 +32,4 @@ export default createVuetify({
       xxl: 2138,
     },
   },
-})
+});

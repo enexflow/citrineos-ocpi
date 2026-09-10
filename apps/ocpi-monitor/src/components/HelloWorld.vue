@@ -86,32 +86,32 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script setup lang="ts">
-  const links = [
-    {
-      href: 'https://vuetifyjs.com/',
-      icon: 'mdi-text',
-      subtitle: 'Learn about all things Vuetify in our documentation.',
-      title: 'Documentation',
-    },
-    {
-      href: 'https://vuetifyjs.com/introduction/why-vuetify/#feature-guides',
-      icon: 'mdi-star',
-      subtitle: 'Explore available framework Features.',
-      title: 'Features',
-    },
-    {
-      href: 'https://vuetifyjs.com/components/all',
-      icon: 'mdi-widgets-outline',
-      subtitle: 'Discover components in the API Explorer.',
-      title: 'Components',
-    },
-    {
-      href: 'https://discord.vuetifyjs.com',
-      icon: 'mdi-account-group-outline',
-      subtitle: 'Connect with Vuetify developers.',
-      title: 'Community',
-    },
-  ]
+const links = [
+  {
+    href: 'https://vuetifyjs.com/',
+    icon: 'mdi-text',
+    subtitle: 'Learn about all things Vuetify in our documentation.',
+    title: 'Documentation',
+  },
+  {
+    href: 'https://vuetifyjs.com/introduction/why-vuetify/#feature-guides',
+    icon: 'mdi-star',
+    subtitle: 'Explore available framework Features.',
+    title: 'Features',
+  },
+  {
+    href: 'https://vuetifyjs.com/components/all',
+    icon: 'mdi-widgets-outline',
+    subtitle: 'Discover components in the API Explorer.',
+    title: 'Components',
+  },
+  {
+    href: 'https://discord.vuetifyjs.com',
+    icon: 'mdi-account-group-outline',
+    subtitle: 'Connect with Vuetify developers.',
+    title: 'Community',
+  },
+];
 </script>
 
 <style scoped>

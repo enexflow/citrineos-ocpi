@@ -2,34 +2,34 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { OcpiLocationReceived } from '@/types/partner'
-import { graphqlRequest } from './graphql.js'
+import type { OcpiLocationReceived } from '@/types/partner';
+import { graphqlRequest } from './graphql.js';
 
 interface AggregateCount {
-  aggregate: { count: number } | null
+  aggregate: { count: number } | null;
 }
 
-function countOf (agg: AggregateCount | undefined): number {
-  return agg?.aggregate?.count ?? 0
+function countOf(agg: AggregateCount | undefined): number {
+  return agg?.aggregate?.count ?? 0;
 }
 
-function iso (value: unknown): string | null {
+function iso(value: unknown): string | null {
   if (value == null) {
-    return null
+    return null;
   }
   try {
-    return new Date(value as string).toISOString()
+    return new Date(value as string).toISOString();
   } catch {
-    return String(value)
+    return String(value);
   }
 }
 
-function num (value: unknown): number | null {
+function num(value: unknown): number | null {
   if (value == null || value === '') {
-    return null
+    return null;
   }
-  const n = Number(value)
-  return Number.isFinite(n) ? n : null
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 const OUR_LOCATIONS_QUERY = `
@@ -58,20 +58,20 @@ const OUR_LOCATIONS_QUERY = `
       }
     }
   }
-`
+`;
 
 interface OurLocationsQueryResult {
   Locations: Array<{
-    id: number
-    ocpiId: string
-    name: string | null
-    address: string
-    city: string
-    country: string
-    coordinates: { type: string, coordinates: [number, number] } | null
-    updatedAt: string | null
-    ChargingStations_aggregate: AggregateCount
-  }>
+    id: number;
+    ocpiId: string;
+    name: string | null;
+    address: string;
+    city: string;
+    country: string;
+    coordinates: { type: string; coordinates: [number, number] } | null;
+    updatedAt: string | null;
+    ChargingStations_aggregate: AggregateCount;
+  }>;
 }
 
 /**
@@ -79,10 +79,11 @@ interface OurLocationsQueryResult {
  * partner, not roaming) and exposed over OCPI (disableOCPI is null/false) —
  * mirrors the LocationsService.getLocations sender-GET filter.
  */
-export async function fetchOurLocations (): Promise<OcpiLocationReceived[]> {
-  const data = await graphqlRequest<OurLocationsQueryResult>(OUR_LOCATIONS_QUERY)
+export async function fetchOurLocations(): Promise<OcpiLocationReceived[]> {
+  const data =
+    await graphqlRequest<OurLocationsQueryResult>(OUR_LOCATIONS_QUERY);
 
-  return data.Locations.map(loc => ({
+  return data.Locations.map((loc) => ({
     id: loc.id,
     ocpiId: loc.ocpiId,
     name: loc.name,
@@ -94,5 +95,5 @@ export async function fetchOurLocations (): Promise<OcpiLocationReceived[]> {
     latitude: num(loc.coordinates?.coordinates?.[1]),
     longitude: num(loc.coordinates?.coordinates?.[0]),
     lastUpdated: iso(loc.updatedAt),
-  }))
+  }));
 }

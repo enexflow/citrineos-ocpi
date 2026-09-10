@@ -39,13 +39,7 @@ SPDX-License-Identifier: Apache-2.0
     </v-alert>
 
     <v-row dense>
-      <v-col
-        v-for="card in cards"
-        :key="card.label"
-        cols="12"
-        md="3"
-        sm="6"
-      >
+      <v-col v-for="card in cards" :key="card.label" cols="12" md="3" sm="6">
         <button
           :class="[
             'role-card',
@@ -88,12 +82,14 @@ SPDX-License-Identifier: Apache-2.0
             Money earned VS owed
           </h2>
           <p class="text-body-1 mb-0" style="color: #587474">
-            Sum of CDR total cost by end date — earned = CDRs we sent to
-            eMSPs, owed = CDRs we received from CPOs.
+            Sum of CDR total cost by end date — earned = CDRs we sent to eMSPs,
+            owed = CDRs we received from CPOs.
           </p>
         </div>
 
-        <div class="flex flex-row gap-20 align-center ga-3 rounded-lg px-4 py-2">
+        <div
+          class="flex flex-row gap-20 align-center ga-3 rounded-lg px-4 py-2"
+        >
           <v-menu
             v-model="dateMenuOpen"
             :close-on-content-click="false"
@@ -183,8 +179,8 @@ SPDX-License-Identifier: Apache-2.0
                     size="14"
                   />
                 </template>
-                CDRs received from CPOs (Cdrs.fromTenantPartnerId) — we owe
-                them this.
+                CDRs received from CPOs (Cdrs.fromTenantPartnerId) — we owe them
+                this.
               </v-tooltip>
             </div>
             <div class="money-tile__value">
@@ -198,123 +194,131 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import type { CdrFinancials, CurrencyAmount, PartnerRoleCounts } from '@/types/partner'
-  import { computed, onMounted, ref } from 'vue'
-  import { useRouter } from 'vue-router'
-  import { fetchCdrFinancials, fetchPartnerRoleCounts } from '@/api/partners'
+import type {
+  CdrFinancials,
+  CurrencyAmount,
+  PartnerRoleCounts,
+} from '@/types/partner';
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { fetchCdrFinancials, fetchPartnerRoleCounts } from '@/api/partners';
 
-  const router = useRouter()
-  const counts = ref<PartnerRoleCounts | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+const router = useRouter();
+const counts = ref<PartnerRoleCounts | null>(null);
+const loading = ref(false);
+const error = ref<string | null>(null);
 
-  function toDateInput (date: Date): string {
-    return date.toISOString().slice(0, 10)
+function toDateInput(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+const today = new Date();
+const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+const fromDate = ref(toDateInput(thirtyDaysAgo));
+const toDate = ref(toDateInput(today));
+const dateMenuOpen = ref(false);
+const dateRangeModel = ref<Date[]>([thirtyDaysAgo, today]);
+const financials = ref<CdrFinancials | null>(null);
+const financialsLoading = ref(false);
+const financialsError = ref<string | null>(null);
+
+const dateRangeLabel = computed(() =>
+  fromDate.value && toDate.value ? `${fromDate.value} → ${toDate.value}` : '',
+);
+
+function onDateRangeSelected(value: Date[]) {
+  if (value.length < 2) return;
+  // eslint-disable-next-line unicorn/no-array-sort -- toSorted needs ES2023 lib, not configured here
+  const sorted = value.slice().sort((a, b) => a.getTime() - b.getTime());
+  fromDate.value = toDateInput(sorted[0]);
+  toDate.value = toDateInput(sorted.at(-1)!);
+  dateMenuOpen.value = false;
+  loadFinancials();
+}
+
+function formatAmounts(amounts: CurrencyAmount[] | undefined): string {
+  if (!amounts || amounts.length === 0) return '0';
+  return amounts
+    .map(
+      ({ currency, amount }) =>
+        `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`,
+    )
+    .join(' · ');
+}
+
+async function loadFinancials() {
+  if (!fromDate.value || !toDate.value) return;
+  financialsLoading.value = true;
+  financialsError.value = null;
+  try {
+    financials.value = await fetchCdrFinancials(
+      `${fromDate.value}T00:00:00.000Z`,
+      `${toDate.value}T23:59:59.999Z`,
+    );
+  } catch (error_) {
+    financials.value = null;
+    financialsError.value =
+      error_ instanceof Error ? error_.message : String(error_);
+  } finally {
+    financialsLoading.value = false;
   }
+}
 
-  const today = new Date()
-  const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+const cards = computed(() => [
+  {
+    key: 'cpo',
+    label: 'CPO',
+    hint: 'Seen in eMSP view',
+    value: counts.value?.cpo ?? 0,
+    icon: 'mdi-ev-station',
+    to: { name: 'emsp-partners' } as const,
+  },
+  {
+    key: 'emsp',
+    label: 'eMSP',
+    hint: 'Seen in CPO view',
+    value: counts.value?.emsp ?? 0,
+    icon: 'mdi-cellphone-wireless',
+    to: { name: 'cpo-partners' } as const,
+  },
+  {
+    key: 'hub',
+    label: 'HUB',
+    hint: 'Used by both CPO and eMSP',
+    value: counts.value?.hub ?? 0,
+    icon: 'mdi-lan',
+    to: undefined,
+  },
+  {
+    key: 'total',
+    label: 'Total',
+    hint: 'All tenant partners',
+    value: counts.value?.total ?? 0,
+    icon: 'mdi-account-group-outline',
+    to: undefined,
+  },
+]);
 
-  const fromDate = ref(toDateInput(thirtyDaysAgo))
-  const toDate = ref(toDateInput(today))
-  const dateMenuOpen = ref(false)
-  const dateRangeModel = ref<Date[]>([thirtyDaysAgo, today])
-  const financials = ref<CdrFinancials | null>(null)
-  const financialsLoading = ref(false)
-  const financialsError = ref<string | null>(null)
+function openCard(to: { name: string } | undefined) {
+  if (to) router.push(to);
+}
 
-  const dateRangeLabel = computed(() =>
-    fromDate.value && toDate.value ? `${fromDate.value} → ${toDate.value}` : '',
-  )
-
-  function onDateRangeSelected (value: Date[]) {
-    if (value.length < 2) return
-    // eslint-disable-next-line unicorn/no-array-sort -- toSorted needs ES2023 lib, not configured here
-    const sorted = value.slice().sort((a, b) => a.getTime() - b.getTime())
-    fromDate.value = toDateInput(sorted[0])
-    toDate.value = toDateInput(sorted.at(-1)!)
-    dateMenuOpen.value = false
-    loadFinancials()
+async function load() {
+  loading.value = true;
+  error.value = null;
+  try {
+    counts.value = await fetchPartnerRoleCounts();
+  } catch (error_) {
+    counts.value = null;
+    error.value = error_ instanceof Error ? error_.message : String(error_);
+  } finally {
+    loading.value = false;
   }
+}
 
-  function formatAmounts (amounts: CurrencyAmount[] | undefined): string {
-    if (!amounts || amounts.length === 0) return '0'
-    return amounts
-      .map(({ currency, amount }) => `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`)
-      .join(' · ')
-  }
-
-  async function loadFinancials () {
-    if (!fromDate.value || !toDate.value) return
-    financialsLoading.value = true
-    financialsError.value = null
-    try {
-      financials.value = await fetchCdrFinancials(
-        `${fromDate.value}T00:00:00.000Z`,
-        `${toDate.value}T23:59:59.999Z`,
-      )
-    } catch (error_) {
-      financials.value = null
-      financialsError.value = error_ instanceof Error ? error_.message : String(error_)
-    } finally {
-      financialsLoading.value = false
-    }
-  }
-
-  const cards = computed(() => [
-    {
-      key: 'cpo',
-      label: 'CPO',
-      hint: 'Seen in eMSP view',
-      value: counts.value?.cpo ?? 0,
-      icon: 'mdi-ev-station',
-      to: { name: 'emsp-partners' } as const,
-    },
-    {
-      key: 'emsp',
-      label: 'eMSP',
-      hint: 'Seen in CPO view',
-      value: counts.value?.emsp ?? 0,
-      icon: 'mdi-cellphone-wireless',
-      to: { name: 'cpo-partners' } as const,
-    },
-    {
-      key: 'hub',
-      label: 'HUB',
-      hint: 'Used by both CPO and eMSP',
-      value: counts.value?.hub ?? 0,
-      icon: 'mdi-lan',
-      to: undefined,
-    },
-    {
-      key: 'total',
-      label: 'Total',
-      hint: 'All tenant partners',
-      value: counts.value?.total ?? 0,
-      icon: 'mdi-account-group-outline',
-      to: undefined,
-    },
-  ])
-
-  function openCard (to: { name: string } | undefined) {
-    if (to) router.push(to)
-  }
-
-  async function load () {
-    loading.value = true
-    error.value = null
-    try {
-      counts.value = await fetchPartnerRoleCounts()
-    } catch (error_) {
-      counts.value = null
-      error.value = error_ instanceof Error ? error_.message : String(error_)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  onMounted(load)
-  onMounted(loadFinancials)
+onMounted(load);
+onMounted(loadFinancials);
 </script>
 
 <style scoped>

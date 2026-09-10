@@ -156,147 +156,148 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import type { PartnerOverview, PartnersView } from '@/types/partner'
-  import { computed, onMounted, ref } from 'vue'
-  import { useRouter } from 'vue-router'
+import type { PartnerOverview, PartnersView } from '@/types/partner';
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
-  const props = withDefaults(
-    defineProps<{
-      heading: string
-      description: string
-      loader: () => Promise<PartnerOverview[]>
-      view?: PartnersView
-    }>(),
-    {
-      view: 'emsp',
-    },
-  )
+const props = withDefaults(
+  defineProps<{
+    heading: string;
+    description: string;
+    loader: () => Promise<PartnerOverview[]>;
+    view?: PartnersView;
+  }>(),
+  {
+    view: 'emsp',
+  },
+);
 
-  const router = useRouter()
-  const partners = ref<PartnerOverview[]>([])
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+const router = useRouter();
+const partners = ref<PartnerOverview[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
 
-  const headers = computed(() => {
-    const common = [
-      { title: 'Partner', key: 'identity', sortable: false },
-      { title: 'Role', key: 'role' },
-    ]
+const headers = computed(() => {
+  const common = [
+    { title: 'Partner', key: 'identity', sortable: false },
+    { title: 'Role', key: 'role' },
+  ];
 
-    if (props.view === 'cpo') {
-      return [
-        ...common,
-        { title: 'Tokens', key: 'tokenCount' },
-        { title: 'Tx ended', key: 'sessionCount' },
-        { title: 'Sessions (from tx)', key: 'sessionsSentCount' },
-        { title: 'CDRs (stored)', key: 'cdrsSentCount' },
-        { title: '', key: 'actions', sortable: false },
-      ]
-    }
-
+  if (props.view === 'cpo') {
     return [
       ...common,
-      { title: 'Locations', key: 'locationCount' },
-      { title: 'Tariffs', key: 'tariffCount' },
-      { title: 'Sessions', key: 'sessionCount' },
-      { title: 'CDRs', key: 'cdrCount' },
-      { title: 'Website', key: 'website', sortable: false },
+      { title: 'Tokens', key: 'tokenCount' },
+      { title: 'Tx ended', key: 'sessionCount' },
+      { title: 'Sessions (from tx)', key: 'sessionsSentCount' },
+      { title: 'CDRs (stored)', key: 'cdrsSentCount' },
       { title: '', key: 'actions', sortable: false },
-    ]
-  })
+    ];
+  }
 
-  const summaryStats = computed(() => {
-    if (props.view === 'cpo') {
-      return [
-        { label: 'Partners', value: partners.value.length },
-        {
-          label: 'Tokens',
-          value: partners.value.reduce((sum, p) => sum + p.tokenCount, 0),
-          hint: 'Authorization/token records we have on file for these partners.',
-        },
-        {
-          label: 'Tx ended',
-          value: partners.value.reduce((sum, p) => sum + p.sessionCount, 0),
-          hint: 'Transactions that have finished charging (endTime set).',
-        },
-        {
-          label: 'Sessions (tx)',
-          value: partners.value.reduce((sum, p) => sum + p.sessionsSentCount, 0),
-          hint: 'All transactions for these partners, finished or in progress — one OCPI session per transaction.',
-        },
-        {
-          label: 'CDRs (tx)',
-          value: partners.value.reduce((sum, p) => sum + p.cdrsSentCount, 0),
-          hint: 'CDRs actually stored in our database as sent to these partners (Cdrs.toTenantPartnerId).',
-        },
-      ]
-    }
+  return [
+    ...common,
+    { title: 'Locations', key: 'locationCount' },
+    { title: 'Tariffs', key: 'tariffCount' },
+    { title: 'Sessions', key: 'sessionCount' },
+    { title: 'CDRs', key: 'cdrCount' },
+    { title: 'Website', key: 'website', sortable: false },
+    { title: '', key: 'actions', sortable: false },
+  ];
+});
 
+const summaryStats = computed(() => {
+  if (props.view === 'cpo') {
     return [
       { label: 'Partners', value: partners.value.length },
       {
-        label: 'Locations',
-        value: partners.value.reduce((sum, p) => sum + p.locationCount, 0),
+        label: 'Tokens',
+        value: partners.value.reduce((sum, p) => sum + p.tokenCount, 0),
+        hint: 'Authorization/token records we have on file for these partners.',
       },
       {
-        label: 'Tariffs',
-        value: partners.value.reduce((sum, p) => sum + p.tariffCount, 0),
-      },
-      {
-        label: 'Sessions',
+        label: 'Tx ended',
         value: partners.value.reduce((sum, p) => sum + p.sessionCount, 0),
+        hint: 'Transactions that have finished charging (endTime set).',
       },
-    ]
-  })
+      {
+        label: 'Sessions (tx)',
+        value: partners.value.reduce((sum, p) => sum + p.sessionsSentCount, 0),
+        hint: 'All transactions for these partners, finished or in progress — one OCPI session per transaction.',
+      },
+      {
+        label: 'CDRs (tx)',
+        value: partners.value.reduce((sum, p) => sum + p.cdrsSentCount, 0),
+        hint: 'CDRs actually stored in our database as sent to these partners (Cdrs.toTenantPartnerId).',
+      },
+    ];
+  }
 
-  function roleKey (role: string) {
-    switch (role) {
-      case 'CPO': {
-        return 'cpo'
-      }
-      case 'EMSP': {
-        return 'emsp'
-      }
-      case 'HUB': {
-        return 'hub'
-      }
-      default: {
-        return 'other'
-      }
+  return [
+    { label: 'Partners', value: partners.value.length },
+    {
+      label: 'Locations',
+      value: partners.value.reduce((sum, p) => sum + p.locationCount, 0),
+    },
+    {
+      label: 'Tariffs',
+      value: partners.value.reduce((sum, p) => sum + p.tariffCount, 0),
+    },
+    {
+      label: 'Sessions',
+      value: partners.value.reduce((sum, p) => sum + p.sessionCount, 0),
+    },
+  ];
+});
+
+function roleKey(role: string) {
+  switch (role) {
+    case 'CPO': {
+      return 'cpo';
+    }
+    case 'EMSP': {
+      return 'emsp';
+    }
+    case 'HUB': {
+      return 'hub';
+    }
+    default: {
+      return 'other';
     }
   }
+}
 
-  function hostLabel (url: string) {
-    try {
-      return new URL(url).host
-    } catch {
-      return url
-    }
+function hostLabel(url: string) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
   }
+}
 
-  function openPartner (id: number) {
-    const name = props.view === 'cpo' ? 'cpo-partner-detail' : 'emsp-partner-detail'
-    router.push({ name, params: { id: String(id) } })
+function openPartner(id: number) {
+  const name =
+    props.view === 'cpo' ? 'cpo-partner-detail' : 'emsp-partner-detail';
+  router.push({ name, params: { id: String(id) } });
+}
+
+function onRowClick(_event: unknown, row: { item: PartnerOverview }) {
+  openPartner(row.item.id);
+}
+
+async function load() {
+  loading.value = true;
+  error.value = null;
+  try {
+    partners.value = await props.loader();
+  } catch (error_) {
+    partners.value = [];
+    error.value = error_ instanceof Error ? error_.message : String(error_);
+  } finally {
+    loading.value = false;
   }
+}
 
-  function onRowClick (_event: unknown, row: { item: PartnerOverview }) {
-    openPartner(row.item.id)
-  }
-
-  async function load () {
-    loading.value = true
-    error.value = null
-    try {
-      partners.value = await props.loader()
-    } catch (error_) {
-      partners.value = []
-      error.value = error_ instanceof Error ? error_.message : String(error_)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  onMounted(load)
+onMounted(load);
 </script>
 
 <style scoped>

@@ -39,9 +39,7 @@ SPDX-License-Identifier: Apache-2.0
     </v-alert>
 
     <v-tabs v-model="tab" class="mb-4" color="#3687c9">
-      <v-tab value="locations">
-        Locations ({{ locations.length }})
-      </v-tab>
+      <v-tab value="locations"> Locations ({{ locations.length }}) </v-tab>
     </v-tabs>
 
     <v-tabs-window v-model="tab">
@@ -81,47 +79,47 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import type { OcpiLocationReceived } from '@/types/partner'
-  import { onMounted, ref } from 'vue'
-  import { fetchOurLocations } from '@/api/ourData'
-  import LocationsMap from '@/components/LocationsMap.vue'
+import type { OcpiLocationReceived } from '@/types/partner';
+import { onMounted, ref } from 'vue';
+import { fetchOurLocations } from '@/api/ourData';
+import LocationsMap from '@/components/LocationsMap.vue';
 
-  const locations = ref<OcpiLocationReceived[]>([])
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  const tab = ref('locations')
+const locations = ref<OcpiLocationReceived[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+const tab = ref('locations');
 
-  const locationHeaders = [
-    { title: 'OCPI location id', key: 'ocpiId' },
-    { title: 'Name', key: 'name' },
-    { title: 'Address', key: 'address', sortable: false },
-    { title: 'EVSEs', key: 'evseCount' },
-    { title: 'Last updated', key: 'lastUpdated' },
-  ]
+const locationHeaders = [
+  { title: 'OCPI location id', key: 'ocpiId' },
+  { title: 'Name', key: 'name' },
+  { title: 'Address', key: 'address', sortable: false },
+  { title: 'EVSEs', key: 'evseCount' },
+  { title: 'Last updated', key: 'lastUpdated' },
+];
 
-  function formatDate (value: string | null) {
-    if (!value) return '—'
-    try {
-      return new Date(value).toLocaleString()
-    } catch {
-      return value
-    }
+function formatDate(value: string | null) {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
   }
+}
 
-  async function load () {
-    loading.value = true
-    error.value = null
-    try {
-      locations.value = await fetchOurLocations()
-    } catch (error_) {
-      locations.value = []
-      error.value = error_ instanceof Error ? error_.message : String(error_)
-    } finally {
-      loading.value = false
-    }
+async function load() {
+  loading.value = true;
+  error.value = null;
+  try {
+    locations.value = await fetchOurLocations();
+  } catch (error_) {
+    locations.value = [];
+    error.value = error_ instanceof Error ? error_.message : String(error_);
+  } finally {
+    loading.value = false;
   }
+}
 
-  onMounted(load)
+onMounted(load);
 </script>
 
 <style scoped>

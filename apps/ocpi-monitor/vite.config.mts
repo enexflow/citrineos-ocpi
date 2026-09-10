@@ -2,17 +2,17 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { fileURLToPath, URL } from 'node:url'
-import tailwindcss from '@tailwindcss/vite'
-import Vue from '@vitejs/plugin-vue'
-import Fonts from 'unplugin-fonts/vite'
-import { defineConfig, loadEnv } from 'vite'
-import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
+import { fileURLToPath, URL } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
+import Vue from '@vitejs/plugin-vue';
+import Fonts from 'unplugin-fonts/vite';
+import { defineConfig, loadEnv } from 'vite';
+import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '')
-  const hasuraTarget = env.VITE_HASURA_TARGET || 'http://localhost:8491'
+  const env = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '');
+  const hasuraTarget = env.VITE_HASURA_TARGET || 'http://localhost:8491';
 
   return {
     plugins: [
@@ -55,13 +55,14 @@ export default defineConfig(({ mode }) => {
         '/graphql': {
           target: hasuraTarget,
           changeOrigin: true,
-          rewrite: pathName => pathName.replace(/^\/graphql/, '/v1/graphql'),
+          rewrite: (pathName) => pathName.replace(/^\/graphql/, '/v1/graphql'),
         },
         '/ocpi': {
           target: env.VITE_OCPI_TARGET || 'http://localhost:8085',
           changeOrigin: true,
         },
       },
-      allowedHosts: ['driftless-overcommon-cynthia.ngrok-free.dev'] },
-  }
-})
+      allowedHosts: ['driftless-overcommon-cynthia.ngrok-free.dev'],
+    },
+  };
+});

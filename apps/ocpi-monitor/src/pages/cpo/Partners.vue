@@ -14,6 +14,6 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import { fetchCpoPartners } from '@/api/partners'
-  import PartnersTable from '@/components/PartnersTable.vue'
+import { fetchCpoPartners } from '@/api/partners';
+import PartnersTable from '@/components/PartnersTable.vue';
 </script>

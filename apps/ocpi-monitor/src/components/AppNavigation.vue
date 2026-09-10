@@ -131,27 +131,27 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import { computed, ref, watch } from 'vue'
-  import { useRoute } from 'vue-router'
-  import { useDisplay } from 'vuetify'
-  import { useAuthStore } from '@/stores/auth'
+import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { useDisplay } from 'vuetify';
+import { useAuthStore } from '@/stores/auth';
 
-  const route = useRoute()
-  const { mobile } = useDisplay()
-  const drawer = ref(!mobile.value)
-  const authStore = useAuthStore()
+const route = useRoute();
+const { mobile } = useDisplay();
+const drawer = ref(!mobile.value);
+const authStore = useAuthStore();
 
-  watch(mobile, isMobile => {
-    drawer.value = !isMobile
-  })
+watch(mobile, (isMobile) => {
+  drawer.value = !isMobile;
+});
 
-  const title = computed(() => (route.meta.title as string) ?? 'OCPI Monitor')
-  const viewLabel = computed(() => {
-    if (route.path.startsWith('/cpo')) return 'CPO view'
-    if (route.path.startsWith('/emsp')) return 'eMSP view'
-    if (route.name === 'home') return 'Overview'
-    return 'Monitor'
-  })
+const title = computed(() => (route.meta.title as string) ?? 'OCPI Monitor');
+const viewLabel = computed(() => {
+  if (route.path.startsWith('/cpo')) return 'CPO view';
+  if (route.path.startsWith('/emsp')) return 'eMSP view';
+  if (route.name === 'home') return 'Overview';
+  return 'Monitor';
+});
 </script>
 
 <style scoped>

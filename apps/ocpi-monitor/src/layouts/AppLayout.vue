@@ -16,5 +16,5 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import AppNavigation from '@/components/AppNavigation.vue'
+import AppNavigation from '@/components/AppNavigation.vue';
 </script>

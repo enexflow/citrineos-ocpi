@@ -56,13 +56,7 @@ SPDX-License-Identifier: Apache-2.0
       </div>
 
       <v-row class="mb-6" dense>
-        <v-col
-          v-for="stat in stats"
-          :key="stat.label"
-          cols="6"
-          lg="2"
-          md="4"
-        >
+        <v-col v-for="stat in stats" :key="stat.label" cols="6" lg="2" md="4">
           <div class="stat-tile">
             <div class="stat-tile__label">
               {{ stat.label }}
@@ -90,9 +84,7 @@ SPDX-License-Identifier: Apache-2.0
         <v-tab value="sessions">
           Sessions ({{ detail.sessions.length }})
         </v-tab>
-        <v-tab value="cdrs">
-          CDRs ({{ detail.cdrs.length }})
-        </v-tab>
+        <v-tab value="cdrs"> CDRs ({{ detail.cdrs.length }}) </v-tab>
       </v-tabs>
 
       <v-tabs-window v-model="tab">
@@ -128,7 +120,8 @@ SPDX-License-Identifier: Apache-2.0
 
         <v-tabs-window-item value="sessions">
           <p class="text-body-2 mb-3" style="color: #587474">
-            Sessions received and stored for this partner (Sessions.tenantPartnerId).
+            Sessions received and stored for this partner
+            (Sessions.tenantPartnerId).
           </p>
           <v-data-table
             class="partners-table rounded-lg"
@@ -167,7 +160,8 @@ SPDX-License-Identifier: Apache-2.0
 
         <v-tabs-window-item value="cdrs">
           <p class="text-body-2 mb-3" style="color: #587474">
-            CDRs received from this partner (Cdrs.fromTenantPartnerId) — money we owe them.
+            CDRs received from this partner (Cdrs.fromTenantPartnerId) — money
+            we owe them.
           </p>
           <v-data-table
             class="partners-table rounded-lg"
@@ -207,142 +201,144 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import type { EmspPartnerDetail } from '@/types/partner'
-  import { computed, onMounted, ref, watch } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
-  import { fetchEmspPartnerDetail } from '@/api/partners'
-  import LocationsMap from '@/components/LocationsMap.vue'
+import type { EmspPartnerDetail } from '@/types/partner';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { fetchEmspPartnerDetail } from '@/api/partners';
+import LocationsMap from '@/components/LocationsMap.vue';
 
-  const route = useRoute()
-  const router = useRouter()
-  const detail = ref<EmspPartnerDetail | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  const tab = ref('locations')
+const route = useRoute();
+const router = useRouter();
+const detail = ref<EmspPartnerDetail | null>(null);
+const loading = ref(false);
+const error = ref<string | null>(null);
+const tab = ref('locations');
 
-  const locationHeaders = [
-    { title: 'OCPI location id', key: 'ocpiId' },
-    { title: 'Name', key: 'name' },
-    { title: 'Address', key: 'address', sortable: false },
-    { title: 'EVSEs', key: 'evseCount' },
-    { title: 'Last updated', key: 'lastUpdated' },
-  ]
+const locationHeaders = [
+  { title: 'OCPI location id', key: 'ocpiId' },
+  { title: 'Name', key: 'name' },
+  { title: 'Address', key: 'address', sortable: false },
+  { title: 'EVSEs', key: 'evseCount' },
+  { title: 'Last updated', key: 'lastUpdated' },
+];
 
-  const sessionHeaders = [
-    { title: 'OCPI session id', key: 'ocpiSessionId' },
-    { title: 'Status', key: 'status' },
-    { title: 'Start', key: 'startDateTime' },
-    { title: 'End', key: 'endDateTime' },
-    { title: 'kWh', key: 'kwh' },
-    { title: 'Cost', key: 'totalCost' },
-  ]
+const sessionHeaders = [
+  { title: 'OCPI session id', key: 'ocpiSessionId' },
+  { title: 'Status', key: 'status' },
+  { title: 'Start', key: 'startDateTime' },
+  { title: 'End', key: 'endDateTime' },
+  { title: 'kWh', key: 'kwh' },
+  { title: 'Cost', key: 'totalCost' },
+];
 
-  const cdrHeaders = [
-    { title: 'OCPI CDR id', key: 'ocpiCdrId' },
-    { title: 'Session id', key: 'sessionId' },
-    { title: 'Start', key: 'startDateTime' },
-    { title: 'End', key: 'endDateTime' },
-    { title: 'Energy', key: 'totalEnergy' },
-    { title: 'Cost', key: 'totalCost' },
-  ]
+const cdrHeaders = [
+  { title: 'OCPI CDR id', key: 'ocpiCdrId' },
+  { title: 'Session id', key: 'sessionId' },
+  { title: 'Start', key: 'startDateTime' },
+  { title: 'End', key: 'endDateTime' },
+  { title: 'Energy', key: 'totalEnergy' },
+  { title: 'Cost', key: 'totalCost' },
+];
 
-  const stats = computed(() => {
-    const d = detail.value
-    if (!d) return []
-    return [
-      { label: 'Locations', value: d.locations.length },
-      { label: 'Sessions', value: d.sessions.length },
-      { label: 'CDRs', value: d.cdrs.length },
-      {
-        label: 'Total kWh',
-        value: formatNumber(d.totalKwh),
-        hint: 'Sum of kwh across all sessions received and stored for this partner (Sessions_aggregate.sum.kwh).',
-      },
-      {
-        label: 'Total owed',
-        value: totalOwed.value,
-        hint: 'Sum of CDR totalCost (incl. VAT when available) across all currencies received from this partner — money we owe them.',
-      },
-    ]
-  })
+const stats = computed(() => {
+  const d = detail.value;
+  if (!d) return [];
+  return [
+    { label: 'Locations', value: d.locations.length },
+    { label: 'Sessions', value: d.sessions.length },
+    { label: 'CDRs', value: d.cdrs.length },
+    {
+      label: 'Total kWh',
+      value: formatNumber(d.totalKwh),
+      hint: 'Sum of kwh across all sessions received and stored for this partner (Sessions_aggregate.sum.kwh).',
+    },
+    {
+      label: 'Total owed',
+      value: totalOwed.value,
+      hint: 'Sum of CDR totalCost (incl. VAT when available) across all currencies received from this partner — money we owe them.',
+    },
+  ];
+});
 
-  const totalOwed = computed(() => {
-    const d = detail.value
-    if (!d) return '—'
-    const byCurrency = new Map<string, number>()
-    for (const cdr of d.cdrs) {
-      byCurrency.set(
-        cdr.currency,
-        (byCurrency.get(cdr.currency) ?? 0) + amountOf(cdr.totalCost),
-      )
-    }
-    if (byCurrency.size === 0) return '—'
-    return [...byCurrency.entries()]
-      .map(([currency, amount]) => `${formatNumber(amount)} ${currency}`)
-      .join(', ')
-  })
+const totalOwed = computed(() => {
+  const d = detail.value;
+  if (!d) return '—';
+  const byCurrency = new Map<string, number>();
+  for (const cdr of d.cdrs) {
+    byCurrency.set(
+      cdr.currency,
+      (byCurrency.get(cdr.currency) ?? 0) + amountOf(cdr.totalCost),
+    );
+  }
+  if (byCurrency.size === 0) return '—';
+  return [...byCurrency.entries()]
+    .map(([currency, amount]) => `${formatNumber(amount)} ${currency}`)
+    .join(', ');
+});
 
-  function amountOf (totalCost: unknown): number {
-    if (typeof totalCost === 'number') return totalCost
-    if (totalCost != null && typeof totalCost === 'object') {
-      const price = totalCost as { incl_vat?: number | null, excl_vat?: number }
-      return price.incl_vat ?? price.excl_vat ?? 0
-    }
-    return 0
+function amountOf(totalCost: unknown): number {
+  if (typeof totalCost === 'number') return totalCost;
+  if (totalCost != null && typeof totalCost === 'object') {
+    const price = totalCost as { incl_vat?: number | null; excl_vat?: number };
+    return price.incl_vat ?? price.excl_vat ?? 0;
+  }
+  return 0;
+}
+
+function formatDate(value: string | null) {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}
+
+function formatNumber(value: number | null) {
+  if (value == null || Number.isNaN(value)) return '—';
+  return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+function formatCost(value: unknown, currency: string) {
+  if (value == null) return '—';
+  if (typeof value === 'number') return `${formatNumber(value)} ${currency}`;
+  if (typeof value === 'object' && value !== null && 'incl_vat' in value) {
+    const incl = (value as { incl_vat?: number }).incl_vat;
+    return incl == null
+      ? JSON.stringify(value)
+      : `${formatNumber(incl)} ${currency}`;
+  }
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+async function load() {
+  const id = Number(route.params.id);
+  if (!Number.isFinite(id)) {
+    error.value = 'Invalid partner id';
+    detail.value = null;
+    return;
   }
 
-  function formatDate (value: string | null) {
-    if (!value) return '—'
-    try {
-      return new Date(value).toLocaleString()
-    } catch {
-      return value
-    }
+  loading.value = true;
+  error.value = null;
+  try {
+    detail.value = await fetchEmspPartnerDetail(id);
+    if (!detail.value) error.value = `Partner ${id} not found`;
+  } catch (error_) {
+    detail.value = null;
+    error.value = error_ instanceof Error ? error_.message : String(error_);
+  } finally {
+    loading.value = false;
   }
+}
 
-  function formatNumber (value: number | null) {
-    if (value == null || Number.isNaN(value)) return '—'
-    return value.toLocaleString(undefined, { maximumFractionDigits: 3 })
-  }
-
-  function formatCost (value: unknown, currency: string) {
-    if (value == null) return '—'
-    if (typeof value === 'number') return `${formatNumber(value)} ${currency}`
-    if (typeof value === 'object' && value !== null && 'incl_vat' in value) {
-      const incl = (value as { incl_vat?: number }).incl_vat
-      return incl == null ? JSON.stringify(value) : `${formatNumber(incl)} ${currency}`
-    }
-    if (typeof value === 'string') return value
-    try {
-      return JSON.stringify(value)
-    } catch {
-      return String(value)
-    }
-  }
-
-  async function load () {
-    const id = Number(route.params.id)
-    if (!Number.isFinite(id)) {
-      error.value = 'Invalid partner id'
-      detail.value = null
-      return
-    }
-
-    loading.value = true
-    error.value = null
-    try {
-      detail.value = await fetchEmspPartnerDetail(id)
-      if (!detail.value) error.value = `Partner ${id} not found`
-    } catch (error_) {
-      detail.value = null
-      error.value = error_ instanceof Error ? error_.message : String(error_)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  watch(() => route.params.id, load)
-  onMounted(load)
+watch(() => route.params.id, load);
+onMounted(load);
 </script>
 
 <style scoped>

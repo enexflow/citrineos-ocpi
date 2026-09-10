@@ -56,13 +56,7 @@ SPDX-License-Identifier: Apache-2.0
       </div>
 
       <v-row class="mb-6" dense>
-        <v-col
-          v-for="stat in stats"
-          :key="stat.label"
-          cols="6"
-          lg="2"
-          md="4"
-        >
+        <v-col v-for="stat in stats" :key="stat.label" cols="6" lg="2" md="4">
           <div class="stat-tile">
             <div class="stat-tile__label">
               {{ stat.label }}
@@ -163,8 +157,8 @@ SPDX-License-Identifier: Apache-2.0
         <v-tabs-window-item value="cdrs">
           <p class="text-body-2 mb-3" style="color: #587474">
             OCPI CDRs actually stored in our Cdrs table for this partner
-            (toTenantPartnerId) — rebuilt into wire format with the same
-            mapper (CdrMapper.mapCdrReceiver) used to serve them to the eMSP.
+            (toTenantPartnerId) — rebuilt into wire format with the same mapper
+            (CdrMapper.mapCdrReceiver) used to serve them to the eMSP.
           </p>
           <v-data-table
             class="partners-table rounded-lg"
@@ -251,160 +245,160 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import type { CpoPartnerDetail } from '@/types/partner'
-  import { computed, onMounted, ref, watch } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
-  import { fetchCpoPartnerDetail } from '@/api/partners'
-  import { prettyOcpiJson } from '@/mapper/ocpiPayload'
+import type { CpoPartnerDetail } from '@/types/partner';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { fetchCpoPartnerDetail } from '@/api/partners';
+import { prettyOcpiJson } from '@/mapper/ocpiPayload';
 
-  const route = useRoute()
-  const router = useRouter()
-  const detail = ref<CpoPartnerDetail | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  const tab = ref('sessions')
+const route = useRoute();
+const router = useRouter();
+const detail = ref<CpoPartnerDetail | null>(null);
+const loading = ref(false);
+const error = ref<string | null>(null);
+const tab = ref('sessions');
 
-  const jsonDialog = ref(false)
-  const jsonTitle = ref('')
-  const jsonPayload = ref<Record<string, unknown>>({})
-  const copied = ref(false)
+const jsonDialog = ref(false);
+const jsonTitle = ref('');
+const jsonPayload = ref<Record<string, unknown>>({});
+const copied = ref(false);
 
-  const jsonText = computed(() => prettyOcpiJson(jsonPayload.value))
+const jsonText = computed(() => prettyOcpiJson(jsonPayload.value));
 
-  const sessionHeaders = [
-    { title: 'OCPI session id', key: 'ocpiSessionId' },
-    { title: 'Status', key: 'status' },
-    { title: 'Start', key: 'startDateTime' },
-    { title: 'End', key: 'endDateTime' },
-    { title: 'kWh', key: 'kwh' },
-    { title: 'Cost', key: 'totalCost' },
-    { title: '', key: 'actions', sortable: false },
-  ]
+const sessionHeaders = [
+  { title: 'OCPI session id', key: 'ocpiSessionId' },
+  { title: 'Status', key: 'status' },
+  { title: 'Start', key: 'startDateTime' },
+  { title: 'End', key: 'endDateTime' },
+  { title: 'kWh', key: 'kwh' },
+  { title: 'Cost', key: 'totalCost' },
+  { title: '', key: 'actions', sortable: false },
+];
 
-  const cdrHeaders = [
-    { title: 'OCPI CDR id', key: 'ocpiCdrId' },
-    { title: 'Session id', key: 'sessionId' },
-    { title: 'Start', key: 'startDateTime' },
-    { title: 'End', key: 'endDateTime' },
-    { title: 'Energy', key: 'totalEnergy' },
-    { title: 'Cost', key: 'totalCost' },
-    { title: '', key: 'actions', sortable: false },
-  ]
+const cdrHeaders = [
+  { title: 'OCPI CDR id', key: 'ocpiCdrId' },
+  { title: 'Session id', key: 'sessionId' },
+  { title: 'Start', key: 'startDateTime' },
+  { title: 'End', key: 'endDateTime' },
+  { title: 'Energy', key: 'totalEnergy' },
+  { title: 'Cost', key: 'totalCost' },
+  { title: '', key: 'actions', sortable: false },
+];
 
-  const stats = computed(() => {
-    const p = detail.value?.partner
-    if (!p) return []
-    return [
-      {
-        label: 'Tokens',
-        value: p.tokenCount,
-        hint: 'Authorization/token records we have on file for this partner.',
-      },
-      {
-        label: 'Tx ended',
-        value: p.sessionCount,
-        hint: 'Transactions for this partner that have finished charging (endTime set).',
-      },
-      {
-        label: 'Sessions (tx)',
-        value: p.sessionsSentCount,
-        hint: 'All transactions for this partner, finished or in progress — one OCPI session per transaction.',
-      },
-      {
-        label: 'CDRs (stored)',
-        value: p.cdrsSentCount,
-        hint: 'CDRs actually stored in our database as sent to this partner (Cdrs.toTenantPartnerId).',
-      },
-      {
-        label: 'Mapped sessions',
-        value: detail.value?.sessionsSent.length ?? 0,
-        hint: 'Sessions returned live by the OCPI sender GET/SessionMapper pipeline — can be lower than "Sessions (tx)" if mapping skips a transaction (missing location, token, or tariff).',
-      },
-      {
-        label: 'Mapped CDRs',
-        value: detail.value?.cdrsSent.length ?? 0,
-        hint: 'Same stored CDRs as "CDRs (stored)", rebuilt into OCPI wire format with CdrMapper.mapCdrReceiver — always matches unless the fetch itself fails.',
-      },
-    ]
-  })
+const stats = computed(() => {
+  const p = detail.value?.partner;
+  if (!p) return [];
+  return [
+    {
+      label: 'Tokens',
+      value: p.tokenCount,
+      hint: 'Authorization/token records we have on file for this partner.',
+    },
+    {
+      label: 'Tx ended',
+      value: p.sessionCount,
+      hint: 'Transactions for this partner that have finished charging (endTime set).',
+    },
+    {
+      label: 'Sessions (tx)',
+      value: p.sessionsSentCount,
+      hint: 'All transactions for this partner, finished or in progress — one OCPI session per transaction.',
+    },
+    {
+      label: 'CDRs (stored)',
+      value: p.cdrsSentCount,
+      hint: 'CDRs actually stored in our database as sent to this partner (Cdrs.toTenantPartnerId).',
+    },
+    {
+      label: 'Mapped sessions',
+      value: detail.value?.sessionsSent.length ?? 0,
+      hint: 'Sessions returned live by the OCPI sender GET/SessionMapper pipeline — can be lower than "Sessions (tx)" if mapping skips a transaction (missing location, token, or tariff).',
+    },
+    {
+      label: 'Mapped CDRs',
+      value: detail.value?.cdrsSent.length ?? 0,
+      hint: 'Same stored CDRs as "CDRs (stored)", rebuilt into OCPI wire format with CdrMapper.mapCdrReceiver — always matches unless the fetch itself fails.',
+    },
+  ];
+});
 
-  const mappingSkipped = computed(() => {
-    const d = detail.value
-    if (!d) return false
-    return d.partner.sessionsSentCount > 0 && d.sessionsSent.length === 0
-  })
+const mappingSkipped = computed(() => {
+  const d = detail.value;
+  if (!d) return false;
+  return d.partner.sessionsSentCount > 0 && d.sessionsSent.length === 0;
+});
 
-  function formatDate (value: string | null) {
-    if (!value) return '—'
-    try {
-      return new Date(value).toLocaleString()
-    } catch {
-      return value
-    }
+function formatDate(value: string | null) {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}
+
+function formatNumber(value: number | null) {
+  if (value == null || Number.isNaN(value)) return '—';
+  return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+function formatCost(value: unknown) {
+  if (value == null) return '—';
+  if (typeof value === 'number') return formatNumber(value);
+  if (typeof value === 'object' && value !== null && 'incl_vat' in value) {
+    const incl = (value as { incl_vat?: number }).incl_vat;
+    return incl == null ? JSON.stringify(value) : formatNumber(incl);
+  }
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function openJson(kind: string, id: string, payload: Record<string, unknown>) {
+  jsonTitle.value = `${kind} · ${id}`;
+  jsonPayload.value = payload;
+  copied.value = false;
+  jsonDialog.value = true;
+}
+
+async function copyJson() {
+  try {
+    await navigator.clipboard.writeText(jsonText.value);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 1500);
+  } catch {
+    copied.value = false;
+  }
+}
+
+async function load() {
+  const id = Number(route.params.id);
+  if (!Number.isFinite(id)) {
+    error.value = 'Invalid partner id';
+    detail.value = null;
+    return;
   }
 
-  function formatNumber (value: number | null) {
-    if (value == null || Number.isNaN(value)) return '—'
-    return value.toLocaleString(undefined, { maximumFractionDigits: 3 })
+  loading.value = true;
+  error.value = null;
+  try {
+    detail.value = await fetchCpoPartnerDetail(id);
+    if (!detail.value) error.value = `Partner ${id} not found`;
+  } catch (error_) {
+    detail.value = null;
+    error.value = error_ instanceof Error ? error_.message : String(error_);
+  } finally {
+    loading.value = false;
   }
+}
 
-  function formatCost (value: unknown) {
-    if (value == null) return '—'
-    if (typeof value === 'number') return formatNumber(value)
-    if (typeof value === 'object' && value !== null && 'incl_vat' in value) {
-      const incl = (value as { incl_vat?: number }).incl_vat
-      return incl == null ? JSON.stringify(value) : formatNumber(incl)
-    }
-    if (typeof value === 'string') return value
-    try {
-      return JSON.stringify(value)
-    } catch {
-      return String(value)
-    }
-  }
-
-  function openJson (kind: string, id: string, payload: Record<string, unknown>) {
-    jsonTitle.value = `${kind} · ${id}`
-    jsonPayload.value = payload
-    copied.value = false
-    jsonDialog.value = true
-  }
-
-  async function copyJson () {
-    try {
-      await navigator.clipboard.writeText(jsonText.value)
-      copied.value = true
-      setTimeout(() => {
-        copied.value = false
-      }, 1500)
-    } catch {
-      copied.value = false
-    }
-  }
-
-  async function load () {
-    const id = Number(route.params.id)
-    if (!Number.isFinite(id)) {
-      error.value = 'Invalid partner id'
-      detail.value = null
-      return
-    }
-
-    loading.value = true
-    error.value = null
-    try {
-      detail.value = await fetchCpoPartnerDetail(id)
-      if (!detail.value) error.value = `Partner ${id} not found`
-    } catch (error_) {
-      detail.value = null
-      error.value = error_ instanceof Error ? error_.message : String(error_)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  watch(() => route.params.id, load)
-  onMounted(load)
+watch(() => route.params.id, load);
+onMounted(load);
 </script>
 
 <style scoped>
