@@ -87,12 +87,6 @@ export class TariffMapper {
       }
     }
 
-    if ((coreTariff as any).TariffElements?.length === 0) {
-      throw new Error(
-        `Tariff ${coreTariff.ocpiTariffId} has no TariffElements`,
-      );
-    }
-
     const els = coreTariff.TariffElements;
     if (!els?.length) {
       throw new Error(
@@ -113,9 +107,6 @@ export class TariffMapper {
       coreTariff.roamingPartner?.partyId ??
       coreTariff.tenantPartner?.partyId ??
       coreTariff.tenant?.partyId;
-
-    console.log("!!! countryCode", countryCode);
-    console.log("partyId", partyId);
 
     if (!countryCode || !partyId) {
       throw new Error(

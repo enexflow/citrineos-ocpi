@@ -359,10 +359,10 @@ export abstract class BaseClientApi {
     });
     const partners = response.TenantPartners;
     for (const partner of partners) {
-      if (!shouldBroadcastToPartner(partner, moduleId, this.logger)) {
+      if (partnerFilter && !partnerFilter(partner)) {
         continue;
       }
-      if (partnerFilter && !partnerFilter(partner)) {
+      if (!shouldBroadcastToPartner(partner, moduleId, this.logger)) {
         continue;
       }
       const HttpMethodForPartner = handleHttpMethodForPartner(
