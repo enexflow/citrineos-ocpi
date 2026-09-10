@@ -8,7 +8,8 @@
     "./dist/**/*",
     "**/node_modules/**",
     "**/__tests__/**",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "./apps/**"
   ],
   "references": [
     {
