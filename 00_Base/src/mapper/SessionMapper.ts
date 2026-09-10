@@ -179,7 +179,7 @@ export class SessionMapper extends BaseTransactionMapper {
   public async mapIncrementalSessionPatch(
     transaction: TransactionDto,
   ): Promise<Partial<Session>> {
-    const [locationMap, tokenMap, tariffMap] =
+    const [, , tariffMap] =
       await this.getLocationsTokensAndTariffsMapsForTransactions([transaction]);
     const tariff = tariffMap.get(transaction.transactionId!);
     if (!tariff) {
@@ -451,7 +451,7 @@ export class SessionMapper extends BaseTransactionMapper {
 
   private getEvseUid(
     transaction: TransactionDto,
-    location: LocationDTO,
+    _location: LocationDTO,
   ): string {
     const evseTypeId = this.resolveEvseTypeId(transaction);
 

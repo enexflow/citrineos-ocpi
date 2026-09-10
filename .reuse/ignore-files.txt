@@ -69,3 +69,4 @@ Server/tsconfig.json
 tsconfig.json
 Server/scripts/.env.example
 Server/scripts/README.md
+Tests/helpers/testImages.json
