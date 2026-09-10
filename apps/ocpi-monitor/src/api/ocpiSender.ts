@@ -7,8 +7,10 @@
  * (same path as GET /ocpi/cpo/.../sessions|cdrs).
  */
 
-const OCPI_BASE = import.meta.env.VITE_OCPI_BASE ?? '/ocpi';
-const OCPI_VERSION = import.meta.env.VITE_OCPI_VERSION ?? '2.2.1';
+import { readEnv } from '@/config';
+
+const OCPI_BASE = readEnv('VITE_OCPI_BASE') ?? '/ocpi';
+const OCPI_VERSION = readEnv('VITE_OCPI_VERSION') ?? '2.2.1';
 
 export interface OurTenantIdentity {
   countryCode: string;

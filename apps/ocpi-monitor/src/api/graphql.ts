@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAuthStore } from '@/stores/auth';
+import { readEnv } from '@/config';
 
-const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_URL ?? '/graphql';
-const ADMIN_SECRET = import.meta.env.VITE_HASURA_ADMIN_SECRET as
-  | string
-  | undefined;
+const GRAPHQL_URL = readEnv('VITE_GRAPHQL_URL') ?? '/graphql';
+const ADMIN_SECRET = readEnv('VITE_HASURA_ADMIN_SECRET');
 
 export class GraphqlError extends Error {
   constructor(

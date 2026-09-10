@@ -118,27 +118,38 @@ export class CdrsService {
       GetTransactionsQueryVariables
     >(GET_TRANSACTIONS_QUERY, variables);
 
+    const tenantPartnerResult = await this.ocpiGraphqlClient.request<
+      GetTenantPartnerByCpoClientAndModuleIdQueryResult,
+      GetTenantPartnerByCpoClientAndModuleIdQueryVariables
+    >(GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY, {
+      ourCountryCode: toCountryCode,
+      ourPartyId: toPartyId,
+      partnerCountryCode: fromCountryCode,
+      partnerPartyId: fromPartyId,
+    });
+    const toTenantPartnerId = tenantPartnerResult.TenantPartners[0]?.id;
+
     const storedCdrsWhere: Cdrs_Bool_Exp = {
       Tenant: {
         countryCode: { _eq: toCountryCode },
         partyId: { _eq: toPartyId },
       },
-      ToTenantPartner: {
-        countryCode: { _eq: fromCountryCode },
-        partyId: { _eq: fromPartyId },
-      },
+      toTenantPartnerId: { _eq: toTenantPartnerId },
     };
     if (Object.keys(dateFilters).length > 0) {
       storedCdrsWhere.lastUpdated = dateFilters;
     }
-    const storedCdrsResult = await this.ocpiGraphqlClient.request<
-      GetCdrsPaginatedQueryResult,
-      GetCdrsPaginatedQueryVariables
-    >(GET_CDRS_PAGINATED, {
-      offset,
-      limit,
-      where: storedCdrsWhere,
-    });
+    const storedCdrsResult =
+      toTenantPartnerId == null
+        ? { Cdrs: [] }
+        : await this.ocpiGraphqlClient.request<
+            GetCdrsPaginatedQueryResult,
+            GetCdrsPaginatedQueryVariables
+          >(GET_CDRS_PAGINATED, {
+            offset,
+            limit,
+            where: storedCdrsWhere,
+          });
     const storedTransactionIds = new Set(
       storedCdrsResult.Cdrs.map((cdr) => cdr.transactionId).filter(
         (id): id is number => id != null,

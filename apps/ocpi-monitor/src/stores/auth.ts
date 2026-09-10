@@ -4,21 +4,7 @@
 
 import Keycloak from 'keycloak-js';
 import { defineStore } from 'pinia';
-
-// Matches operator-ui's window.APP_CONFIG runtime-override pattern so the
-// Docker image can be configured per-environment without a rebuild.
-declare global {
-  interface Window {
-    APP_CONFIG?: Record<string, string>;
-  }
-}
-
-function readEnv(key: string): string | undefined {
-  return (
-    window.APP_CONFIG?.[key] ??
-    (import.meta.env as Record<string, string | undefined>)[key]
-  );
-}
+import { readEnv } from '@/config';
 
 let keycloak: Keycloak | undefined;
 
