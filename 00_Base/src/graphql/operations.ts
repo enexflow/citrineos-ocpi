@@ -120,7 +120,6 @@ export type Cdrs_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   lastUpdated?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
-  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;
