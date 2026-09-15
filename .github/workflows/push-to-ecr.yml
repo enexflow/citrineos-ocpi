@@ -8,15 +8,15 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      ocpi-monitor: ${{ steps.filter.outputs.ocpi-monitor }}
+      ocpi-monitor-ui: ${{ steps.filter.outputs.ocpi-monitor-ui }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
-            ocpi-monitor:
-              - 'apps/ocpi-monitor/**'
+            ocpi-monitor-ui:
+              - 'apps/ocpi-monitor-ui/**'
 
   push-to-ecr:
     runs-on: ubuntu-latest
@@ -79,9 +79,9 @@ jobs:
             NPM_TAG=${{ contains(steps.branch.outputs.branch, 'staging') && 'staging' || 'prod' }}
           tags: ${{ steps.login-ecr.outputs.registry }}/citrineos-ocpi:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }},${{ steps.login-ecr.outputs.registry }}/citrineos-ocpi:latest,ghcr.io/enexflow/citrineos-ocpi:latest,ghcr.io/enexflow/citrineos-ocpi:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }}
 
-  push-ocpi-monitor-to-ecr:
+  push-ocpi-monitor-ui-to-ecr:
     needs: changes
-    if: needs.changes.outputs.ocpi-monitor == 'true'
+    if: needs.changes.outputs.ocpi-monitor-ui == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -129,7 +129,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
-          context: ./apps/ocpi-monitor
-          file: ./apps/ocpi-monitor/Dockerfile
+          context: ./apps/ocpi-monitor-ui
+          file: ./apps/ocpi-monitor-ui/Dockerfile
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/ocpi-monitor:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }},${{ steps.login-ecr.outputs.registry }}/ocpi-monitor:latest,ghcr.io/enexflow/ocpi-monitor:latest,ghcr.io/enexflow/ocpi-monitor:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/ocpi-monitor-ui:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }},${{ steps.login-ecr.outputs.registry }}/ocpi-monitor-ui:latest,ghcr.io/enexflow/ocpi-monitor-ui:latest,ghcr.io/enexflow/ocpi-monitor-ui:${{ steps.branch.outputs.branch }}-${{ steps.date.outputs.date }}-${{ github.sha }}

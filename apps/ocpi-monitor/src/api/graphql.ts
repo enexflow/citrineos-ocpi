@@ -6,7 +6,6 @@ import { useAuthStore } from '@/stores/auth';
 import { readEnv } from '@/config';
 
 const GRAPHQL_URL = readEnv('VITE_GRAPHQL_URL') ?? '/graphql';
-const ADMIN_SECRET = readEnv('VITE_HASURA_ADMIN_SECRET');
 
 export class GraphqlError extends Error {
   constructor(
@@ -29,10 +28,6 @@ export async function graphqlRequest<T>(
   const token = await useAuthStore().getToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
-  }
-
-  if (ADMIN_SECRET) {
-    headers['x-hasura-admin-secret'] = ADMIN_SECRET;
   }
 
   const response = await fetch(GRAPHQL_URL, {
