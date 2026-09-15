@@ -6,13 +6,13 @@
 // Docker image can be configured per-environment without a rebuild.
 declare global {
   interface Window {
-    APP_CONFIG?: Record<string, string>;
+    APP_CONFIG?: Record<string, string>
   }
 }
 
-export function readEnv(key: string): string | undefined {
+export function readEnv (key: string): string | undefined {
   return (
-    window.APP_CONFIG?.[key] ??
-    (import.meta.env as Record<string, string | undefined>)[key]
-  );
+    window.APP_CONFIG?.[key]
+    ?? (import.meta.env as Record<string, string | undefined>)[key]
+  )
 }
