@@ -9,10 +9,7 @@ import { buildOcpiResponse } from '../model/OcpiResponse.js';
 import { Logger, type ILogObj } from 'tslog';
 
 import type {
-  GetTransactionsQueryResult,
-  GetTransactionsQueryVariables,
   InsertCdrMutationResult,
-  Transactions_Bool_Exp,
   Cdrs_Bool_Exp,
   InsertCdrMutationVariables,
   GetCdrByiIdQueryResult,
@@ -30,12 +27,11 @@ import type {
 } from '../graphql/index.js';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY } from '../graphql/index.js';
-import { GET_TRANSACTIONS_QUERY, OcpiGraphqlClient } from '../graphql/index.js';
+import { OcpiGraphqlClient } from '../graphql/index.js';
 import { CdrMapper } from '../mapper/index.js';
 import type {
   RoamingPartnerDto,
   TenantPartnerDto,
-  TransactionDto,
 } from '@zetra/citrineos-base';
 import { NotFoundException } from '../exception/NotFoundException.js';
 import { findThenUpsert } from '../util/helpers.js';
@@ -90,33 +86,9 @@ export class CdrsService {
     offset: number = DEFAULT_OFFSET,
     limit: number = DEFAULT_LIMIT,
   ): Promise<PaginatedCdrResponse> {
-    const where: Transactions_Bool_Exp = {
-      Tenant: {
-        countryCode: { _eq: toCountryCode },
-        partyId: { _eq: toPartyId },
-      },
-      Authorization: {
-        TenantPartner: {
-          countryCode: { _eq: fromCountryCode },
-          partyId: { _eq: fromPartyId },
-        },
-      },
-    };
     const dateFilters: any = {};
     if (dateFrom) dateFilters._gte = dateFrom.toISOString();
     if (dateTo) dateFilters._lte = dateTo.toISOString();
-    if (Object.keys(dateFilters).length > 0) {
-      where.updatedAt = dateFilters;
-    }
-    const variables = {
-      offset,
-      limit,
-      where,
-    };
-    const result = await this.ocpiGraphqlClient.request<
-      GetTransactionsQueryResult,
-      GetTransactionsQueryVariables
-    >(GET_TRANSACTIONS_QUERY, variables);
 
     const tenantPartnerResult = await this.ocpiGraphqlClient.request<
       GetTenantPartnerByCpoClientAndModuleIdQueryResult,
@@ -139,9 +111,15 @@ export class CdrsService {
     if (Object.keys(dateFilters).length > 0) {
       storedCdrsWhere.lastUpdated = dateFilters;
     }
+
+    // Every CDR we owe a partner is generated and stored up front by
+    // CdrBroadcaster when its transaction finalizes; this endpoint only ever
+    // serves what's already stored. A completed transaction with no stored
+    // CDR here is a bug in that broadcast flow, not something to paper over
+    // by recomputing a CDR on the fly.
     const storedCdrsResult =
       toTenantPartnerId == null
-        ? { Cdrs: [] }
+        ? { Cdrs: [], Cdrs_aggregate: { aggregate: { count: 0 } } }
         : await this.ocpiGraphqlClient.request<
             GetCdrsPaginatedQueryResult,
             GetCdrsPaginatedQueryVariables
@@ -150,30 +128,14 @@ export class CdrsService {
             limit,
             where: storedCdrsWhere,
           });
-    const storedTransactionIds = new Set(
-      storedCdrsResult.Cdrs.map((cdr) => cdr.transactionId).filter(
-        (id): id is number => id != null,
-      ),
-    );
-    const mappedFromStored = storedCdrsResult.Cdrs.map((cdr) =>
+
+    const mappedCdr = storedCdrsResult.Cdrs.map((cdr) =>
       this.cdrMapper.mapCdrReceiver(cdr as unknown as CdrEntity),
     );
 
-    const transactionsWithoutStoredCdr = (
-      result.Transactions as TransactionDto[]
-    ).filter((transaction) => {
-      const transactionId = transaction.id;
-      return transactionId == null || !storedTransactionIds.has(transactionId);
-    });
-    const mappedFromTransactions = await this.cdrMapper.mapTransactionsToCdrs(
-      transactionsWithoutStoredCdr,
-    );
-
-    const mappedCdr = [...mappedFromStored, ...mappedFromTransactions];
-
     return {
       data: mappedCdr,
-      total: mappedCdr.length,
+      total: storedCdrsResult.Cdrs_aggregate?.aggregate?.count ?? 0,
       offset: offset,
       limit: limit,
     } as PaginatedCdrResponse;

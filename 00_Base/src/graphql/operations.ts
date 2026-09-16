@@ -261,6 +261,11 @@ export type GetCdrsPaginatedQueryVariables = Exact<{
 
 
 export type GetCdrsPaginatedQueryResult = {
+  Cdrs_aggregate: {
+    aggregate?: {
+      count: number
+    } | null
+  },
   Cdrs: Array<{
     id: number,
     ocpiCdrId: string,

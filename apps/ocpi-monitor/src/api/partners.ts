@@ -370,15 +370,6 @@ const CPO_PARTNERS_QUERY = `
         }
       }
     }
-    # Sessions we send as CPO are mapped from Transactions, not the Sessions table.
-    Transactions(
-      where: { Authorization: { tenantPartnerId: { _is_null: false } } }
-    ) {
-      endTime
-      Authorization {
-        tenantPartnerId
-      }
-    }
   }
 `
 
@@ -390,11 +381,36 @@ interface CpoPartnersQueryResult {
     Authorizations_aggregate: AggregateCount
     ToCdrs_aggregate: AggregateCount
   }>
-  Transactions: Array<{
-    endTime: string | null
-    Authorization: { tenantPartnerId: number | null } | null
-  }>
 }
+
+// Sessions we send as CPO are mapped from Transactions, not the Sessions table.
+// Counted server-side (per partner, via aliased aggregates) instead of pulling every
+// Transaction row into JS — Transactions is unbounded and keeps growing.
+function buildCpoTransactionCountsQuery (partnerIds: number[]): string {
+  const fields = partnerIds.map(id => `
+    allTx_${id}: Transactions_aggregate(
+      where: { Authorization: { tenantPartnerId: { _eq: ${id} } } }
+    ) {
+      aggregate {
+        count
+      }
+    }
+    endedTx_${id}: Transactions_aggregate(
+      where: {
+        endTime: { _is_null: false }
+        Authorization: { tenantPartnerId: { _eq: ${id} } }
+      }
+    ) {
+      aggregate {
+        count
+      }
+    }
+  `).join('\n')
+
+  return `query CpoPartnersTransactionCounts {${fields}}`
+}
+
+type CpoTransactionCountsQueryResult = Record<string, AggregateCount>
 
 /**
  * CPO view: EMSP/HUB partners — tokens + transactions we map/send as OCPI sessions/CDRs.
@@ -406,28 +422,22 @@ export async function fetchCpoPartners (): Promise<PartnerOverview[]> {
   ])
   const identityById = new Map(identities.map(identity => [identity.id, identity]))
 
-  const allTx = new Map<number, number>()
-  const endedTx = new Map<number, number>()
-  for (const tx of data.Transactions) {
-    const partnerId = tx.Authorization?.tenantPartnerId
-    if (partnerId == null) {
-      continue
-    }
-    allTx.set(partnerId, (allTx.get(partnerId) ?? 0) + 1)
-    if (tx.endTime != null) {
-      endedTx.set(partnerId, (endedTx.get(partnerId) ?? 0) + 1)
-    }
-  }
+  const partnerIds = data.TenantPartners.map(row => row.id)
+  const txCounts = partnerIds.length > 0
+    ? await graphqlRequest<CpoTransactionCountsQueryResult>(
+        buildCpoTransactionCountsQuery(partnerIds),
+      )
+    : {}
 
   return data.TenantPartners.map(row => {
-    const ended = endedTx.get(row.id) ?? 0
+    const ended = countOf(txCounts[`endedTx_${row.id}`])
     return {
       ...mapIdentity(row, identityById.get(row.id)),
       ...emptyMetrics(),
       tokenCount: countOf(row.Authorizations_aggregate),
       sessionCount: ended,
       // Mapped from transactions (SessionBroadcaster / sender GET), not Sessions table
-      sessionsSentCount: allTx.get(row.id) ?? 0,
+      sessionsSentCount: countOf(txCounts[`allTx_${row.id}`]),
       // CDRs actually stored in our DB and sent to this partner (Cdrs.toTenantPartnerId)
       cdrsSentCount: countOf(row.ToCdrs_aggregate),
       cdrCount: ended,

@@ -16,4 +16,4 @@ window.APP_CONFIG = {
 };
 EOF
 
-exec serve -s dist -l 3000
+exec serve -s dist -l "${PORT:-3000}"

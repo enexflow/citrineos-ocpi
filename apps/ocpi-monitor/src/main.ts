@@ -31,5 +31,10 @@ app.use(pinia)
 const authStore = useAuthStore()
 await authStore.init()
 
-registerPlugins(app)
-app.mount('#app')
+// init() already triggered a Keycloak login/logout redirect when
+// unauthenticated or missing the required role — don't mount the app
+// underneath that redirect, since router-view has no auth guard of its own.
+if (authStore.authenticated) {
+  registerPlugins(app)
+  app.mount('#app')
+}
