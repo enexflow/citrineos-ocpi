@@ -6,22 +6,6 @@ export type OcpiRole = 'CPO' | 'EMSP' | 'HUB' | 'NSP' | 'OTHER' | string
 
 export type PartnersView = 'emsp' | 'cpo'
 
-export interface PartnerProfileRole {
-  role?: OcpiRole
-  businessDetails?: {
-    name?: string
-    website?: string
-  }
-}
-
-export interface PartnerProfileOcpi {
-  roles?: PartnerProfileRole[]
-  version?: { version?: string }
-  endpoints?: Array<{ identifier?: string, url?: string }>
-  serverCredentials?: { token?: string, versionsUrl?: string }
-  credentials?: { token?: string, versionsUrl?: string }
-}
-
 export interface PartnerOverview {
   id: number
   countryCode: string

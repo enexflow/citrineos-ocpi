@@ -11,8 +11,11 @@ declare global {
 }
 
 export function readEnv (key: string): string | undefined {
+  // The entrypoint's generated config.js always sets every key, defaulting
+  // unset ones to "" — treat that the same as unset so callers' `?? '/x'`
+  // fallbacks still kick in instead of silently resolving to an empty base.
   return (
     window.APP_CONFIG?.[key]
-    ?? (import.meta.env as Record<string, string | undefined>)[key]
+    || (import.meta.env as Record<string, string | undefined>)[key]
   )
 }

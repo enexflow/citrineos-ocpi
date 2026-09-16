@@ -20,8 +20,21 @@ SPDX-License-Identifier: Apache-2.0
 <script lang="ts" setup>
   import type { OcpiLocationReceived } from '@/types/partner'
   import L from 'leaflet'
+  import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png'
+  import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
+  import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png'
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import 'leaflet/dist/leaflet.css'
+
+  // Vite doesn't resolve Leaflet's default marker icon paths the way its
+  // bundled `_getIconUrl` expects, so icons 404 unless re-pointed at the
+  // Vite-processed asset URLs.
+  delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2xUrl,
+    iconUrl: markerIconUrl,
+    shadowUrl: markerShadowUrl,
+  })
 
   const props = defineProps<{
     locations: OcpiLocationReceived[]

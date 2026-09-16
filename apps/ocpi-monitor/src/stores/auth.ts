@@ -13,23 +13,20 @@ export const useAuthStore = defineStore('auth', {
     authenticated: false,
     initialized: false,
   }),
-  getters: {
-    enabled (): boolean {
-      return Boolean(
-        readEnv('VITE_KEYCLOAK_URL') && readEnv('VITE_KEYCLOAK_REALM'),
-      )
-    },
-  },
   actions: {
     async init () {
-      if (!this.enabled) {
-        this.initialized = true
-        return
+      const url = readEnv('VITE_KEYCLOAK_URL')
+      const realm = readEnv('VITE_KEYCLOAK_REALM')
+
+      if (!url || !realm) {
+        throw new Error(
+          'Keycloak is not configured: VITE_KEYCLOAK_URL/VITE_KEYCLOAK_REALM are required.',
+        )
       }
 
       keycloak = new Keycloak({
-        url: readEnv('VITE_KEYCLOAK_URL')!,
-        realm: readEnv('VITE_KEYCLOAK_REALM')!,
+        url,
+        realm,
         clientId: readEnv('VITE_KEYCLOAK_CLIENT_ID') ?? 'ocpi-monitor',
       })
 
@@ -38,6 +35,15 @@ export const useAuthStore = defineStore('auth', {
         checkLoginIframe: false,
         pkceMethod: 'S256',
       })
+
+      const clientId = readEnv('VITE_KEYCLOAK_CLIENT_ID') ?? 'ocpi-monitor'
+      const roles = keycloak.resourceAccess?.[clientId]?.roles ?? []
+      if (this.authenticated && !roles.includes('ocpi-monitor-user')) {
+        this.authenticated = false
+        await keycloak.logout({ redirectUri: `${window.location.origin}/` })
+        return
+      }
+
       this.initialized = true
     },
     login () {

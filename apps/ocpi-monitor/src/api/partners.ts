@@ -13,11 +13,15 @@ import type {
   OcpiSessionReceived,
   OcpiSessionSent,
   PartnerOverview,
-  PartnerProfileOcpi,
   PartnerRoleCounts,
 } from '@/types/partner'
 import { graphqlRequest } from './graphql.js'
 import { fetchMappedSessionsForPartner } from './ocpiSender'
+import {
+  fetchPartnerIdentities,
+  fetchPartnerIdentity,
+  type PartnerIdentity,
+} from './partnerIdentity'
 
 interface AggregateCount {
   aggregate: { count: number } | null
@@ -27,20 +31,16 @@ function countOf (agg: AggregateCount | undefined): number {
   return agg?.aggregate?.count ?? 0
 }
 
-function mapIdentity (row: {
-  id: number
-  countryCode: string
-  partyId: string
-  partnerProfileOCPI: PartnerProfileOcpi | null
-}): Pick<
+function mapIdentity (
+  row: { id: number, countryCode: string, partyId: string },
+  identity: PartnerIdentity | undefined,
+): Pick<
   PartnerOverview,
   'id' | 'countryCode' | 'partyId' | 'role' | 'name' | 'website'
 > {
-  const profile = row.partnerProfileOCPI
-  const primaryRole = profile?.roles?.[0]
-  const role = primaryRole?.role ?? 'OTHER'
+  const role = identity?.role ?? 'OTHER'
   const name
-    = primaryRole?.businessDetails?.name ?? `${row.countryCode}/${row.partyId}`
+    = identity?.businessDetails?.name ?? `${row.countryCode}/${row.partyId}`
 
   return {
     id: row.id,
@@ -48,7 +48,7 @@ function mapIdentity (row: {
     partyId: row.partyId,
     role,
     name,
-    website: primaryRole?.businessDetails?.website,
+    website: identity?.businessDetails?.website,
   }
 }
 
@@ -71,13 +71,6 @@ function emptyMetrics (): Pick<
     sessionsSentCount: 0,
     cdrsSentCount: 0,
   }
-}
-
-function serverTokenFromProfile (
-  profile: PartnerProfileOcpi | null,
-): string | null {
-  const token = profile?.serverCredentials?.token
-  return typeof token === 'string' && token.length > 0 ? token : null
 }
 
 function iso (value: unknown): string | null {
@@ -105,7 +98,6 @@ const EMSP_PARTNERS_QUERY = `
       id
       countryCode
       partyId
-      partnerProfileOCPI
       Tariffs_aggregate {
         aggregate {
           count
@@ -133,7 +125,6 @@ interface EmspPartnersQueryResult {
     id: number
     countryCode: string
     partyId: string
-    partnerProfileOCPI: PartnerProfileOcpi | null
     Tariffs_aggregate: AggregateCount
     Sessions_aggregate: AggregateCount
     FromCdrs_aggregate: AggregateCount
@@ -146,8 +137,11 @@ interface EmspPartnersQueryResult {
  * Sessions/CDRs here are received rows stored under tenantPartnerId.
  */
 export async function fetchEmspPartners (): Promise<PartnerOverview[]> {
-  const data
-    = await graphqlRequest<EmspPartnersQueryResult>(EMSP_PARTNERS_QUERY)
+  const [data, identities] = await Promise.all([
+    graphqlRequest<EmspPartnersQueryResult>(EMSP_PARTNERS_QUERY),
+    fetchPartnerIdentities(),
+  ])
+  const identityById = new Map(identities.map(identity => [identity.id, identity]))
 
   const locationCounts = new Map<number, number>()
   for (const location of data.Locations) {
@@ -159,7 +153,7 @@ export async function fetchEmspPartners (): Promise<PartnerOverview[]> {
   }
 
   return data.TenantPartners.map(row => ({
-    ...mapIdentity(row),
+    ...mapIdentity(row, identityById.get(row.id)),
     ...emptyMetrics(),
     locationCount: locationCounts.get(row.id) ?? 0,
     tariffCount: countOf(row.Tariffs_aggregate),
@@ -174,7 +168,6 @@ const EMSP_PARTNER_DETAIL_QUERY = `
       id
       countryCode
       partyId
-      partnerProfileOCPI
       Tariffs_aggregate {
         aggregate {
           count
@@ -242,7 +235,6 @@ interface EmspPartnerDetailQueryResult {
     id: number
     countryCode: string
     partyId: string
-    partnerProfileOCPI: PartnerProfileOcpi | null
     Tariffs_aggregate: AggregateCount
     Sessions_aggregate: {
       aggregate: { count: number, sum: { kwh: number | null } | null } | null
@@ -292,10 +284,13 @@ interface EmspPartnerDetailQueryResult {
 export async function fetchEmspPartnerDetail (
   partnerId: number,
 ): Promise<EmspPartnerDetail | null> {
-  const data = await graphqlRequest<EmspPartnerDetailQueryResult>(
-    EMSP_PARTNER_DETAIL_QUERY,
-    { id: partnerId },
-  )
+  const [data, identity] = await Promise.all([
+    graphqlRequest<EmspPartnerDetailQueryResult>(
+      EMSP_PARTNER_DETAIL_QUERY,
+      { id: partnerId },
+    ),
+    fetchPartnerIdentity(partnerId),
+  ])
 
   const row = data.TenantPartners_by_pk
   if (!row) {
@@ -303,7 +298,7 @@ export async function fetchEmspPartnerDetail (
   }
 
   const partner: PartnerOverview = {
-    ...mapIdentity(row),
+    ...mapIdentity(row, identity ?? undefined),
     ...emptyMetrics(),
     locationCount: data.Locations.length,
     tariffCount: countOf(row.Tariffs_aggregate),
@@ -364,7 +359,6 @@ const CPO_PARTNERS_QUERY = `
       id
       countryCode
       partyId
-      partnerProfileOCPI
       Authorizations_aggregate {
         aggregate {
           count
@@ -393,7 +387,6 @@ interface CpoPartnersQueryResult {
     id: number
     countryCode: string
     partyId: string
-    partnerProfileOCPI: PartnerProfileOcpi | null
     Authorizations_aggregate: AggregateCount
     ToCdrs_aggregate: AggregateCount
   }>
@@ -407,7 +400,11 @@ interface CpoPartnersQueryResult {
  * CPO view: EMSP/HUB partners — tokens + transactions we map/send as OCPI sessions/CDRs.
  */
 export async function fetchCpoPartners (): Promise<PartnerOverview[]> {
-  const data = await graphqlRequest<CpoPartnersQueryResult>(CPO_PARTNERS_QUERY)
+  const [data, identities] = await Promise.all([
+    graphqlRequest<CpoPartnersQueryResult>(CPO_PARTNERS_QUERY),
+    fetchPartnerIdentities(),
+  ])
+  const identityById = new Map(identities.map(identity => [identity.id, identity]))
 
   const allTx = new Map<number, number>()
   const endedTx = new Map<number, number>()
@@ -425,7 +422,7 @@ export async function fetchCpoPartners (): Promise<PartnerOverview[]> {
   return data.TenantPartners.map(row => {
     const ended = endedTx.get(row.id) ?? 0
     return {
-      ...mapIdentity(row),
+      ...mapIdentity(row, identityById.get(row.id)),
       ...emptyMetrics(),
       tokenCount: countOf(row.Authorizations_aggregate),
       sessionCount: ended,
@@ -444,7 +441,6 @@ const CPO_PARTNER_DETAIL_QUERY = `
       id
       countryCode
       partyId
-      partnerProfileOCPI
       Authorizations_aggregate {
         aggregate {
           count
@@ -485,7 +481,6 @@ interface CpoPartnerDetailQueryResult {
     id: number
     countryCode: string
     partyId: string
-    partnerProfileOCPI: PartnerProfileOcpi | null
     Authorizations_aggregate: AggregateCount
     ToCdrs_aggregate: AggregateCount
     Tenant: { countryCode: string, partyId: string } | null
@@ -662,10 +657,13 @@ async function fetchStoredCdrsForPartner (
 export async function fetchCpoPartnerDetail (
   partnerId: number,
 ): Promise<CpoPartnerDetail | null> {
-  const data = await graphqlRequest<CpoPartnerDetailQueryResult>(
-    CPO_PARTNER_DETAIL_QUERY,
-    { id: partnerId },
-  )
+  const [data, identity] = await Promise.all([
+    graphqlRequest<CpoPartnerDetailQueryResult>(
+      CPO_PARTNER_DETAIL_QUERY,
+      { id: partnerId },
+    ),
+    fetchPartnerIdentity(partnerId),
+  ])
 
   const row = data.TenantPartners_by_pk
   if (!row) {
@@ -674,7 +672,7 @@ export async function fetchCpoPartnerDetail (
 
   const ended = countOf(data.endedTx)
   const partner: PartnerOverview = {
-    ...mapIdentity(row),
+    ...mapIdentity(row, identity ?? undefined),
     ...emptyMetrics(),
     tokenCount: countOf(row.Authorizations_aggregate),
     sessionCount: ended,
@@ -685,9 +683,7 @@ export async function fetchCpoPartnerDetail (
 
   const cdrsSent = await fetchStoredCdrsForPartner(partnerId)
 
-  const rawToken = serverTokenFromProfile(row.partnerProfileOCPI)
-  const ourTenant = row.Tenant
-  if (!rawToken || !ourTenant) {
+  if (!row.Tenant) {
     return {
       partner,
       sessionsSent: [],
@@ -696,15 +692,7 @@ export async function fetchCpoPartnerDetail (
   }
 
   try {
-    const sessions = await fetchMappedSessionsForPartner({
-      rawServerToken: rawToken,
-      partnerCountryCode: row.countryCode,
-      partnerPartyId: row.partyId,
-      ourTenant: {
-        countryCode: ourTenant.countryCode,
-        partyId: ourTenant.partyId,
-      },
-    })
+    const sessions = await fetchMappedSessionsForPartner(partnerId)
 
     return {
       partner,
@@ -721,38 +709,20 @@ export async function fetchCpoPartnerDetail (
   }
 }
 
-const ROLE_COUNTS_QUERY = `
-  query PartnerRoleCounts {
-    TenantPartners {
-      id
-      partnerProfileOCPI
-    }
-  }
-`
-
-function primaryRole (profile: PartnerProfileOcpi | null): string {
-  return profile?.roles?.[0]?.role ?? 'OTHER'
-}
-
 /** Home dashboard: how many partners per OCPI role. */
 export async function fetchPartnerRoleCounts (): Promise<PartnerRoleCounts> {
-  const data = await graphqlRequest<{
-    TenantPartners: Array<{
-      id: number
-      partnerProfileOCPI: PartnerProfileOcpi | null
-    }>
-  }>(ROLE_COUNTS_QUERY)
+  const identities = await fetchPartnerIdentities()
 
   const counts: PartnerRoleCounts = {
-    total: data.TenantPartners.length,
+    total: identities.length,
     cpo: 0,
     emsp: 0,
     hub: 0,
     other: 0,
   }
 
-  for (const partner of data.TenantPartners) {
-    switch (primaryRole(partner.partnerProfileOCPI)) {
+  for (const identity of identities) {
+    switch (identity.role) {
       case 'CPO': {
         counts.cpo += 1
         break

@@ -28,6 +28,7 @@ export const ocpiConfigInputSchema = z.object({
   ocpiServer: z.object({
     host: z.string().default('0.0.0.0').optional(),
     port: z.number().int().positive().default(8085).optional(),
+    allowedOrigins: z.array(z.string()).default([]).optional(),
   }),
 
   // OCPI Module configuration
@@ -231,6 +232,7 @@ export const ocpiConfigSchema = z.object({
   ocpiServer: z.object({
     host: z.string(),
     port: z.number().int().positive(),
+    allowedOrigins: z.array(z.string()).default([]),
   }),
 
   ocpiModules: z.object({

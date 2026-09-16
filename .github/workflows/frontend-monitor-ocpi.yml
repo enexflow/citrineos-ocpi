@@ -9,13 +9,13 @@ on:
   push:
     branches: [env/staging, env/prod]
     paths:
-      - 'citrineos-ocpi/apps/ocpi-monitor/**'
-      - '.github/workflows/ocpi-monitor-ci.yml'
+      - 'apps/ocpi-monitor/**'
+      - '.github/workflows/frontend-monitor-ocpi.yml'
   pull_request:
     branches: [env/*]
     paths:
-      - 'citrineos-ocpi/apps/ocpi-monitor/**'
-      - '.github/workflows/ocpi-monitor-ci.yml'
+      - 'apps/ocpi-monitor/**'
+      - '.github/workflows/frontend-monitor-ocpi.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: citrineos-ocpi/apps/ocpi-monitor
+        working-directory: apps/ocpi-monitor
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: citrineos-ocpi/apps/ocpi-monitor/pnpm-lock.yaml
+          cache-dependency-path: apps/ocpi-monitor/pnpm-lock.yaml
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Lint

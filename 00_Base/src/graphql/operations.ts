@@ -2731,6 +2731,18 @@ export type GetTenantPartnerIdByCountryPartyQueryResult = {
   }>
 };
 
+export type GetAllTenantPartnersQueryVariables = Exact<{ [key: string]: never }>;
+
+
+export type GetAllTenantPartnersQueryResult = {
+  TenantPartners: Array<{
+    id: number,
+    countryCode: string,
+    partyId: string,
+    partnerProfileOCPI?: any | null
+  }>
+};
+
 export type GetTenantPartnerByIdQueryVariables = Exact<{
   id: Scalars['Int']['input'];
 }>;

@@ -95,7 +95,6 @@ SPDX-License-Identifier: Apache-2.0
 
     <template #append>
       <v-list
-        v-if="authStore.enabled"
         bg-color="transparent"
         class="px-3 py-2"
         color="#0edaf1"
