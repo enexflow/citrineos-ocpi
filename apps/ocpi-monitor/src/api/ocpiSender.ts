@@ -9,41 +9,46 @@
  * browser never sees the partner's serverCredentials.token.
  */
 
-import { readEnv } from '@/config'
-import { useAuthStore } from '@/stores/auth'
+import { readEnv } from '@/config';
+import { useAuthStore } from '@/stores/auth';
 
-const OCPI_BASE = readEnv('VITE_OCPI_BASE') ?? '/ocpi'
+const OCPI_BASE = readEnv('VITE_OCPI_BASE') ?? '/ocpi';
 
-async function adminGet<T> (module: 'sessions' | 'cdrs', partnerId: number): Promise<T[]> {
-  const url = `${OCPI_BASE}/admin/partners/${partnerId}/${module}?limit=200&offset=0`
+async function adminGet<T>(
+  module: 'sessions' | 'cdrs',
+  partnerId: number,
+): Promise<T[]> {
+  const url = `${OCPI_BASE}/admin/partners/${partnerId}/${module}?limit=200&offset=0`;
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const token = await useAuthStore().getToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  const token = await useAuthStore().getToken();
   if (token) {
-    headers.Authorization = `Bearer ${token}`
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, { headers })
+  const response = await fetch(url, { headers });
 
   if (!response.ok) {
-    const body = await response.text()
+    const body = await response.text();
     throw new Error(
       `Admin GET ${module} failed (${response.status}): ${body.slice(0, 300)}`,
-    )
+    );
   }
 
-  const payload = (await response.json()) as { data?: T[] }
-  return payload.data ?? []
+  const payload = (await response.json()) as { data?: T[] };
+  return payload.data ?? [];
 }
 
-export async function fetchMappedSessionsForPartner (
+export async function fetchMappedSessionsForPartner(
   partnerId: number,
 ): Promise<Record<string, unknown>[]> {
-  return adminGet<Record<string, unknown>>('sessions', partnerId)
+  return adminGet<Record<string, unknown>>('sessions', partnerId);
 }
 
-export async function fetchMappedCdrsForPartner (
+export async function fetchMappedCdrsForPartner(
   partnerId: number,
 ): Promise<Record<string, unknown>[]> {
-  return adminGet<Record<string, unknown>>('cdrs', partnerId)
+  return adminGet<Record<string, unknown>>('cdrs', partnerId);
 }

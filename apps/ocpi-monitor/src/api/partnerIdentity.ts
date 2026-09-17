@@ -8,48 +8,52 @@
  * The browser never receives serverCredentials/credentials tokens (SEC-001).
  */
 
-import { readEnv } from '@/config'
-import { useAuthStore } from '@/stores/auth'
+import { readEnv } from '@/config';
+import { useAuthStore } from '@/stores/auth';
 
-const OCPI_BASE = readEnv('VITE_OCPI_BASE') ?? '/ocpi'
+const OCPI_BASE = readEnv('VITE_OCPI_BASE') ?? '/ocpi';
 
 export interface PartnerIdentity {
-  id: number
-  countryCode: string
-  partyId: string
-  role: string
-  businessDetails: { name?: string, website?: string } | null
+  id: number;
+  countryCode: string;
+  partyId: string;
+  role: string;
+  businessDetails: { name?: string; website?: string } | null;
 }
 
-async function adminGet<T> (path: string): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const token = await useAuthStore().getToken()
+async function adminGet<T>(path: string): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  const token = await useAuthStore().getToken();
   if (token) {
-    headers.Authorization = `Bearer ${token}`
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${OCPI_BASE}${path}`, { headers })
+  const response = await fetch(`${OCPI_BASE}${path}`, { headers });
 
   if (!response.ok) {
-    const body = await response.text()
+    const body = await response.text();
     throw new Error(
       `Admin GET ${path} failed (${response.status}): ${body.slice(0, 300)}`,
-    )
+    );
   }
 
-  return (await response.json()) as T
+  return (await response.json()) as T;
 }
 
-export async function fetchPartnerIdentities (): Promise<PartnerIdentity[]> {
-  const payload = await adminGet<{ data: PartnerIdentity[] }>('/admin/partners')
-  return payload.data
+export async function fetchPartnerIdentities(): Promise<PartnerIdentity[]> {
+  const payload = await adminGet<{ data: PartnerIdentity[] }>(
+    '/admin/partners',
+  );
+  return payload.data;
 }
 
-export async function fetchPartnerIdentity (
+export async function fetchPartnerIdentity(
   id: number,
 ): Promise<PartnerIdentity | null> {
   const payload = await adminGet<{ data: PartnerIdentity | null }>(
     `/admin/partners/${id}`,
-  )
-  return payload.data
+  );
+  return payload.data;
 }

@@ -16,7 +16,9 @@ export const AsAdminEndpoint = function () {
     UseBefore((ctx: any, next: any) => {
       const config = Container.get(OcpiConfigToken);
       if (!config.oidc) {
-        throw new UnauthorizedError('Admin endpoints require OIDC to be configured');
+        throw new UnauthorizedError(
+          'Admin endpoints require OIDC to be configured',
+        );
       }
       return oidcAuthMiddleware(config.oidc)(ctx, next);
     })(object, methodName);

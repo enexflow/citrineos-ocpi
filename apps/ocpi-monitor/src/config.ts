@@ -6,16 +6,16 @@
 // Docker image can be configured per-environment without a rebuild.
 declare global {
   interface Window {
-    APP_CONFIG?: Record<string, string>
+    APP_CONFIG?: Record<string, string>;
   }
 }
 
-export function readEnv (key: string): string | undefined {
+export function readEnv(key: string): string | undefined {
   // The entrypoint's generated config.js always sets every key, defaulting
   // unset ones to "" — treat that the same as unset so callers' `?? '/x'`
   // fallbacks still kick in instead of silently resolving to an empty base.
   return (
-    window.APP_CONFIG?.[key]
-    || (import.meta.env as Record<string, string | undefined>)[key]
-  )
+    window.APP_CONFIG?.[key] ||
+    (import.meta.env as Record<string, string | undefined>)[key]
+  );
 }

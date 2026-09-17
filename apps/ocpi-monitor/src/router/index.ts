@@ -8,14 +8,14 @@
  * Manual routes for ./src/pages/*.vue
  */
 
-import { createRouter, createWebHistory } from 'vue-router'
-import AppLayout from '@/layouts/AppLayout.vue'
-import CpoPartnerDetail from '@/pages/cpo/PartnerDetail.vue'
-import CpoPartners from '@/pages/cpo/Partners.vue'
-import EmspPartnerDetail from '@/pages/emsp/PartnerDetail.vue'
-import EmspPartners from '@/pages/emsp/Partners.vue'
-import Home from '@/pages/index.vue'
-import OurData from '@/pages/OurData.vue'
+import { createRouter, createWebHistory } from 'vue-router';
+import AppLayout from '@/layouts/AppLayout.vue';
+import CpoPartnerDetail from '@/pages/cpo/PartnerDetail.vue';
+import CpoPartners from '@/pages/cpo/Partners.vue';
+import EmspPartnerDetail from '@/pages/emsp/PartnerDetail.vue';
+import EmspPartners from '@/pages/emsp/Partners.vue';
+import Home from '@/pages/index.vue';
+import OurData from '@/pages/OurData.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -63,6 +63,6 @@ const router = createRouter({
       ],
     },
   ],
-})
+});
 
-export default router
+export default router;

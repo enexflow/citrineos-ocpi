@@ -13,10 +13,12 @@ export interface OIDCConfig {
   audience?: string;
   cacheTime?: number;
   rateLimit?: boolean;
-  requiredRoles?: string; 
+  requiredRoles?: string;
 }
 
-function parseRequiredRoles(spec?: string): Array<{ clientId: string; role: string }> {
+function parseRequiredRoles(
+  spec?: string,
+): Array<{ clientId: string; role: string }> {
   if (!spec) return [];
   return spec.split(',').map((entry) => {
     const [clientId, role] = entry.trim().split(':');
@@ -70,16 +72,17 @@ export function oidcAuthMiddleware(config: OIDCConfig) {
       });
       ctx.state.user = decoded;
       if (requiredRoles.length > 0) {
-      const hasAccess = requiredRoles.some(
-        ({ clientId, role }) =>
-          ((decoded as any).resource_access?.[clientId]?.roles ?? []).includes(role),
-      );
-      if (!hasAccess) {
-        ctx.status = 403;
-        ctx.body = { error: 'Insufficient role' };
-        return;
+        const hasAccess = requiredRoles.some(({ clientId, role }) =>
+          ((decoded as any).resource_access?.[clientId]?.roles ?? []).includes(
+            role,
+          ),
+        );
+        if (!hasAccess) {
+          ctx.status = 403;
+          ctx.body = { error: 'Insufficient role' };
+          return;
+        }
       }
-    }
       await next();
     } catch (err) {
       ctx.status = 401;

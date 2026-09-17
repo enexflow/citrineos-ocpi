@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import vuetify from 'eslint-config-vuetify'
+import vuetify from 'eslint-config-vuetify';
 
 export default vuetify({
   ts: true,
-})
+});

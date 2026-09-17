@@ -2,6 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-export function prettyOcpiJson (payload: Record<string, unknown>): string {
-  return JSON.stringify(payload, null, 2)
+export function prettyOcpiJson(payload: Record<string, unknown>): string {
+  return JSON.stringify(payload, null, 2);
 }
