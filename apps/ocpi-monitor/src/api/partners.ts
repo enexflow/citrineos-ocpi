@@ -14,33 +14,33 @@ import type {
   OcpiSessionSent,
   PartnerOverview,
   PartnerRoleCounts,
-} from '@/types/partner';
-import { graphqlRequest } from './graphql.js';
-import { fetchMappedSessionsForPartner } from './ocpiSender';
+} from '@/types/partner'
+import { graphqlRequest } from './graphql.js'
+import { fetchMappedSessionsForPartner } from './ocpiSender'
 import {
   fetchPartnerIdentities,
   fetchPartnerIdentity,
   type PartnerIdentity,
-} from './partnerIdentity';
+} from './partnerIdentity'
 
 interface AggregateCount {
-  aggregate: { count: number } | null;
+  aggregate: { count: number } | null
 }
 
-function countOf(agg: AggregateCount | undefined): number {
-  return agg?.aggregate?.count ?? 0;
+function countOf (agg: AggregateCount | undefined): number {
+  return agg?.aggregate?.count ?? 0
 }
 
-function mapIdentity(
-  row: { id: number; countryCode: string; partyId: string },
+function mapIdentity (
+  row: { id: number, countryCode: string, partyId: string },
   identity: PartnerIdentity | undefined,
 ): Pick<
   PartnerOverview,
   'id' | 'countryCode' | 'partyId' | 'role' | 'name' | 'website'
 > {
-  const role = identity?.role ?? 'OTHER';
-  const name =
-    identity?.businessDetails?.name ?? `${row.countryCode}/${row.partyId}`;
+  const role = identity?.role ?? 'OTHER'
+  const name
+    = identity?.businessDetails?.name ?? `${row.countryCode}/${row.partyId}`
 
   return {
     id: row.id,
@@ -49,10 +49,10 @@ function mapIdentity(
     role,
     name,
     website: identity?.businessDetails?.website,
-  };
+  }
 }
 
-function emptyMetrics(): Pick<
+function emptyMetrics (): Pick<
   PartnerOverview,
   | 'locationCount'
   | 'tariffCount'
@@ -70,26 +70,26 @@ function emptyMetrics(): Pick<
     sessionCount: 0,
     sessionsSentCount: 0,
     cdrsSentCount: 0,
-  };
+  }
 }
 
-function iso(value: unknown): string | null {
+function iso (value: unknown): string | null {
   if (value == null) {
-    return null;
+    return null
   }
   try {
-    return new Date(value as string).toISOString();
+    return new Date(value as string).toISOString()
   } catch {
-    return String(value);
+    return String(value)
   }
 }
 
-function num(value: unknown): number | null {
+function num (value: unknown): number | null {
   if (value == null || value === '') {
-    return null;
+    return null
   }
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
 }
 
 const EMSP_PARTNERS_QUERY = `
@@ -118,50 +118,50 @@ const EMSP_PARTNERS_QUERY = `
       ownerTenantPartnerId
     }
   }
-`;
+`
 
 interface EmspPartnersQueryResult {
   TenantPartners: Array<{
-    id: number;
-    countryCode: string;
-    partyId: string;
-    Tariffs_aggregate: AggregateCount;
-    Sessions_aggregate: AggregateCount;
-    FromCdrs_aggregate: AggregateCount;
-  }>;
-  Locations: Array<{ ownerTenantPartnerId: number | null }>;
+    id: number
+    countryCode: string
+    partyId: string
+    Tariffs_aggregate: AggregateCount
+    Sessions_aggregate: AggregateCount
+    FromCdrs_aggregate: AggregateCount
+  }>
+  Locations: Array<{ ownerTenantPartnerId: number | null }>
 }
 
 /**
  * EMSP view: partners that send us locations/tariffs (CPO and HUB).
  * Sessions/CDRs here are received rows stored under tenantPartnerId.
  */
-export async function fetchEmspPartners(): Promise<PartnerOverview[]> {
+export async function fetchEmspPartners (): Promise<PartnerOverview[]> {
   const [data, identities] = await Promise.all([
     graphqlRequest<EmspPartnersQueryResult>(EMSP_PARTNERS_QUERY),
     fetchPartnerIdentities(),
-  ]);
+  ])
   const identityById = new Map(
-    identities.map((identity) => [identity.id, identity]),
-  );
+    identities.map(identity => [identity.id, identity]),
+  )
 
-  const locationCounts = new Map<number, number>();
+  const locationCounts = new Map<number, number>()
   for (const location of data.Locations) {
-    const partnerId = location.ownerTenantPartnerId;
+    const partnerId = location.ownerTenantPartnerId
     if (partnerId == null) {
-      continue;
+      continue
     }
-    locationCounts.set(partnerId, (locationCounts.get(partnerId) ?? 0) + 1);
+    locationCounts.set(partnerId, (locationCounts.get(partnerId) ?? 0) + 1)
   }
 
-  return data.TenantPartners.map((row) => ({
+  return data.TenantPartners.map(row => ({
     ...mapIdentity(row, identityById.get(row.id)),
     ...emptyMetrics(),
     locationCount: locationCounts.get(row.id) ?? 0,
     tariffCount: countOf(row.Tariffs_aggregate),
     sessionCount: countOf(row.Sessions_aggregate),
     cdrCount: countOf(row.FromCdrs_aggregate),
-  })).filter((partner) => partner.role === 'CPO' || partner.role === 'HUB');
+  })).filter(partner => partner.role === 'CPO' || partner.role === 'HUB')
 }
 
 const EMSP_PARTNER_DETAIL_QUERY = `
@@ -230,52 +230,52 @@ const EMSP_PARTNER_DETAIL_QUERY = `
       lastUpdated
     }
   }
-`;
+`
 
 interface EmspPartnerDetailQueryResult {
   TenantPartners_by_pk: {
-    id: number;
-    countryCode: string;
-    partyId: string;
-    Tariffs_aggregate: AggregateCount;
+    id: number
+    countryCode: string
+    partyId: string
+    Tariffs_aggregate: AggregateCount
     Sessions_aggregate: {
-      aggregate: { count: number; sum: { kwh: number | null } | null } | null;
-    };
-    FromCdrs_aggregate: AggregateCount;
-  } | null;
+      aggregate: { count: number, sum: { kwh: number | null } | null } | null
+    }
+    FromCdrs_aggregate: AggregateCount
+  } | null
   Locations: Array<{
-    id: number;
-    ocpiId: string;
-    name: string | null;
-    address: string;
-    city: string;
-    country: string;
-    coordinates: { type: string; coordinates: [number, number] } | null;
-    updatedAt: string | null;
-    ChargingStations_aggregate: AggregateCount;
-  }>;
+    id: number
+    ocpiId: string
+    name: string | null
+    address: string
+    city: string
+    country: string
+    coordinates: { type: string, coordinates: [number, number] } | null
+    updatedAt: string | null
+    ChargingStations_aggregate: AggregateCount
+  }>
   Sessions: Array<{
-    id: number;
-    ocpiSessionId: string;
-    status: string | null;
-    startDateTime: string;
-    endDateTime: string | null;
-    kwh: number | null;
-    totalCost: unknown;
-    currency: string;
-    lastUpdated: string;
-  }>;
+    id: number
+    ocpiSessionId: string
+    status: string | null
+    startDateTime: string
+    endDateTime: string | null
+    kwh: number | null
+    totalCost: unknown
+    currency: string
+    lastUpdated: string
+  }>
   Cdrs: Array<{
-    id: number;
-    ocpiCdrId: string;
-    sessionId: string | null;
-    startDateTime: string;
-    endDateTime: string;
-    totalEnergy: number;
-    totalCost: unknown;
-    currency: string;
-    lastUpdated: string;
-  }>;
+    id: number
+    ocpiCdrId: string
+    sessionId: string | null
+    startDateTime: string
+    endDateTime: string
+    totalEnergy: number
+    totalCost: unknown
+    currency: string
+    lastUpdated: string
+  }>
 }
 
 /**
@@ -283,7 +283,7 @@ interface EmspPartnerDetailQueryResult {
  * this CPO/HUB partner (ownerTenantPartnerId / tenantPartnerId / fromTenantPartnerId) —
  * no OCPI sender GET involved, this is what we pulled/received and persisted.
  */
-export async function fetchEmspPartnerDetail(
+export async function fetchEmspPartnerDetail (
   partnerId: number,
 ): Promise<EmspPartnerDetail | null> {
   const [data, identity] = await Promise.all([
@@ -291,11 +291,11 @@ export async function fetchEmspPartnerDetail(
       id: partnerId,
     }),
     fetchPartnerIdentity(partnerId),
-  ]);
+  ])
 
-  const row = data.TenantPartners_by_pk;
+  const row = data.TenantPartners_by_pk
   if (!row) {
-    return null;
+    return null
   }
 
   const partner: PartnerOverview = {
@@ -305,9 +305,9 @@ export async function fetchEmspPartnerDetail(
     tariffCount: countOf(row.Tariffs_aggregate),
     sessionCount: countOf(row.Sessions_aggregate),
     cdrCount: countOf(row.FromCdrs_aggregate),
-  };
+  }
 
-  const locations: OcpiLocationReceived[] = data.Locations.map((loc) => ({
+  const locations: OcpiLocationReceived[] = data.Locations.map(loc => ({
     id: loc.id,
     ocpiId: loc.ocpiId,
     name: loc.name,
@@ -319,9 +319,9 @@ export async function fetchEmspPartnerDetail(
     latitude: num(loc.coordinates?.coordinates?.[1]),
     longitude: num(loc.coordinates?.coordinates?.[0]),
     lastUpdated: iso(loc.updatedAt),
-  }));
+  }))
 
-  const sessions: OcpiSessionReceived[] = data.Sessions.map((session) => ({
+  const sessions: OcpiSessionReceived[] = data.Sessions.map(session => ({
     id: session.id,
     ocpiSessionId: session.ocpiSessionId,
     status: session.status,
@@ -331,9 +331,9 @@ export async function fetchEmspPartnerDetail(
     totalCost: session.totalCost,
     currency: session.currency,
     lastUpdated: iso(session.lastUpdated),
-  }));
+  }))
 
-  const cdrs: OcpiCdrReceived[] = data.Cdrs.map((cdr) => ({
+  const cdrs: OcpiCdrReceived[] = data.Cdrs.map(cdr => ({
     id: cdr.id,
     ocpiCdrId: cdr.ocpiCdrId,
     sessionId: cdr.sessionId,
@@ -343,7 +343,7 @@ export async function fetchEmspPartnerDetail(
     totalCost: cdr.totalCost,
     currency: cdr.currency,
     lastUpdated: iso(cdr.lastUpdated),
-  }));
+  }))
 
   return {
     partner,
@@ -351,7 +351,7 @@ export async function fetchEmspPartnerDetail(
     sessions,
     cdrs,
     totalKwh: row.Sessions_aggregate.aggregate?.sum?.kwh ?? 0,
-  };
+  }
 }
 
 const CPO_PARTNERS_QUERY = `
@@ -372,25 +372,25 @@ const CPO_PARTNERS_QUERY = `
       }
     }
   }
-`;
+`
 
 interface CpoPartnersQueryResult {
   TenantPartners: Array<{
-    id: number;
-    countryCode: string;
-    partyId: string;
-    Authorizations_aggregate: AggregateCount;
-    ToCdrs_aggregate: AggregateCount;
-  }>;
+    id: number
+    countryCode: string
+    partyId: string
+    Authorizations_aggregate: AggregateCount
+    ToCdrs_aggregate: AggregateCount
+  }>
 }
 
 // Sessions we send as CPO are mapped from Transactions, not the Sessions table.
 // Counted server-side (per partner, via aliased aggregates) instead of pulling every
 // Transaction row into JS — Transactions is unbounded and keeps growing.
-function buildCpoTransactionCountsQuery(partnerIds: number[]): string {
+function buildCpoTransactionCountsQuery (partnerIds: number[]): string {
   const fields = partnerIds
     .map(
-      (id) => `
+      id => `
     allTx_${id}: Transactions_aggregate(
       where: { Authorization: { tenantPartnerId: { _eq: ${id} } } }
     ) {
@@ -410,35 +410,35 @@ function buildCpoTransactionCountsQuery(partnerIds: number[]): string {
     }
   `,
     )
-    .join('\n');
+    .join('\n')
 
-  return `query CpoPartnersTransactionCounts {${fields}}`;
+  return `query CpoPartnersTransactionCounts {${fields}}`
 }
 
-type CpoTransactionCountsQueryResult = Record<string, AggregateCount>;
+type CpoTransactionCountsQueryResult = Record<string, AggregateCount>
 
 /**
  * CPO view: EMSP/HUB partners — tokens + transactions we map/send as OCPI sessions/CDRs.
  */
-export async function fetchCpoPartners(): Promise<PartnerOverview[]> {
+export async function fetchCpoPartners (): Promise<PartnerOverview[]> {
   const [data, identities] = await Promise.all([
     graphqlRequest<CpoPartnersQueryResult>(CPO_PARTNERS_QUERY),
     fetchPartnerIdentities(),
-  ]);
+  ])
   const identityById = new Map(
-    identities.map((identity) => [identity.id, identity]),
-  );
+    identities.map(identity => [identity.id, identity]),
+  )
 
-  const partnerIds = data.TenantPartners.map((row) => row.id);
-  const txCounts =
-    partnerIds.length > 0
+  const partnerIds = data.TenantPartners.map(row => row.id)
+  const txCounts
+    = partnerIds.length > 0
       ? await graphqlRequest<CpoTransactionCountsQueryResult>(
           buildCpoTransactionCountsQuery(partnerIds),
         )
-      : {};
+      : {}
 
-  return data.TenantPartners.map((row) => {
-    const ended = countOf(txCounts[`endedTx_${row.id}`]);
+  return data.TenantPartners.map(row => {
+    const ended = countOf(txCounts[`endedTx_${row.id}`])
     return {
       ...mapIdentity(row, identityById.get(row.id)),
       ...emptyMetrics(),
@@ -449,8 +449,8 @@ export async function fetchCpoPartners(): Promise<PartnerOverview[]> {
       // CDRs actually stored in our DB and sent to this partner (Cdrs.toTenantPartnerId)
       cdrsSentCount: countOf(row.ToCdrs_aggregate),
       cdrCount: ended,
-    };
-  }).filter((partner) => partner.role === 'EMSP' || partner.role === 'HUB');
+    }
+  }).filter(partner => partner.role === 'EMSP' || partner.role === 'HUB')
 }
 
 const CPO_PARTNER_DETAIL_QUERY = `
@@ -492,22 +492,22 @@ const CPO_PARTNER_DETAIL_QUERY = `
       }
     }
   }
-`;
+`
 
 interface CpoPartnerDetailQueryResult {
   TenantPartners_by_pk: {
-    id: number;
-    countryCode: string;
-    partyId: string;
-    Authorizations_aggregate: AggregateCount;
-    ToCdrs_aggregate: AggregateCount;
-    Tenant: { countryCode: string; partyId: string } | null;
-  } | null;
-  allTx: AggregateCount;
-  endedTx: AggregateCount;
+    id: number
+    countryCode: string
+    partyId: string
+    Authorizations_aggregate: AggregateCount
+    ToCdrs_aggregate: AggregateCount
+    Tenant: { countryCode: string, partyId: string } | null
+  } | null
+  allTx: AggregateCount
+  endedTx: AggregateCount
 }
 
-function sessionFromOcpi(
+function sessionFromOcpi (
   payload: Record<string, unknown>,
   index: number,
 ): OcpiSessionSent {
@@ -523,7 +523,7 @@ function sessionFromOcpi(
     countryCode: String(payload.country_code ?? ''),
     partyId: String(payload.party_id ?? ''),
     ocpiJson: payload,
-  };
+  }
 }
 
 const CPO_STORED_CDRS_QUERY = `
@@ -565,51 +565,51 @@ const CPO_STORED_CDRS_QUERY = `
       lastUpdated
     }
   }
-`;
+`
 
 interface StoredCdrRow {
-  id: number;
-  ocpiCdrId: string;
-  countryCode: string;
-  partyId: string;
-  startDateTime: string;
-  endDateTime: string;
-  sessionId: string | null;
-  cdrToken: Record<string, unknown>;
-  authMethod: string;
-  authorizationReference: string | null;
-  cdrLocation: Record<string, unknown>;
-  meterId: string | null;
-  currency: string;
-  tariffs: unknown[] | null;
-  chargingPeriods: unknown[];
-  signedData: Record<string, unknown> | null;
-  totalCost: unknown;
-  totalFixedCost: unknown;
-  totalEnergy: number;
-  totalEnergyCost: unknown;
-  totalTime: number;
-  totalTimeCost: unknown;
-  totalParkingTime: number | null;
-  totalParkingCost: unknown;
-  totalReservationCost: unknown;
-  remark: string | null;
-  invoiceReferenceId: string | null;
-  credit: boolean | null;
-  creditReferenceId: string | null;
-  homeChargingCompensation: boolean | null;
-  lastUpdated: string;
+  id: number
+  ocpiCdrId: string
+  countryCode: string
+  partyId: string
+  startDateTime: string
+  endDateTime: string
+  sessionId: string | null
+  cdrToken: Record<string, unknown>
+  authMethod: string
+  authorizationReference: string | null
+  cdrLocation: Record<string, unknown>
+  meterId: string | null
+  currency: string
+  tariffs: unknown[] | null
+  chargingPeriods: unknown[]
+  signedData: Record<string, unknown> | null
+  totalCost: unknown
+  totalFixedCost: unknown
+  totalEnergy: number
+  totalEnergyCost: unknown
+  totalTime: number
+  totalTimeCost: unknown
+  totalParkingTime: number | null
+  totalParkingCost: unknown
+  totalReservationCost: unknown
+  remark: string | null
+  invoiceReferenceId: string | null
+  credit: boolean | null
+  creditReferenceId: string | null
+  homeChargingCompensation: boolean | null
+  lastUpdated: string
 }
 
 interface StoredCdrsQueryResult {
-  Cdrs: StoredCdrRow[];
+  Cdrs: StoredCdrRow[]
 }
 
 /**
  * Rebuild the OCPI-wire CDR shape from a stored row — mirrors CdrMapper.mapCdrReceiver
  * (00_Base/src/mapper/CdrMapper.ts), the same mapper used to serve this CDR to the eMSP.
  */
-function cdrFromStoredRow(row: StoredCdrRow): OcpiCdrSent {
+function cdrFromStoredRow (row: StoredCdrRow): OcpiCdrSent {
   const ocpiJson: Record<string, unknown> = {
     country_code: row.countryCode,
     party_id: row.partyId,
@@ -641,7 +641,7 @@ function cdrFromStoredRow(row: StoredCdrRow): OcpiCdrSent {
     credit_reference_id: row.creditReferenceId ?? undefined,
     home_charging_compensation: row.homeChargingCompensation ?? undefined,
     last_updated: row.lastUpdated,
-  };
+  }
 
   return {
     id: row.id,
@@ -655,24 +655,24 @@ function cdrFromStoredRow(row: StoredCdrRow): OcpiCdrSent {
     countryCode: row.countryCode,
     partyId: row.partyId,
     ocpiJson,
-  };
+  }
 }
 
-async function fetchStoredCdrsForPartner(
+async function fetchStoredCdrsForPartner (
   partnerId: number,
 ): Promise<OcpiCdrSent[]> {
   const data = await graphqlRequest<StoredCdrsQueryResult>(
     CPO_STORED_CDRS_QUERY,
     { toTenantPartnerId: partnerId },
-  );
-  return data.Cdrs.map((row) => cdrFromStoredRow(row));
+  )
+  return data.Cdrs.map(row => cdrFromStoredRow(row))
 }
 
 /**
  * Partner detail for CPO view: sessions as mapped live by SessionMapper via OCPI
  * sender GET; CDRs as actually stored in our DB when sent to this partner.
  */
-export async function fetchCpoPartnerDetail(
+export async function fetchCpoPartnerDetail (
   partnerId: number,
 ): Promise<CpoPartnerDetail | null> {
   const [data, identity] = await Promise.all([
@@ -680,14 +680,14 @@ export async function fetchCpoPartnerDetail(
       id: partnerId,
     }),
     fetchPartnerIdentity(partnerId),
-  ]);
+  ])
 
-  const row = data.TenantPartners_by_pk;
+  const row = data.TenantPartners_by_pk
   if (!row) {
-    return null;
+    return null
   }
 
-  const ended = countOf(data.endedTx);
+  const ended = countOf(data.endedTx)
   const partner: PartnerOverview = {
     ...mapIdentity(row, identity ?? undefined),
     ...emptyMetrics(),
@@ -696,20 +696,20 @@ export async function fetchCpoPartnerDetail(
     sessionsSentCount: countOf(data.allTx),
     cdrsSentCount: countOf(row.ToCdrs_aggregate),
     cdrCount: ended,
-  };
+  }
 
-  const cdrsSent = await fetchStoredCdrsForPartner(partnerId);
+  const cdrsSent = await fetchStoredCdrsForPartner(partnerId)
 
   if (!row.Tenant) {
     return {
       partner,
       sessionsSent: [],
       cdrsSent,
-    };
+    }
   }
 
   try {
-    const sessions = await fetchMappedSessionsForPartner(partnerId);
+    const sessions = await fetchMappedSessionsForPartner(partnerId)
 
     return {
       partner,
@@ -717,18 +717,18 @@ export async function fetchCpoPartnerDetail(
         sessionFromOcpi(session, index),
       ),
       cdrsSent,
-    };
+    }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : String(error)
     throw new Error(
       `Could not load mapped sessions via OCPI sender GET: ${message}`,
-    );
+    )
   }
 }
 
 /** Home dashboard: how many partners per OCPI role. */
-export async function fetchPartnerRoleCounts(): Promise<PartnerRoleCounts> {
-  const identities = await fetchPartnerIdentities();
+export async function fetchPartnerRoleCounts (): Promise<PartnerRoleCounts> {
+  const identities = await fetchPartnerIdentities()
 
   const counts: PartnerRoleCounts = {
     total: identities.length,
@@ -736,29 +736,29 @@ export async function fetchPartnerRoleCounts(): Promise<PartnerRoleCounts> {
     emsp: 0,
     hub: 0,
     other: 0,
-  };
+  }
 
   for (const identity of identities) {
     switch (identity.role) {
       case 'CPO': {
-        counts.cpo += 1;
-        break;
+        counts.cpo += 1
+        break
       }
       case 'EMSP': {
-        counts.emsp += 1;
-        break;
+        counts.emsp += 1
+        break
       }
       case 'HUB': {
-        counts.hub += 1;
-        break;
+        counts.hub += 1
+        break
       }
       default: {
-        counts.other += 1;
+        counts.other += 1
       }
     }
   }
 
-  return counts;
+  return counts
 }
 
 const CDR_FINANCIALS_QUERY = `
@@ -782,55 +782,55 @@ const CDR_FINANCIALS_QUERY = `
       totalCost
     }
   }
-`;
+`
 
 interface CdrFinancialsQueryResult {
-  earned: Array<{ currency: string; totalCost: unknown }>;
-  owed: Array<{ currency: string; totalCost: unknown }>;
+  earned: Array<{ currency: string, totalCost: unknown }>
+  owed: Array<{ currency: string, totalCost: unknown }>
 }
 
-function amountOf(totalCost: unknown): number {
+function amountOf (totalCost: unknown): number {
   if (typeof totalCost === 'number') {
-    return totalCost;
+    return totalCost
   }
   if (totalCost != null && typeof totalCost === 'object') {
-    const price = totalCost as { incl_vat?: number | null; excl_vat?: number };
-    return price.incl_vat ?? price.excl_vat ?? 0;
+    const price = totalCost as { incl_vat?: number | null, excl_vat?: number }
+    return price.incl_vat ?? price.excl_vat ?? 0
   }
-  return 0;
+  return 0
 }
 
-function sumByCurrency(
-  rows: Array<{ currency: string; totalCost: unknown }>,
+function sumByCurrency (
+  rows: Array<{ currency: string, totalCost: unknown }>,
 ): CurrencyAmount[] {
-  const totals = new Map<string, number>();
+  const totals = new Map<string, number>()
   for (const row of rows) {
     totals.set(
       row.currency,
       (totals.get(row.currency) ?? 0) + amountOf(row.totalCost),
-    );
+    )
   }
   return [...totals.entries()].map(([currency, amount]) => ({
     currency,
     amount,
-  }));
+  }))
 }
 
 /**
  * Home dashboard: cumulative CDR money earned (sent to eMSPs) vs owed
  * (received from CPOs) within a date range, summed per currency.
  */
-export async function fetchCdrFinancials(
+export async function fetchCdrFinancials (
   from: string,
   to: string,
 ): Promise<CdrFinancials> {
   const data = await graphqlRequest<CdrFinancialsQueryResult>(
     CDR_FINANCIALS_QUERY,
     { from, to },
-  );
+  )
 
   return {
     earned: sumByCurrency(data.earned),
     owed: sumByCurrency(data.owed),
-  };
+  }
 }
