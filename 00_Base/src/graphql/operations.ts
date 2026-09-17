@@ -115,11 +115,11 @@ export type Cdrs_Bool_Exp = {
   countryCode?: InputMaybe<String_Comparison_Exp>;
   partyId?: InputMaybe<String_Comparison_Exp>;
   ocpiCdrId?: InputMaybe<String_Comparison_Exp>;
-  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  fromTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   lastUpdated?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
-  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;
@@ -261,6 +261,11 @@ export type GetCdrsPaginatedQueryVariables = Exact<{
 
 
 export type GetCdrsPaginatedQueryResult = {
+  Cdrs_aggregate: {
+    aggregate?: {
+      count: number
+    } | null
+  },
   Cdrs: Array<{
     id: number,
     ocpiCdrId: string,
@@ -2728,6 +2733,18 @@ export type GetTenantPartnerIdByCountryPartyQueryVariables = Exact<{
 export type GetTenantPartnerIdByCountryPartyQueryResult = {
   TenantPartners: Array<{
     id: number
+  }>
+};
+
+export type GetAllTenantPartnersQueryVariables = Exact<{ [key: string]: never }>;
+
+
+export type GetAllTenantPartnersQueryResult = {
+  TenantPartners: Array<{
+    id: number,
+    countryCode: string,
+    partyId: string,
+    partnerProfileOCPI?: any | null
   }>
 };
 

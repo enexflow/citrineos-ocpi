@@ -1,0 +1,25 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+@layer vuetify-overrides {
+  code,
+  pre,
+  .v-code {
+    font-family: var(--font-mono);
+  }
+
+  .v-application {
+    background: #f0f4f4 !important;
+  }
+
+  .v-theme--dark.v-application {
+    background: #0f1414 !important;
+  }
+
+  .v-list-item--active {
+    background: color-mix(in srgb, #0edaf1 18%, transparent) !important;
+  }
+}
