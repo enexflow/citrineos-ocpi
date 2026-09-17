@@ -18,6 +18,7 @@ export const oidcConfigSchema = z
     audience: z.string().optional(),
     cacheTime: z.number().optional(),
     rateLimit: z.boolean().optional(),
+    requiredRoles: z.string().optional(),
   })
   .optional();
 
