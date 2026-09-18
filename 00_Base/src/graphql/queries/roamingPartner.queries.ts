@@ -9,12 +9,18 @@ export const CREATE_ROAMING_PARTNER = gql`
     $countryCode: String!
     $partyId: String!
     $tenantPartnerId: Int!
+    $name: String!
+    $signatureDate: date!
+    $contractStartDate: date!
   ) {
     insert_RoamingPartners_one(
       object: {
         countryCode: $countryCode
         partyId: $partyId
         tenantPartnerId: $tenantPartnerId
+        name: $name
+        signatureDate: $signatureDate
+        contractStartDate: $contractStartDate
       }
     ) {
       id
