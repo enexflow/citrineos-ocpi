@@ -153,6 +153,11 @@ export class LocationsService {
       ownerTenantPartnerId: { _is_null: true },
       roamingPartnerId: { _is_null: true },
       deletedAt: { _is_null: true },
+      // don't expose OCPI-disabled locations (null = not disabled)
+      _or: [
+        { disableOCPI: { _is_null: true } },
+        { disableOCPI: { _eq: false } },
+      ],
     };
   }
 
@@ -171,7 +176,10 @@ export class LocationsService {
         GetLocationByOcpiIdQueryVariables
       >(GET_LOCATION_BY_OCPID_ID_QUERY, variables);
       // response.Locations is an array, so pick the first
-      if (response.Locations && response.Locations.length > 1) {
+      if (!response.Locations || response.Locations.length === 0) {
+        throw new NotFoundException(`Location ${locationId} not found`);
+      }
+      if (response.Locations.length > 1) {
         this.logger.warn(
           `Multiple locations found for id ${locationId}. Returning the first one. All entries: ${JSON.stringify(response.Locations)}`,
         );
@@ -215,6 +223,11 @@ export class LocationsService {
         GetEvseByIdQueryResult,
         GetEvseByIdQueryVariables
       >(GET_EVSE_BY_ID_QUERY, variables);
+      if (!response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]) {
+        throw new NotFoundException(
+          `Evse ${evseId} not found for location ${locationId}`,
+        );
+      }
       const evse = EvseMapper.fromGraphql(
         response.Locations[0].chargingPool[0] as unknown as ChargingStationDto,
         response.Locations[0].chargingPool[0].evses[0] as EvseDto,
@@ -256,7 +269,13 @@ export class LocationsService {
       >(GET_CONNECTOR_BY_ID_QUERY, variables);
       // Traverse to the Connector object
       if (
-        response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]?.connectors &&
+        !response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]?.connectors?.[0]
+      ) {
+        throw new NotFoundException(
+          `Connector ${connectorId} not found for evse ${evseId} in location ${locationId}`,
+        );
+      }
+      if (
         response.Locations[0].chargingPool[0].evses[0].connectors.length > 1
       ) {
         this.logger.warn(

@@ -79,9 +79,7 @@ export class SessionMapper extends BaseTransactionMapper {
     const locationMap = await this.getLocationDTOsForTransactions([
       transaction as TransactionDto,
     ]);
-    const locationDto = locationMap.values().next().value as
-      | LocationDTO
-      | undefined;
+    const locationDto = locationMap.get(transaction.transactionId as string);
 
     if (!locationDto) {
       throw new Error(`Location ${transaction.locationId} not found`);
