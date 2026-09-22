@@ -134,11 +134,38 @@ export class LocationsService {
     ) as PaginatedLocationResponse;
   }
 
-  async getLocationById(locationId: number): Promise<LocationResponse> {
+  /**
+   * Scopes a Locations query to the requesting party's own, non-roamed
+   * locations, mirroring the filter used by getLocations(). Prevents the
+   * Sender Interface's by-id lookups from returning other tenants'/partners'
+   * locations via the unfiltered `roaming_reader` Hasura role.
+   */
+  private buildOwnLocationWhere(
+    locationId: number,
+    ocpiHeaders: OcpiHeaders,
+  ): Locations_Bool_Exp {
+    return {
+      id: { _eq: locationId },
+      Tenant: {
+        countryCode: { _eq: ocpiHeaders.toCountryCode },
+        partyId: { _eq: ocpiHeaders.toPartyId },
+      },
+      ownerTenantPartnerId: { _is_null: true },
+      roamingPartnerId: { _is_null: true },
+      deletedAt: { _is_null: true },
+    };
+  }
+
+  async getLocationById(
+    locationId: number,
+    ocpiHeaders: OcpiHeaders,
+  ): Promise<LocationResponse> {
     this.logger.debug(`Getting location ${locationId}`);
 
     try {
-      const variables = { id: locationId.toString() };
+      const variables = {
+        where: this.buildOwnLocationWhere(locationId, ocpiHeaders),
+      };
       const response = await this.ocpiGraphqlClient.request<
         GetLocationByOcpiIdQueryResult,
         GetLocationByOcpiIdQueryVariables
@@ -172,6 +199,7 @@ export class LocationsService {
     locationId: number,
     stationId: string,
     evseId: number,
+    ocpiHeaders: OcpiHeaders,
   ): Promise<EvseResponse> {
     this.logger.debug(
       `Getting EVSE ${evseId} from Charging Station ${stationId} in Location ${locationId}`,
@@ -179,7 +207,7 @@ export class LocationsService {
 
     try {
       const variables = {
-        locationId: locationId,
+        locationWhere: this.buildOwnLocationWhere(locationId, ocpiHeaders),
         stationId,
         evseId,
       };
@@ -209,6 +237,7 @@ export class LocationsService {
     stationId: string,
     evseId: number,
     connectorId: number,
+    ocpiHeaders: OcpiHeaders,
   ): Promise<ConnectorResponse> {
     this.logger.debug(
       `Getting Connector ${connectorId} from EVSE ${evseId} in Charging Station ${stationId} in Location ${locationId}`,
@@ -216,7 +245,7 @@ export class LocationsService {
 
     try {
       const variables = {
-        locationId: locationId,
+        locationWhere: this.buildOwnLocationWhere(locationId, ocpiHeaders),
         stationId,
         evseId,
         connectorId,

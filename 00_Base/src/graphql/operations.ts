@@ -38,6 +38,7 @@ export type Authorizations_Set_Input = {
 export type Locations_Bool_Exp = {
   _or?: InputMaybe<Array<Locations_Bool_Exp>>;
   disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
+  id?: InputMaybe<Int_Comparison_Exp>;
   ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
   deletedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
@@ -1273,7 +1274,7 @@ export type GetOurLocationByIdQueryResult = {
 };
 
 export type GetLocationByOcpiIdQueryVariables = Exact<{
-  id: Scalars['String']['input'];
+  where: Locations_Bool_Exp;
 }>;
 
 
@@ -1363,7 +1364,7 @@ export type GetLocationByOcpiIdQueryResult = {
 };
 
 export type GetEvseByIdQueryVariables = Exact<{
-  locationId: Scalars['Int']['input'];
+  locationWhere: Locations_Bool_Exp;
   stationId: Scalars['String']['input'];
   evseId: Scalars['Int']['input'];
 }>;
@@ -1407,7 +1408,7 @@ export type GetEvseByIdQueryResult = {
 };
 
 export type GetConnectorByIdQueryVariables = Exact<{
-  locationId: Scalars['Int']['input'];
+  locationWhere: Locations_Bool_Exp;
   stationId: Scalars['String']['input'];
   evseId: Scalars['Int']['input'];
   connectorId: Scalars['Int']['input'];

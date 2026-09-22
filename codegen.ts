@@ -62,6 +62,7 @@ export type Authorizations_Set_Input = {
   roamingPartnerId?: InputMaybe<Scalars['Int']['input']>;
 };
 export type Locations_Bool_Exp = {
+  id?: InputMaybe<Int_Comparison_Exp>;
   ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
   deletedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
