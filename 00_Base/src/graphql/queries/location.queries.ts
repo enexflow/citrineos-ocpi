@@ -73,6 +73,7 @@ export const GET_OUR_LOCATIONS_QUERY = gql`
           removed
           createdAt
           updatedAt
+          ocpiStatus
           connectors: Connectors {
             id
             stationId
@@ -202,7 +203,7 @@ export const GET_OUR_LOCATION_BY_ID_QUERY = gql`
   }
 `;
 
-export const GET_LOCATION_BY_OCPID_ID_QUERY = gql`
+export const GET_OWN_LOCATION_QUERY = gql`
   query GetLocationByOcpiId($where: Locations_bool_exp!) {
     Locations(where: $where) {
       id
@@ -254,6 +255,7 @@ export const GET_LOCATION_BY_OCPID_ID_QUERY = gql`
           removed
           createdAt
           updatedAt
+          ocpiStatus
           connectors: Connectors {
             id
             stationId
@@ -319,6 +321,7 @@ export const GET_EVSE_BY_ID_QUERY = gql`
         evses: Evses(where: { id: { _eq: $evseId } }) {
           id
           stationId
+          ocpiStatus
           evseTypeId
           evseId
           ocpiUid

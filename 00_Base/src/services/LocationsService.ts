@@ -39,7 +39,7 @@ import type {
 import {
   GET_CONNECTOR_BY_ID_QUERY,
   GET_EVSE_BY_ID_QUERY,
-  GET_LOCATION_BY_OCPID_ID_QUERY,
+  GET_OWN_LOCATION_QUERY,
   GET_OUR_LOCATIONS_QUERY,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
@@ -174,7 +174,7 @@ export class LocationsService {
       const response = await this.ocpiGraphqlClient.request<
         GetLocationByOcpiIdQueryResult,
         GetLocationByOcpiIdQueryVariables
-      >(GET_LOCATION_BY_OCPID_ID_QUERY, variables);
+      >(GET_OWN_LOCATION_QUERY, variables);
       // response.Locations is an array, so pick the first
       if (!response.Locations || response.Locations.length === 0) {
         throw new NotFoundException(`Location ${locationId} not found`);

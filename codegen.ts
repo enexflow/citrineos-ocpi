@@ -50,6 +50,7 @@ export type Scalars = {
   timestamptz: { input: any; output: any; }
   citext: { input: string; output: string; }
   authorization_status: { input: string; output: string; }
+  uuid: { input: string; output: string; }
 };
 export type Authorizations_Set_Input = {
   additionalInfo?: InputMaybe<Scalars['jsonb']['input']>;

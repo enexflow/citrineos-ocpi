@@ -22,8 +22,8 @@ export type Scalars = {
   numeric: { input: any; output: any; }
   timestamptz: { input: any; output: any; }
   citext: { input: string; output: string; }
-  uuid: { input: string; output: string; }
   authorization_status: { input: string; output: string; }
+  uuid: { input: string; output: string; }
 };
 export type Authorizations_Set_Input = {
   additionalInfo?: InputMaybe<Scalars['jsonb']['input']>;
@@ -36,14 +36,14 @@ export type Authorizations_Set_Input = {
   roamingPartnerId?: InputMaybe<Scalars['Int']['input']>;
 };
 export type Locations_Bool_Exp = {
-  _or?: InputMaybe<Array<Locations_Bool_Exp>>;
-  disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   id?: InputMaybe<Int_Comparison_Exp>;
   ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
   deletedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
+  disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
+  _or?: InputMaybe<Array<Locations_Bool_Exp>>;
 };
 export type Boolean_Comparison_Exp = {
   _eq?: InputMaybe<Scalars['Boolean']['input']>;
@@ -120,7 +120,6 @@ export type Cdrs_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   lastUpdated?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
-  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;
@@ -1146,6 +1145,7 @@ export type GetOurLocationsQueryResult = {
         removed?: boolean | null,
         createdAt: any,
         updatedAt: any,
+        ocpiStatus?: string | null,
         connectors: Array<{
           id: number,
           stationId: string,
@@ -1329,6 +1329,7 @@ export type GetLocationByOcpiIdQueryResult = {
         removed?: boolean | null,
         createdAt: any,
         updatedAt: any,
+        ocpiStatus?: string | null,
         connectors: Array<{
           id: number,
           stationId: string,
@@ -1395,6 +1396,7 @@ export type GetEvseByIdQueryResult = {
       evses: Array<{
         id: number,
         stationId?: string | null,
+        ocpiStatus?: string | null,
         evseTypeId?: number | null,
         evseId?: string | null,
         ocpiUid?: string | null,
