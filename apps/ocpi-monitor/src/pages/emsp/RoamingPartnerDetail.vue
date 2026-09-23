@@ -11,9 +11,9 @@ SPDX-License-Identifier: Apache-2.0
         color="#3687c9"
         prepend-icon="mdi-arrow-left"
         variant="text"
-        @click="router.push({ name: 'emsp-partners' })"
+        @click="router.push({ name: 'emsp-hub' })"
       >
-        Back to partners
+        Back to hub
       </v-btn>
     </div>
 
@@ -28,19 +28,19 @@ SPDX-License-Identifier: Apache-2.0
     </v-alert>
 
     <div v-if="loading" class="py-12 text-center" style="color: #587474">
-      Loading partner…
+      Loading roaming partner…
     </div>
 
     <template v-else-if="detail">
       <div class="mb-6 d-flex flex-wrap align-end justify-space-between ga-3">
         <div>
-          <div class="overview-kicker mb-2">Received &amp; stored</div>
+          <div class="overview-kicker mb-2">Roaming partner · via hub</div>
           <h1 class="text-h4 font-weight-bold mb-1" style="color: #153651">
-            {{ detail.partner.name }}
+            {{ detail.partner.name ?? `${detail.partner.countryCode}/${detail.partner.partyId}` }}
           </h1>
           <p class="text-body-1 mb-0" style="color: #587474">
             {{ detail.partner.countryCode }}/{{ detail.partner.partyId }} ·
-            {{ detail.partner.role }} · id {{ detail.partner.id }}
+            roaming id {{ detail.partner.id }}
           </p>
         </div>
 
@@ -87,17 +87,17 @@ SPDX-License-Identifier: Apache-2.0
         <v-tab value="locations">
           Locations ({{ detail.locations.length }})
         </v-tab>
+        <v-tab value="tariffs"> Tariffs ({{ detail.tariffs.length }}) </v-tab>
         <v-tab value="sessions">
           Sessions ({{ detail.sessions.length }})
         </v-tab>
-        <v-tab value="cdrs"> CDRs ({{ detail.cdrs.length }}) </v-tab>
+        <v-tab value="cdrs"> CDRs received ({{ detail.cdrs.length }}) </v-tab>
       </v-tabs>
 
       <v-tabs-window v-model="tab">
         <v-tabs-window-item value="locations">
           <p class="text-body-2 mb-3" style="color: #587474">
-            Locations pushed to us by this CPO/HUB partner
-            (Locations.ownerTenantPartnerId).
+            Locations pushed to us by this roaming partner (Locations.roamingPartnerId).
           </p>
           <LocationsMap class="mb-4" :locations="detail.locations" />
           <v-data-table
@@ -118,7 +118,38 @@ SPDX-License-Identifier: Apache-2.0
             </template>
             <template #no-data>
               <div class="py-8 text-center text-medium-emphasis">
-                No locations received from this partner yet.
+                No locations received from this roaming partner yet.
+              </div>
+            </template>
+          </v-data-table>
+        </v-tabs-window-item>
+
+        <v-tabs-window-item value="tariffs">
+          <p class="text-body-2 mb-3" style="color: #587474">
+            Tariffs pushed to us by this roaming partner (Tariffs.roamingPartnerId).
+          </p>
+          <v-data-table
+            class="partners-table rounded-lg"
+            :headers="tariffHeaders"
+            hover
+            item-value="id"
+            :items="detail.tariffs"
+          >
+            <template #item.ocpiTariffId="{ item }">
+              <code class="id-code">{{ item.ocpiTariffId ?? '—' }}</code>
+            </template>
+            <template #item.taxRate="{ item }">
+              {{ item.taxRate == null ? '—' : `${formatNumber(item.taxRate)}%` }}
+            </template>
+            <template #item.startDateTime="{ item }">
+              {{ formatDate(item.startDateTime) }}
+            </template>
+            <template #item.endDateTime="{ item }">
+              {{ formatDate(item.endDateTime) }}
+            </template>
+            <template #no-data>
+              <div class="py-8 text-center text-medium-emphasis">
+                No tariffs received from this roaming partner yet.
               </div>
             </template>
           </v-data-table>
@@ -126,8 +157,7 @@ SPDX-License-Identifier: Apache-2.0
 
         <v-tabs-window-item value="sessions">
           <p class="text-body-2 mb-3" style="color: #587474">
-            Sessions received and stored for this partner
-            (Sessions.tenantPartnerId).
+            Sessions received and stored for this roaming partner (Sessions.roamingPartnerId).
           </p>
           <v-data-table
             class="partners-table rounded-lg"
@@ -140,9 +170,7 @@ SPDX-License-Identifier: Apache-2.0
               <code class="id-code">{{ item.ocpiSessionId }}</code>
             </template>
             <template #item.status="{ item }">
-              <span class="role-pill role-pill--hub">{{
-                item.status ?? '—'
-              }}</span>
+              <span class="role-pill role-pill--hub">{{ item.status ?? '—' }}</span>
             </template>
             <template #item.kwh="{ item }">
               {{ formatNumber(item.kwh) }}
@@ -158,7 +186,7 @@ SPDX-License-Identifier: Apache-2.0
             </template>
             <template #no-data>
               <div class="py-8 text-center text-medium-emphasis">
-                No sessions received from this partner yet.
+                No sessions received from this roaming partner yet.
               </div>
             </template>
           </v-data-table>
@@ -166,8 +194,8 @@ SPDX-License-Identifier: Apache-2.0
 
         <v-tabs-window-item value="cdrs">
           <p class="text-body-2 mb-3" style="color: #587474">
-            CDRs received from this partner (Cdrs.fromTenantPartnerId) — money
-            we owe them.
+            CDRs received from this roaming partner (Cdrs.roamingPartnerId) —
+            money we owe them.
           </p>
           <v-data-table
             class="partners-table rounded-lg"
@@ -196,7 +224,7 @@ SPDX-License-Identifier: Apache-2.0
             </template>
             <template #no-data>
               <div class="py-8 text-center text-medium-emphasis">
-                No CDRs received from this partner yet.
+                No CDRs received from this roaming partner yet.
               </div>
             </template>
           </v-data-table>
@@ -207,15 +235,15 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
-  import type { EmspPartnerDetail } from '@/types/partner'
+  import type { RoamingCpoDetail } from '@/types/partner'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { fetchEmspPartnerDetail } from '@/api/partners'
+  import { fetchRoamingCpoDetail } from '@/api/hub'
   import LocationsMap from '@/components/LocationsMap.vue'
 
   const route = useRoute()
   const router = useRouter()
-  const detail = ref<EmspPartnerDetail | null>(null)
+  const detail = ref<RoamingCpoDetail | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
   const tab = ref('locations')
@@ -226,6 +254,14 @@ SPDX-License-Identifier: Apache-2.0
     { title: 'Address', key: 'address', sortable: false },
     { title: 'EVSEs', key: 'evseCount' },
     { title: 'Last updated', key: 'lastUpdated' },
+  ]
+
+  const tariffHeaders = [
+    { title: 'OCPI tariff id', key: 'ocpiTariffId' },
+    { title: 'Currency', key: 'currency' },
+    { title: 'Tax rate', key: 'taxRate' },
+    { title: 'Start', key: 'startDateTime' },
+    { title: 'End', key: 'endDateTime' },
   ]
 
   const sessionHeaders = [
@@ -251,17 +287,18 @@ SPDX-License-Identifier: Apache-2.0
     if (!d) return []
     return [
       { label: 'Locations', value: d.locations.length },
+      { label: 'Tariffs', value: d.tariffs.length },
       { label: 'Sessions', value: d.sessions.length },
       { label: 'CDRs', value: d.cdrs.length },
       {
         label: 'Total kWh',
         value: formatNumber(d.totalKwh),
-        hint: 'Sum of kwh across all sessions received and stored for this partner (Sessions_aggregate.sum.kwh).',
+        hint: 'Sum of kwh across all sessions received and stored for this roaming partner.',
       },
       {
         label: 'Total owed',
         value: totalOwed.value,
-        hint: 'Sum of CDR totalCost (incl. VAT when available) across all currencies received from this partner — money we owe them.',
+        hint: 'Sum of CDR totalCost (incl. VAT when available) across all currencies received from this roaming partner — money we owe them.',
       },
     ]
   })
@@ -325,7 +362,7 @@ SPDX-License-Identifier: Apache-2.0
   async function load () {
     const id = Number(route.params.id)
     if (!Number.isFinite(id)) {
-      error.value = 'Invalid partner id'
+      error.value = 'Invalid roaming partner id'
       detail.value = null
       return
     }
@@ -333,9 +370,9 @@ SPDX-License-Identifier: Apache-2.0
     loading.value = true
     error.value = null
     try {
-      detail.value = await fetchEmspPartnerDetail(id)
+      detail.value = await fetchRoamingCpoDetail(id)
       if (!detail.value) {
-        error.value = `Partner ${id} not found`
+        error.value = `Roaming partner ${id} not found`
       }
     } catch (error_) {
       detail.value = null
@@ -354,8 +391,8 @@ SPDX-License-Identifier: Apache-2.0
   display: inline-block;
   padding: 0.2rem 0.65rem;
   border-radius: 999px;
-  background: #dadff1;
-  color: #293a70;
+  background: #cff8fc;
+  color: #065760;
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;

@@ -291,7 +291,7 @@ SPDX-License-Identifier: Apache-2.0
     {
       key: 'hub',
       label: 'HUB',
-      hint: 'Used by both CPO and eMSP',
+      hint: 'See eMSP > Hub or CPO > Hub for roaming partners',
       value: counts.value?.hub ?? 0,
       icon: 'mdi-lan',
       to: undefined,

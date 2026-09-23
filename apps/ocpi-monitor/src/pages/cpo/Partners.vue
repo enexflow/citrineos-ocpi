@@ -6,8 +6,8 @@ SPDX-License-Identifier: Apache-2.0
 
 <template>
   <PartnersTable
-    description="eMSP and HUB partners — tokens and transactions we map to OCPI sessions/CDRs (sender path). Open a partner to see SessionMapper/CdrMapper JSON via OCPI GET."
-    heading="CPO partners"
+    description="Direct (peer-to-peer) eMSP partners — tokens and transactions we map to OCPI sessions/CDRs (sender path). Open a partner to see SessionMapper/CdrMapper JSON via OCPI GET. Hub-relayed partners are under Hub."
+    heading="Peer partners"
     :loader="fetchCpoPartners"
     view="cpo"
   />

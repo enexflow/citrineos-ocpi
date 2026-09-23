@@ -6,8 +6,8 @@ SPDX-License-Identifier: Apache-2.0
 
 <template>
   <PartnersTable
-    description="CPO and HUB partners that push locations and tariffs into this eMSP."
-    heading="eMSP partners"
+    description="Direct (peer-to-peer) CPO partners that push locations and tariffs into this eMSP. Hub-relayed partners are under Hub."
+    heading="Peer-to-peer partners"
     :loader="fetchEmspPartners"
     view="emsp"
   />

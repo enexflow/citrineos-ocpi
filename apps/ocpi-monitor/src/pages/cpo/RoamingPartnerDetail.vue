@@ -11,9 +11,9 @@ SPDX-License-Identifier: Apache-2.0
         color="#3687c9"
         prepend-icon="mdi-arrow-left"
         variant="text"
-        @click="router.push({ name: 'emsp-partners' })"
+        @click="router.push({ name: 'cpo-hub' })"
       >
-        Back to partners
+        Back to hub
       </v-btn>
     </div>
 
@@ -28,19 +28,19 @@ SPDX-License-Identifier: Apache-2.0
     </v-alert>
 
     <div v-if="loading" class="py-12 text-center" style="color: #587474">
-      Loading partner…
+      Loading roaming partner…
     </div>
 
     <template v-else-if="detail">
       <div class="mb-6 d-flex flex-wrap align-end justify-space-between ga-3">
         <div>
-          <div class="overview-kicker mb-2">Received &amp; stored</div>
+          <div class="overview-kicker mb-2">Roaming partner · via hub</div>
           <h1 class="text-h4 font-weight-bold mb-1" style="color: #153651">
-            {{ detail.partner.name }}
+            {{ detail.partner.name ?? `${detail.partner.countryCode}/${detail.partner.partyId}` }}
           </h1>
           <p class="text-body-1 mb-0" style="color: #587474">
             {{ detail.partner.countryCode }}/{{ detail.partner.partyId }} ·
-            {{ detail.partner.role }} · id {{ detail.partner.id }}
+            roaming id {{ detail.partner.id }}
           </p>
         </div>
 
@@ -83,72 +83,74 @@ SPDX-License-Identifier: Apache-2.0
         </v-col>
       </v-row>
 
+      <v-alert class="mb-4" density="comfortable" type="info" variant="tonal">
+        Tokens are received data — this roaming partner registered them with us
+        (Authorizations.roamingPartnerId). Sessions/CDRs are sent data, from
+        the hub's own OCPI sender GET (there's no separate connection per
+        roaming partner), filtered to this partner's country_code/party_id
+        afterward.
+      </v-alert>
+
       <v-tabs v-model="tab" class="mb-4" color="#3687c9">
-        <v-tab value="locations">
-          Locations ({{ detail.locations.length }})
+        <v-tab value="tokens">
+          Tokens · received ({{ detail.tokens.length }})
         </v-tab>
         <v-tab value="sessions">
-          Sessions ({{ detail.sessions.length }})
+          Sessions · sent ({{ detail.sessionsSent.length }})
         </v-tab>
-        <v-tab value="cdrs"> CDRs ({{ detail.cdrs.length }}) </v-tab>
+        <v-tab value="cdrs">
+          CDRs · sent ({{ detail.cdrsSent.length }})
+        </v-tab>
       </v-tabs>
 
       <v-tabs-window v-model="tab">
-        <v-tabs-window-item value="locations">
-          <p class="text-body-2 mb-3" style="color: #587474">
-            Locations pushed to us by this CPO/HUB partner
-            (Locations.ownerTenantPartnerId).
-          </p>
-          <LocationsMap class="mb-4" :locations="detail.locations" />
+        <v-tabs-window-item value="tokens">
           <v-data-table
             class="partners-table rounded-lg"
-            :headers="locationHeaders"
+            :headers="tokenHeaders"
             hover
             item-value="id"
-            :items="detail.locations"
+            :items="detail.tokens"
           >
-            <template #item.ocpiId="{ item }">
-              <code class="id-code">{{ item.ocpiId }}</code>
+            <template #item.idToken="{ item }">
+              <code class="id-code">{{ item.idToken }}</code>
             </template>
-            <template #item.address="{ item }">
-              {{ item.address }}, {{ item.city }} ({{ item.country }})
+            <template #item.status="{ item }">
+              <span class="role-pill role-pill--hub">{{ item.status }}</span>
             </template>
-            <template #item.lastUpdated="{ item }">
-              {{ formatDate(item.lastUpdated) }}
+            <template #item.createdAt="{ item }">
+              {{ formatDate(item.createdAt) }}
+            </template>
+            <template #item.updatedAt="{ item }">
+              {{ formatDate(item.updatedAt) }}
             </template>
             <template #no-data>
               <div class="py-8 text-center text-medium-emphasis">
-                No locations received from this partner yet.
+                No tokens registered by this roaming partner yet.
               </div>
             </template>
           </v-data-table>
         </v-tabs-window-item>
 
         <v-tabs-window-item value="sessions">
-          <p class="text-body-2 mb-3" style="color: #587474">
-            Sessions received and stored for this partner
-            (Sessions.tenantPartnerId).
-          </p>
           <v-data-table
             class="partners-table rounded-lg"
             :headers="sessionHeaders"
             hover
             item-value="id"
-            :items="detail.sessions"
+            :items="detail.sessionsSent"
           >
             <template #item.ocpiSessionId="{ item }">
               <code class="id-code">{{ item.ocpiSessionId }}</code>
             </template>
             <template #item.status="{ item }">
-              <span class="role-pill role-pill--hub">{{
-                item.status ?? '—'
-              }}</span>
+              <span class="role-pill role-pill--hub">{{ item.status ?? '—' }}</span>
             </template>
             <template #item.kwh="{ item }">
               {{ formatNumber(item.kwh) }}
             </template>
             <template #item.totalCost="{ item }">
-              {{ formatCost(item.totalCost, item.currency) }}
+              {{ formatCost(item.totalCost) }}
             </template>
             <template #item.startDateTime="{ item }">
               {{ formatDate(item.startDateTime) }}
@@ -156,25 +158,31 @@ SPDX-License-Identifier: Apache-2.0
             <template #item.endDateTime="{ item }">
               {{ formatDate(item.endDateTime) }}
             </template>
+            <template #item.actions="{ item }">
+              <v-btn
+                color="#3687c9"
+                size="small"
+                variant="tonal"
+                @click="openJson('Session', item.ocpiSessionId, item.ocpiJson)"
+              >
+                View JSON
+              </v-btn>
+            </template>
             <template #no-data>
               <div class="py-8 text-center text-medium-emphasis">
-                No sessions received from this partner yet.
+                No OCPI sessions matched for this roaming partner.
               </div>
             </template>
           </v-data-table>
         </v-tabs-window-item>
 
         <v-tabs-window-item value="cdrs">
-          <p class="text-body-2 mb-3" style="color: #587474">
-            CDRs received from this partner (Cdrs.fromTenantPartnerId) — money
-            we owe them.
-          </p>
           <v-data-table
             class="partners-table rounded-lg"
             :headers="cdrHeaders"
             hover
             item-value="id"
-            :items="detail.cdrs"
+            :items="detail.cdrsSent"
           >
             <template #item.ocpiCdrId="{ item }">
               <code class="id-code">{{ item.ocpiCdrId }}</code>
@@ -186,7 +194,7 @@ SPDX-License-Identifier: Apache-2.0
               {{ formatNumber(item.totalEnergy) }}
             </template>
             <template #item.totalCost="{ item }">
-              {{ formatCost(item.totalCost, item.currency) }}
+              {{ formatCost(item.totalCost) }}
             </template>
             <template #item.startDateTime="{ item }">
               {{ formatDate(item.startDateTime) }}
@@ -194,38 +202,85 @@ SPDX-License-Identifier: Apache-2.0
             <template #item.endDateTime="{ item }">
               {{ formatDate(item.endDateTime) }}
             </template>
+            <template #item.actions="{ item }">
+              <v-btn
+                color="#3687c9"
+                size="small"
+                variant="tonal"
+                @click="openJson('CDR', item.ocpiCdrId, item.ocpiJson)"
+              >
+                View JSON
+              </v-btn>
+            </template>
             <template #no-data>
               <div class="py-8 text-center text-medium-emphasis">
-                No CDRs received from this partner yet.
+                No CDRs stored for this roaming partner yet.
               </div>
             </template>
           </v-data-table>
         </v-tabs-window-item>
       </v-tabs-window>
     </template>
+
+    <v-dialog v-model="jsonDialog" max-width="840" scrollable>
+      <v-card>
+        <v-card-title class="d-flex align-center justify-space-between ga-3 pr-2">
+          <div>
+            <div class="text-subtitle-1 font-weight-bold">{{ jsonTitle }}</div>
+            <div class="text-caption" style="color: #587474">
+              Final OCPI mapping (wire format)
+            </div>
+          </div>
+          <div class="d-flex ga-1">
+            <v-btn
+              color="#3687c9"
+              prepend-icon="mdi-content-copy"
+              size="small"
+              variant="tonal"
+              @click="copyJson"
+            >
+              {{ copied ? 'Copied' : 'Copy' }}
+            </v-btn>
+            <v-btn icon="mdi-close" variant="text" @click="jsonDialog = false" />
+          </div>
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="pa-0">
+          <pre class="json-viewer">{{ jsonText }}</pre>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script lang="ts" setup>
-  import type { EmspPartnerDetail } from '@/types/partner'
+  import type { RoamingEmspDetail } from '@/types/partner'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { fetchEmspPartnerDetail } from '@/api/partners'
-  import LocationsMap from '@/components/LocationsMap.vue'
+  import { fetchRoamingEmspDetail } from '@/api/hub'
+  import { prettyOcpiJson } from '@/mapper/ocpiPayload'
 
   const route = useRoute()
   const router = useRouter()
-  const detail = ref<EmspPartnerDetail | null>(null)
+  const detail = ref<RoamingEmspDetail | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const tab = ref('locations')
+  const tab = ref('tokens')
 
-  const locationHeaders = [
-    { title: 'OCPI location id', key: 'ocpiId' },
-    { title: 'Name', key: 'name' },
-    { title: 'Address', key: 'address', sortable: false },
-    { title: 'EVSEs', key: 'evseCount' },
-    { title: 'Last updated', key: 'lastUpdated' },
+  const jsonDialog = ref(false)
+  const jsonTitle = ref('')
+  const jsonPayload = ref<Record<string, unknown>>({})
+  const copied = ref(false)
+
+  const jsonText = computed(() => prettyOcpiJson(jsonPayload.value))
+
+  const tokenHeaders = [
+    { title: 'ID token', key: 'idToken' },
+    { title: 'Type', key: 'idTokenType' },
+    { title: 'Status', key: 'status' },
+    { title: 'Auth method', key: 'ocpiAuthMethod' },
+    { title: 'Created', key: 'createdAt' },
+    { title: 'Updated', key: 'updatedAt' },
   ]
 
   const sessionHeaders = [
@@ -235,6 +290,7 @@ SPDX-License-Identifier: Apache-2.0
     { title: 'End', key: 'endDateTime' },
     { title: 'kWh', key: 'kwh' },
     { title: 'Cost', key: 'totalCost' },
+    { title: '', key: 'actions', sortable: false },
   ]
 
   const cdrHeaders = [
@@ -244,52 +300,31 @@ SPDX-License-Identifier: Apache-2.0
     { title: 'End', key: 'endDateTime' },
     { title: 'Energy', key: 'totalEnergy' },
     { title: 'Cost', key: 'totalCost' },
+    { title: '', key: 'actions', sortable: false },
   ]
 
   const stats = computed(() => {
     const d = detail.value
     if (!d) return []
     return [
-      { label: 'Locations', value: d.locations.length },
-      { label: 'Sessions', value: d.sessions.length },
-      { label: 'CDRs', value: d.cdrs.length },
       {
-        label: 'Total kWh',
-        value: formatNumber(d.totalKwh),
-        hint: 'Sum of kwh across all sessions received and stored for this partner (Sessions_aggregate.sum.kwh).',
+        label: 'Tokens',
+        value: d.tokenCount,
+        hint: 'Tokens this roaming partner has registered with us — received data (Authorizations.roamingPartnerId).',
       },
       {
-        label: 'Total owed',
-        value: totalOwed.value,
-        hint: 'Sum of CDR totalCost (incl. VAT when available) across all currencies received from this partner — money we owe them.',
+        label: 'Tx ended',
+        value: d.sessionCount,
+        hint: 'Transactions for this roaming partner that have finished charging (endTime set).',
+      },
+      { label: 'CDRs sent', value: d.cdrsSent.length },
+      {
+        label: 'Mapped sessions',
+        value: d.sessionsSent.length,
+        hint: 'Sessions from the hub sender GET, filtered to this roaming partner — can be lower than "Tx ended" if the mapper skips a transaction or the OCPI payload uses a different country_code/party_id.',
       },
     ]
   })
-
-  const totalOwed = computed(() => {
-    const d = detail.value
-    if (!d) return '—'
-    const byCurrency = new Map<string, number>()
-    for (const cdr of d.cdrs) {
-      byCurrency.set(
-        cdr.currency,
-        (byCurrency.get(cdr.currency) ?? 0) + amountOf(cdr.totalCost),
-      )
-    }
-    if (byCurrency.size === 0) return '—'
-    return [...byCurrency.entries()]
-      .map(([currency, amount]) => `${formatNumber(amount)} ${currency}`)
-      .join(', ')
-  })
-
-  function amountOf (totalCost: unknown): number {
-    if (typeof totalCost === 'number') return totalCost
-    if (totalCost != null && typeof totalCost === 'object') {
-      const price = totalCost as { incl_vat?: number | null, excl_vat?: number }
-      return price.incl_vat ?? price.excl_vat ?? 0
-    }
-    return 0
-  }
 
   function formatDate (value: string | null) {
     if (!value) return '—'
@@ -305,14 +340,12 @@ SPDX-License-Identifier: Apache-2.0
     return value.toLocaleString(undefined, { maximumFractionDigits: 3 })
   }
 
-  function formatCost (value: unknown, currency: string) {
+  function formatCost (value: unknown) {
     if (value == null) return '—'
-    if (typeof value === 'number') return `${formatNumber(value)} ${currency}`
+    if (typeof value === 'number') return formatNumber(value)
     if (typeof value === 'object' && value !== null && 'incl_vat' in value) {
       const incl = (value as { incl_vat?: number }).incl_vat
-      return incl == null
-        ? JSON.stringify(value)
-        : `${formatNumber(incl)} ${currency}`
+      return incl == null ? JSON.stringify(value) : formatNumber(incl)
     }
     if (typeof value === 'string') return value
     try {
@@ -322,10 +355,29 @@ SPDX-License-Identifier: Apache-2.0
     }
   }
 
+  function openJson (kind: string, id: string, payload: Record<string, unknown>) {
+    jsonTitle.value = `${kind} · ${id}`
+    jsonPayload.value = payload
+    copied.value = false
+    jsonDialog.value = true
+  }
+
+  async function copyJson () {
+    try {
+      await navigator.clipboard.writeText(jsonText.value)
+      copied.value = true
+      setTimeout(() => {
+        copied.value = false
+      }, 1500)
+    } catch {
+      copied.value = false
+    }
+  }
+
   async function load () {
     const id = Number(route.params.id)
     if (!Number.isFinite(id)) {
-      error.value = 'Invalid partner id'
+      error.value = 'Invalid roaming partner id'
       detail.value = null
       return
     }
@@ -333,9 +385,9 @@ SPDX-License-Identifier: Apache-2.0
     loading.value = true
     error.value = null
     try {
-      detail.value = await fetchEmspPartnerDetail(id)
+      detail.value = await fetchRoamingEmspDetail(id)
       if (!detail.value) {
-        error.value = `Partner ${id} not found`
+        error.value = `Roaming partner ${id} not found`
       }
     } catch (error_) {
       detail.value = null
@@ -417,5 +469,18 @@ SPDX-License-Identifier: Apache-2.0
 .role-pill--hub {
   background: #dde3ee;
   color: #324467;
+}
+
+.json-viewer {
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  max-height: 70vh;
+  overflow: auto;
+  background: #0b1b28;
+  color: #cff8fc;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre;
 }
 </style>

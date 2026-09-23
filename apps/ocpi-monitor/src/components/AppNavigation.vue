@@ -59,8 +59,16 @@ SPDX-License-Identifier: Apache-2.0
           base-color="#aecfea"
           prepend-icon="mdi-account-group-outline"
           rounded="lg"
-          title="Partners"
+          title="Peer-to-peer"
           :to="{ name: 'emsp-partners' }"
+        />
+
+        <v-list-item
+          base-color="#aecfea"
+          prepend-icon="mdi-lan"
+          rounded="lg"
+          title="Hub"
+          :to="{ name: 'emsp-hub' }"
         />
       </v-list-group>
 
@@ -79,8 +87,16 @@ SPDX-License-Identifier: Apache-2.0
           base-color="#aecfea"
           prepend-icon="mdi-account-group-outline"
           rounded="lg"
-          title="Partners"
+          title="Peer partners"
           :to="{ name: 'cpo-partners' }"
+        />
+
+        <v-list-item
+          base-color="#aecfea"
+          prepend-icon="mdi-lan"
+          rounded="lg"
+          title="Hub"
+          :to="{ name: 'cpo-hub' }"
         />
 
         <v-list-item

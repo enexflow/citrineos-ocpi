@@ -23,11 +23,11 @@ import {
   type PartnerIdentity,
 } from './partnerIdentity'
 
-interface AggregateCount {
+export interface AggregateCount {
   aggregate: { count: number } | null
 }
 
-function countOf (agg: AggregateCount | undefined): number {
+export function countOf (agg: AggregateCount | undefined): number {
   return agg?.aggregate?.count ?? 0
 }
 
@@ -73,7 +73,7 @@ function emptyMetrics (): Pick<
   }
 }
 
-function iso (value: unknown): string | null {
+export function iso (value: unknown): string | null {
   if (value == null) {
     return null
   }
@@ -84,7 +84,7 @@ function iso (value: unknown): string | null {
   }
 }
 
-function num (value: unknown): number | null {
+export function num (value: unknown): number | null {
   if (value == null || value === '') {
     return null
   }
@@ -133,7 +133,9 @@ interface EmspPartnersQueryResult {
 }
 
 /**
- * EMSP view: partners that send us locations/tariffs (CPO and HUB).
+ * EMSP view: direct (peer-to-peer) CPO partners only — a CPO connection
+ * with no hub in between. HUB-role partners have their own view/api/hub.ts,
+ * since a hub relays many roaming CPOs behind a single connection.
  * Sessions/CDRs here are received rows stored under tenantPartnerId.
  */
 export async function fetchEmspPartners (): Promise<PartnerOverview[]> {
@@ -161,7 +163,7 @@ export async function fetchEmspPartners (): Promise<PartnerOverview[]> {
     tariffCount: countOf(row.Tariffs_aggregate),
     sessionCount: countOf(row.Sessions_aggregate),
     cdrCount: countOf(row.FromCdrs_aggregate),
-  })).filter(partner => partner.role === 'CPO' || partner.role === 'HUB')
+  })).filter(partner => partner.role === 'CPO')
 }
 
 const EMSP_PARTNER_DETAIL_QUERY = `
@@ -418,7 +420,9 @@ function buildCpoTransactionCountsQuery (partnerIds: number[]): string {
 type CpoTransactionCountsQueryResult = Record<string, AggregateCount>
 
 /**
- * CPO view: EMSP/HUB partners — tokens + transactions we map/send as OCPI sessions/CDRs.
+ * CPO view: direct (peer-to-peer) eMSP partners only — an eMSP connection
+ * with no hub in between. HUB-role partners have their own view/api/hub.ts.
+ * Tokens + transactions we map/send as OCPI sessions/CDRs.
  */
 export async function fetchCpoPartners (): Promise<PartnerOverview[]> {
   const [data, identities] = await Promise.all([
@@ -450,7 +454,7 @@ export async function fetchCpoPartners (): Promise<PartnerOverview[]> {
       cdrsSentCount: countOf(row.ToCdrs_aggregate),
       cdrCount: ended,
     }
-  }).filter(partner => partner.role === 'EMSP' || partner.role === 'HUB')
+  }).filter(partner => partner.role === 'EMSP')
 }
 
 const CPO_PARTNER_DETAIL_QUERY = `
@@ -507,7 +511,7 @@ interface CpoPartnerDetailQueryResult {
   endedTx: AggregateCount
 }
 
-function sessionFromOcpi (
+export function sessionFromOcpi (
   payload: Record<string, unknown>,
   index: number,
 ): OcpiSessionSent {
@@ -567,7 +571,7 @@ const CPO_STORED_CDRS_QUERY = `
   }
 `
 
-interface StoredCdrRow {
+export interface StoredCdrRow {
   id: number
   ocpiCdrId: string
   countryCode: string
@@ -609,7 +613,7 @@ interface StoredCdrsQueryResult {
  * Rebuild the OCPI-wire CDR shape from a stored row — mirrors CdrMapper.mapCdrReceiver
  * (00_Base/src/mapper/CdrMapper.ts), the same mapper used to serve this CDR to the eMSP.
  */
-function cdrFromStoredRow (row: StoredCdrRow): OcpiCdrSent {
+export function cdrFromStoredRow (row: StoredCdrRow): OcpiCdrSent {
   const ocpiJson: Record<string, unknown> = {
     country_code: row.countryCode,
     party_id: row.partyId,
@@ -789,7 +793,7 @@ interface CdrFinancialsQueryResult {
   owed: Array<{ currency: string, totalCost: unknown }>
 }
 
-function amountOf (totalCost: unknown): number {
+export function amountOf (totalCost: unknown): number {
   if (typeof totalCost === 'number') {
     return totalCost
   }
