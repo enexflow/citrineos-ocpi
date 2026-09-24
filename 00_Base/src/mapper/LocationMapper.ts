@@ -94,8 +94,8 @@ export class LocationMapper {
       }),
       country: location.country,
       coordinates: {
-        latitude: location.coordinates.coordinates[0].toString(),
-        longitude: location.coordinates.coordinates[1].toString(),
+        longitude: location.coordinates.coordinates[0].toString(),
+        latitude: location.coordinates.coordinates[1].toString(),
       },
       time_zone: location.timeZone,
       evses: location.chargingPool
@@ -294,6 +294,29 @@ export class LocationMapper {
 }
 
 export class EvseMapper {
+  // The Evse Status is determined by the status of its connectors.
+  // If the OCPI status is PLANNED or REMOVED, we return that status directly. Otherwise, we map the status based on the connectors.
+  // the OCPI status has no impact in our system, this way we can remove an EVSE from the OCPI system but still have it in our system if it has connectors that are still active.
+  private static resolveOurEvseStatus(
+    ocpiStatus: string | null | undefined,
+    connectors: ConnectorDTO[] | undefined,
+    rawConnectors: ConnectorDto[],
+  ): EvseStatus {
+    if (
+      ocpiStatus === EvseStatus.PLANNED ||
+      ocpiStatus === EvseStatus.REMOVED
+    ) {
+      return ocpiStatus as EvseStatus;
+    }
+    return connectors
+      ? EvseMapper.mapEvseStatusFromConnectors(
+          rawConnectors.filter((c) =>
+            connectors.some((con) => con!.id === c.id!.toString()),
+          ),
+        )
+      : EvseStatus.UNKNOWN;
+  }
+
   static fromGraphql(
     station: ChargingStationDto,
     evse: EvseDto,
@@ -315,13 +338,11 @@ export class EvseMapper {
     return {
       uid: UID_FORMAT(station.id, evse.evseTypeId!),
       evse_id: evse.evseId,
-      status: connectors
-        ? EvseMapper.mapEvseStatusFromConnectors(
-            evse.connectors!.filter((c) =>
-              connectors.some((con) => con!.id === c.id!.toString()),
-            ),
-          )
-        : EvseStatus.UNKNOWN,
+      status: EvseMapper.resolveOurEvseStatus(
+        evse.ocpiStatus,
+        connectors,
+        evse.connectors!,
+      ),
       capabilities: station.capabilities
         ?.map((c) => EvseMapper.mapEvseCapabilities(c))
         .filter((c) => c !== null),

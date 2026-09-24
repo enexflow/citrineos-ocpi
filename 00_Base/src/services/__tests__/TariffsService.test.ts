@@ -71,44 +71,6 @@ describe('TariffsService', () => {
     service = new TariffsService(mockGraphqlClient);
   });
 
-  describe('getTariffByKey', () => {
-    it('should return a mapped TariffDTO when tariff is found', async () => {
-      mockGraphqlClient.request.mockResolvedValue({
-        Tariffs: [mockCoreTariff],
-      });
-
-      const result = await service.getTariffByKey({
-        id: 1,
-        countryCode: 'FR',
-        partyId: 'HYX',
-      });
-
-      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
-        GET_TARIFF_BY_KEY_QUERY,
-        { id: 1, countryCode: 'FR', partyId: 'HYX' },
-      );
-      expect(result).toBeDefined();
-      expect(result!.id).toBe('1');
-      expect(result!.currency).toBe('EUR');
-      expect(result!.country_code).toBe('FR');
-      expect(result!.party_id).toBe('HYX');
-    });
-
-    it('should return undefined when tariff is not found', async () => {
-      mockGraphqlClient.request.mockResolvedValue({
-        Tariffs: [],
-      });
-
-      const result = await service.getTariffByKey({
-        id: 999,
-        countryCode: 'FR',
-        partyId: 'HYX',
-      });
-
-      expect(result).toBeUndefined();
-    });
-  });
-
   describe('getTariffByOcpiId', () => {
     it('should use GET_TARIFF_BY_OCPI_ID_QUERY with string ocpiTariffId by default (tenant lookup)', async () => {
       mockGraphqlClient.request.mockResolvedValue({

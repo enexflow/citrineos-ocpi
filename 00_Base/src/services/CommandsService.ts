@@ -301,7 +301,6 @@ export class CommandsService {
       );
     }
     const transaction = transactionResponse.Transactions[0];
-    // const sessionTenantPartner = transaction.authorization?.tenantPartner;
     const sessionTokenOwner = getTokenOwnerFromAuthorization(
       transaction.authorization ?? {},
     );

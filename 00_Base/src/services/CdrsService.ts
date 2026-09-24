@@ -13,12 +13,17 @@ import type {
   GetTransactionsQueryVariables,
   InsertCdrMutationResult,
   Transactions_Bool_Exp,
+  InsertCdrMutationVariables,
   GetCdrByiIdQueryResult,
   GetCdrByiIdQueryVariables,
   GetTenantPartnerByCpoClientAndModuleIdQueryResult,
   GetTenantPartnerByCpoClientAndModuleIdQueryVariables,
   GetCdrByiIdAndRoamingPartnerQueryResult,
   GetCdrByiIdAndRoamingPartnerQueryVariables,
+  FindSentCdrQueryResult,
+  FindSentCdrQueryVariables,
+  UpdateCdrSentStatusMutationResult,
+  UpdateCdrSentStatusMutationVariables,
 } from '../graphql/index.js';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY } from '../graphql/index.js';
@@ -39,6 +44,8 @@ import {
   FIND_CDR_ROAMING_QUERY,
   FIND_CDR_P2P_QUERY,
   GET_CDR_BY_OUR_ID_AND_ROAMING_PARTNER,
+  FIND_SENT_CDR_QUERY,
+  UPDATE_CDR_SENT_STATUS_MUTATION,
 } from '../graphql/queries/cdr.queries.js';
 import type { CdrEntity } from '../model/DTO/CdrDTO.js';
 import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
@@ -176,7 +183,7 @@ export class CdrsService {
       homeChargingCompensation: cdr.home_charging_compensation ?? null,
       lastUpdated: cdr.last_updated,
       tenantId: tenantPartner.tenantId,
-      tenantPartnerId: tenantPartner.id,
+      fromTenantPartnerId: tenantPartner.id,
       roamingPartnerId: roamingPartnerId,
     };
     try {
@@ -191,10 +198,10 @@ export class CdrsService {
           roamingPartnerId != null
             ? {
                 ocpiCdrId: cdr.id,
-                tenantPartnerId: tenantPartner.id,
+                fromTenantPartnerId: tenantPartner.id,
                 roamingPartnerId,
               }
-            : { ocpiCdrId: cdr.id, tenantPartnerId: tenantPartner.id },
+            : { ocpiCdrId: cdr.id, fromTenantPartnerId: tenantPartner.id },
         findResultKey: 'Cdrs',
         insertQuery: INSERT_CDR_MUTATION,
         insertVars: { object: objectToInsert },
@@ -233,6 +240,81 @@ export class CdrsService {
     }
   }
 
+  async insertSentCdr(
+    toTenantPartner: TenantPartnerDto,
+    cdr: any,
+    ctx: {
+      tenantId: number;
+      roamingPartnerId?: number | null;
+      transactionId?: number | null;
+    },
+  ): Promise<any | undefined> {
+    if (!toTenantPartner.id) {
+      throw new Error('Tenant partner not found');
+    }
+    const existing = await this.ocpiGraphqlClient.request<
+      FindSentCdrQueryResult,
+      FindSentCdrQueryVariables
+    >(FIND_SENT_CDR_QUERY, {
+      ocpiCdrId: cdr.id,
+      toTenantPartnerId: toTenantPartner.id,
+    });
+    if (existing.Cdrs[0]) {
+      return existing.Cdrs[0].id;
+    }
+    const objectToInsert = {
+      ocpiCdrId: cdr.id,
+      countryCode: cdr.country_code,
+      partyId: cdr.party_id,
+      startDateTime: cdr.start_date_time,
+      endDateTime: cdr.end_date_time,
+      sessionId: cdr.session_id ?? null,
+      cdrToken: cdr.cdr_token,
+      authMethod: cdr.auth_method,
+      authorizationReference: cdr.authorization_reference ?? null,
+      cdrLocation: cdr.cdr_location,
+      meterId: cdr.meter_id ?? null,
+      currency: cdr.currency,
+      tariffs: cdr.tariffs ?? null,
+      chargingPeriods: cdr.charging_periods,
+      signedData: cdr.signed_data ?? null,
+      totalCost: cdr.total_cost,
+      totalFixedCost: cdr.total_fixed_cost ?? null,
+      totalEnergy: cdr.total_energy,
+      totalEnergyCost: cdr.total_energy_cost ?? null,
+      totalTime: cdr.total_time,
+      totalTimeCost: cdr.total_time_cost ?? null,
+      totalParkingTime: cdr.total_parking_time ?? null,
+      totalParkingCost: cdr.total_parking_cost ?? null,
+      totalReservationCost: cdr.total_reservation_cost ?? null,
+      remark: cdr.remark ?? null,
+      invoiceReferenceId: cdr.invoice_reference_id ?? null,
+      credit: cdr.credit ?? null,
+      creditReferenceId: cdr.credit_reference_id ?? null,
+      homeChargingCompensation: cdr.home_charging_compensation ?? null,
+      lastUpdated: cdr.last_updated,
+      tenantId: ctx.tenantId,
+      toTenantPartnerId: toTenantPartner.id,
+      roamingPartnerId: ctx.roamingPartnerId ?? null,
+      transactionId: ctx.transactionId ?? null,
+    };
+    const result = await this.ocpiGraphqlClient.request<
+      InsertCdrMutationResult,
+      InsertCdrMutationVariables
+    >(INSERT_CDR_MUTATION, { object: objectToInsert });
+    return result.insert_Cdrs_one!.id;
+  }
+
+  async markCdrAsSent(cdrId: number, sentAt: string): Promise<void> {
+    await this.ocpiGraphqlClient.request<
+      UpdateCdrSentStatusMutationResult,
+      UpdateCdrSentStatusMutationVariables
+    >(UPDATE_CDR_SENT_STATUS_MUTATION, {
+      id: cdrId,
+      successfullySentAt: sentAt,
+    });
+  }
+
   async putCdrForTenantPartner(
     cdr: any,
     tenantPartner: TenantPartnerDto,
@@ -269,7 +351,7 @@ export class CdrsService {
           countryCode: roamingPartner.countryCode,
           partyId: roamingPartner.partyId,
           id: cdrId,
-          tenantPartnerId: tenantPartner.id,
+          fromTenantPartnerId: tenantPartner.id,
           roamingPartnerId: roamingPartner.id,
         });
       } else {
@@ -280,7 +362,7 @@ export class CdrsService {
           countryCode: tenantPartner.countryCode,
           partyId: tenantPartner.partyId,
           id: cdrId,
-          tenantPartnerId: tenantPartner.id,
+          fromTenantPartnerId: tenantPartner.id,
         });
       }
       if (!response.Cdrs[0]) {

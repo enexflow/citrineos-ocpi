@@ -88,22 +88,6 @@ export class TariffsService {
     private readonly tariffsClientApi: TariffsClientApi,
   ) {}
 
-  async getTariffByKey(key: {
-    id: number;
-    countryCode: string;
-    partyId: string;
-  }): Promise<TariffDTO | undefined> {
-    const result = await this.ocpiGraphqlClient.request<
-      GetTariffByKeyQueryResult,
-      GetTariffByKeyQueryVariables
-    >(GET_TARIFF_BY_KEY_QUERY, key);
-    const tariff = result.Tariffs?.[0];
-    if (tariff) {
-      return TariffMapper.mapForSender(tariff as TariffMapInput);
-    }
-    return undefined;
-  }
-
   /**
    * Receiver GET: retrieve a tariff by its OCPI id (CiString(36)).
    * When the country_code/party_id identify a TenantPartner (CPO source),
@@ -224,9 +208,7 @@ export class TariffsService {
 
     const mappedTariffs: TariffDTO[] = [];
     for (const tariff of result.Tariffs) {
-      mappedTariffs.push(
-        TariffMapper.mapForReceiverOCPI(tariff as TariffMapInput),
-      );
+      mappedTariffs.push(TariffMapper.mapForSender(tariff as TariffMapInput));
     }
     return {
       data: mappedTariffs,
@@ -239,7 +221,7 @@ export class TariffsService {
     tenantId?: number,
     tenantPartnerId?: number,
     tenantPartner?: TenantPartnerDto,
-  ): Promise<TariffDTO> {
+  ): Promise<TariffDTO | undefined> {
     if (!tenantPartner) {
       throw new Error('Tenant partner not found');
     }
@@ -333,17 +315,18 @@ export class TariffsService {
       return TariffMapper.mapForReceiver(tariff as TariffMapInput);
     }
 
-    // Non-partner path (tenant own tariff)
-    const result = await this.ocpiGraphqlClient.request<
-      CreateOrUpdateTariffMutationResult,
-      CreateOrUpdateTariffMutationVariables
-    >(CREATE_OR_UPDATE_TARIFF_MUTATION, { object });
-    if (!result.insert_Tariffs_one) {
-      throw new Error(`Failed to create or update tariff ${tariffRequest.id}`);
-    }
-    return TariffMapper.mapForSender(
-      result.insert_Tariffs_one as TariffMapInput,
-    );
+    // Disabled for now because this method is only used to create or update tariffs for partner CPOs.
+    // // Non-partner path (tenant own tariff)
+    // const result = await this.ocpiGraphqlClient.request<
+    //   CreateOrUpdateTariffMutationResult,
+    //   CreateOrUpdateTariffMutationVariables
+    // >(CREATE_OR_UPDATE_TARIFF_MUTATION, { object });
+    // if (!result.insert_Tariffs_one) {
+    //   throw new Error(`Failed to create or update tariff ${tariffRequest.id}`);
+    // }
+    // return TariffMapper.mapForSender(
+    //   result.insert_Tariffs_one as TariffMapInput,
+    // );
   }
 
   async deleteTariff(
@@ -627,9 +610,7 @@ export class TariffsService {
       for (const tariff of batch) {
         processed++;
         try {
-          const tariffDto = TariffMapper.mapForReceiverOCPI(
-            tariff as TariffMapInput,
-          );
+          const tariffDto = TariffMapper.mapForSender(tariff as TariffMapInput);
           const path = `/${tariffDto.country_code}/${tariffDto.party_id}/${encodeURIComponent(tariffDto.id)}`;
           await this.tariffsClientApi.request(
             ourCountryCode,

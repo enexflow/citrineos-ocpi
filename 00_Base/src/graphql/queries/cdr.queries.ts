@@ -9,14 +9,14 @@ export const GET_CDR_BY_OUR_ID = gql`
     $countryCode: String!
     $partyId: String!
     $id: Int!
-    $tenantPartnerId: Int!
+    $fromTenantPartnerId: Int!
   ) {
     Cdrs(
       where: {
         countryCode: { _eq: $countryCode }
         partyId: { _eq: $partyId }
         id: { _eq: $id }
-        tenantPartnerId: { _eq: $tenantPartnerId }
+        fromTenantPartnerId: { _eq: $fromTenantPartnerId }
       }
     ) {
       id
@@ -51,7 +51,10 @@ export const GET_CDR_BY_OUR_ID = gql`
       homeChargingCompensation
       lastUpdated
       tenantId
-      tenantPartnerId
+      fromTenantPartnerId
+      toTenantPartnerId
+      transactionId
+      successfullySentAt
       createdAt
       updatedAt
     }
@@ -63,7 +66,7 @@ export const GET_CDR_BY_OUR_ID_AND_ROAMING_PARTNER = gql`
     $countryCode: String!
     $partyId: String!
     $id: Int!
-    $tenantPartnerId: Int!
+    $fromTenantPartnerId: Int!
     $roamingPartnerId: Int!
   ) {
     Cdrs(
@@ -71,7 +74,7 @@ export const GET_CDR_BY_OUR_ID_AND_ROAMING_PARTNER = gql`
         countryCode: { _eq: $countryCode }
         partyId: { _eq: $partyId }
         id: { _eq: $id }
-        tenantPartnerId: { _eq: $tenantPartnerId }
+        fromTenantPartnerId: { _eq: $fromTenantPartnerId }
         roamingPartnerId: { _eq: $roamingPartnerId }
       }
     ) {
@@ -107,7 +110,10 @@ export const GET_CDR_BY_OUR_ID_AND_ROAMING_PARTNER = gql`
       homeChargingCompensation
       lastUpdated
       tenantId
-      tenantPartnerId
+      fromTenantPartnerId
+      toTenantPartnerId
+      transactionId
+      successfullySentAt
       createdAt
       updatedAt
     }
@@ -154,7 +160,10 @@ export const GET_CDRS_PAGINATED = gql`
       homeChargingCompensation
       lastUpdated
       tenantId
-      tenantPartnerId
+      fromTenantPartnerId
+      toTenantPartnerId
+      transactionId
+      successfullySentAt
       createdAt
       updatedAt
     }
@@ -196,7 +205,10 @@ export const INSERT_CDR_MUTATION = gql`
       homeChargingCompensation
       lastUpdated
       tenantId
-      tenantPartnerId
+      fromTenantPartnerId
+      toTenantPartnerId
+      transactionId
+      successfullySentAt
       createdAt
       updatedAt
       roamingPartnerId
@@ -205,11 +217,11 @@ export const INSERT_CDR_MUTATION = gql`
 `;
 
 export const FIND_CDR_P2P_QUERY = gql`
-  query FindCdrP2p($ocpiCdrId: String!, $tenantPartnerId: Int!) {
+  query FindCdrP2p($ocpiCdrId: String!, $fromTenantPartnerId: Int!) {
     Cdrs(
       where: {
         ocpiCdrId: { _eq: $ocpiCdrId }
-        tenantPartnerId: { _eq: $tenantPartnerId }
+        fromTenantPartnerId: { _eq: $fromTenantPartnerId }
         roamingPartnerId: { _is_null: true }
       }
       limit: 1
@@ -221,16 +233,41 @@ export const FIND_CDR_P2P_QUERY = gql`
 export const FIND_CDR_ROAMING_QUERY = gql`
   query FindCdrRoaming(
     $ocpiCdrId: String!
-    $tenantPartnerId: Int!
+    $fromTenantPartnerId: Int!
     $roamingPartnerId: Int!
   ) {
     Cdrs(
       where: {
         ocpiCdrId: { _eq: $ocpiCdrId }
-        tenantPartnerId: { _eq: $tenantPartnerId }
+        fromTenantPartnerId: { _eq: $fromTenantPartnerId }
         roamingPartnerId: { _eq: $roamingPartnerId }
       }
       limit: 1
+    ) {
+      id
+    }
+  }
+`;
+
+export const FIND_SENT_CDR_QUERY = gql`
+  query FindSentCdr($ocpiCdrId: String!, $toTenantPartnerId: Int!) {
+    Cdrs(
+      where: {
+        ocpiCdrId: { _eq: $ocpiCdrId }
+        toTenantPartnerId: { _eq: $toTenantPartnerId }
+      }
+      limit: 1
+    ) {
+      id
+    }
+  }
+`;
+
+export const UPDATE_CDR_SENT_STATUS_MUTATION = gql`
+  mutation UpdateCdrSentStatus($id: Int!, $successfullySentAt: timestamptz) {
+    update_Cdrs_by_pk(
+      pk_columns: { id: $id }
+      _set: { successfullySentAt: $successfullySentAt }
     ) {
       id
     }
