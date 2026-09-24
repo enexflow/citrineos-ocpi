@@ -66,6 +66,8 @@ export interface CpoPartnerDetail {
   cdrsSent: OcpiCdrSent[]
 }
 
+export type LocationOwnership = 'own' | 'partner'
+
 export interface OcpiLocationReceived {
   id: number
   ocpiId: string
@@ -77,6 +79,8 @@ export interface OcpiLocationReceived {
   latitude: number | null
   longitude: number | null
   lastUpdated: string | null
+  /** Only populated by fetchAllLocationsForMap; absent elsewhere. */
+  ownership?: LocationOwnership
 }
 
 export interface OcpiSessionReceived {

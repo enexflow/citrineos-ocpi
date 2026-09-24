@@ -19,6 +19,7 @@ import EmspPartnerDetail from '@/pages/emsp/PartnerDetail.vue'
 import EmspPartners from '@/pages/emsp/Partners.vue'
 import EmspRoamingPartnerDetail from '@/pages/emsp/RoamingPartnerDetail.vue'
 import Home from '@/pages/index.vue'
+import Locations from '@/pages/Locations.vue'
 import OurData from '@/pages/OurData.vue'
 
 const router = createRouter({
@@ -33,6 +34,12 @@ const router = createRouter({
           name: 'home',
           component: Home,
           meta: { title: 'Overview' },
+        },
+        {
+          path: 'locations',
+          name: 'locations',
+          component: Locations,
+          meta: { title: 'Locations' },
         },
         {
           path: 'emsp/partners',

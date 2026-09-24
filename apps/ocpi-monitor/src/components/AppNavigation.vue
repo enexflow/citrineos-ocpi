@@ -107,6 +107,15 @@ SPDX-License-Identifier: Apache-2.0
           :to="{ name: 'cpo-our-data' }"
         />
       </v-list-group>
+
+      <v-list-item
+        base-color="#aecfea"
+        prepend-icon="mdi-map-marker-radius-outline"
+        rounded="lg"
+        subtitle="Map of all known locations"
+        title="Locations"
+        :to="{ name: 'locations' }"
+      />
     </v-list>
 
     <template #append>
@@ -162,6 +171,7 @@ SPDX-License-Identifier: Apache-2.0
 
   const title = computed(() => (route.meta.title as string) ?? 'OCPI Monitor')
   const viewLabel = computed(() => {
+    if (route.name === 'locations') return 'Locations'
     if (route.path.startsWith('/cpo')) return 'CPO view'
     if (route.path.startsWith('/emsp')) return 'eMSP view'
     if (route.name === 'home') return 'Overview'
