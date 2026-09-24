@@ -8,6 +8,7 @@ import { Container } from 'typedi';
 import { OcpiModule } from './model/OcpiModule.js';
 import { KoaServer } from './util/KoaServer.js';
 import Koa from 'koa';
+import cors from '@koa/cors';
 import type { ICache } from '@zetra/citrineos-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -453,6 +454,26 @@ export class OcpiServer extends KoaServer {
     try {
       this.koa = new Koa();
       this.koa.proxy = true;
+      const allowedOrigins = this.ocpiConfig.ocpiServer.allowedOrigins;
+      this.koa.use(
+        cors({
+          origin: (ctx) => {
+            const origin = ctx.get('origin');
+            return origin && allowedOrigins.includes(origin) ? origin : '';
+          },
+          allowHeaders: [
+            'Authorization',
+            'Content-Type',
+            'OCPI-from-country-code',
+            'OCPI-from-party-id',
+            'OCPI-to-country-code',
+            'OCPI-to-party-id',
+            'X-Request-ID',
+            'X-Correlation-ID',
+          ],
+          credentials: true,
+        }),
+      );
       this.koa.use(async (ctx, next) => {
         if (['POST', 'PUT', 'PATCH'].includes(ctx.method)) {
           let rawBody = '';

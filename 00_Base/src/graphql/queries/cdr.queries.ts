@@ -122,6 +122,11 @@ export const GET_CDR_BY_OUR_ID_AND_ROAMING_PARTNER = gql`
 
 export const GET_CDRS_PAGINATED = gql`
   query GetCdrsPaginated($limit: Int, $offset: Int, $where: Cdrs_bool_exp!) {
+    Cdrs_aggregate(where: $where) {
+      aggregate {
+        count
+      }
+    }
     Cdrs(
       limit: $limit
       offset: $offset
