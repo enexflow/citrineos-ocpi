@@ -69,3 +69,15 @@ Server/tsconfig.json
 tsconfig.json
 Server/scripts/.env.example
 Server/scripts/README.md
+apps/ocpi-monitor/.env.development
+apps/ocpi-monitor/.gitignore
+apps/ocpi-monitor/AGENTS.md
+apps/ocpi-monitor/README.md
+apps/ocpi-monitor/package.json
+apps/ocpi-monitor/pnpm-lock.yaml
+apps/ocpi-monitor/public/favicon.ico
+apps/ocpi-monitor/src/assets/logo.png
+apps/ocpi-monitor/src/assets/logo.svg
+apps/ocpi-monitor/tsconfig.app.json
+apps/ocpi-monitor/tsconfig.json
+apps/ocpi-monitor/tsconfig.node.json
