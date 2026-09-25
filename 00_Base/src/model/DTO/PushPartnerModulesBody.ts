@@ -25,13 +25,30 @@ export type PushPartnerModulesBody = z.infer<
   typeof PushPartnerModulesBodySchema
 >;
 
+export type PushFailure = {
+  authId: string;
+  uid?: string;
+  statusCode?: number;
+  statusMessage?: string;
+  reason: string;
+};
+
 export type PushSummary = {
   module: string;
   processed: number;
   pushSucceeded: number;
   pushFailed: number;
   skippedInvalid: number;
+  failures?: PushFailure[];
 };
+
+export const PushFailureSchema = z.object({
+  authId: z.string(),
+  uid: z.string().optional(),
+  statusCode: z.number().optional(),
+  statusMessage: z.string().optional(),
+  reason: z.string(),
+});
 
 export const PushSummarySchema = z.object({
   module: z.string(),
@@ -39,4 +56,5 @@ export const PushSummarySchema = z.object({
   pushSucceeded: z.number(),
   pushFailed: z.number(),
   skippedInvalid: z.number(),
+  failures: z.array(PushFailureSchema).optional(),
 });

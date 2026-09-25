@@ -379,6 +379,16 @@ export abstract class BaseClientApi {
         partner,
       );
 
+      let effectiveBody = body;
+      if (
+        httpMethod !== HttpMethodForPartner &&
+        HttpMethodForPartner === HttpMethod.Put &&
+        (moduleId === ModuleId.Tokens || moduleId === ModuleId.Sessions) &&
+        body && typeof body === 'object'
+      ) {
+        effectiveBody = { ...body, party_id: cpoPartyId, country_code: cpoCountryCode };
+      }
+
       this.logger.debug(
         `Requesting partner ${partner.countryCode}_${partner.partyId}`,
       );
@@ -393,7 +403,7 @@ export abstract class BaseClientApi {
           partner.partnerProfileOCPI!,
           routingHeaders,
           url,
-          body,
+          effectiveBody,
           paginatedParams,
           otherParams,
           path,
@@ -523,7 +533,15 @@ export abstract class BaseClientApi {
         body: result,
       });
       // Parse and validate using Zod
-      return schema.parse(result);
+      try {
+        return schema.parse(result);
+      } catch (zodErr) {
+        this.logger.error('OCPI response failed schema validation', zodErr);
+        throw new UnsuccessfulRequestException(
+          'OCPI response failed schema validation',
+          response,
+        );
+      }
     } else {
       throw new UnsuccessfulRequestException(
         'Request did not return a successful status code',
