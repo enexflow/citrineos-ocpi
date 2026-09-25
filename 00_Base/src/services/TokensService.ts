@@ -67,6 +67,7 @@ import { AuthorizationInfoAllowed } from '../model/AuthorizationInfoAllowed.js';
 import type { AuthorizationInfo } from '../model/AuthorizationInfo.js';
 import type { Tenant, TenantPartner } from '@zetra/citrineos-data';
 import type {
+  PushFailure,
   PushPartnerModulesBody,
   PushSummary,
 } from '../model/DTO/PushPartnerModulesBody.js';
@@ -74,6 +75,27 @@ import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { WhitelistType } from '../model/WhitelistType.js';
 import { AuthMethod } from '../model/AuthMethod.js';
+import { UnsuccessfulRequestException } from '../exception/UnsuccessfulRequestException.js';
+
+function extractFailureReason(err: unknown): {
+  statusCode?: number;
+  statusMessage?: string;
+  reason: string;
+} {
+  if (err instanceof UnsuccessfulRequestException) {
+    const result = err.iRestResponse?.result as
+      | { status_code?: number; status_message?: string }
+      | undefined;
+    if (result?.status_message) {
+      return {
+        statusCode: result.status_code,
+        statusMessage: result.status_message,
+        reason: result.status_message,
+      };
+    }
+  }
+  return { reason: err instanceof Error ? err.message : String(err) };
+}
 export type UpsertTokenOptions = {
   cacheExpiryDateTime?: Date;
   ocpiAuthMethod?: AuthMethod;
@@ -639,6 +661,7 @@ export class TokensService {
     let pushSucceeded = 0;
     let pushFailed = 0;
     let skippedInvalid = 0;
+    const failures: PushFailure[] = [];
     while (hasMore) {
       const result = await this.ocpiGraphqlClient.request<
         GetAuthorizationsPaginatedQueryResult,
@@ -651,13 +674,14 @@ export class TokensService {
       }
       for (const auth of batch) {
         processed++;
+        let tokenDto: TokenDTO | undefined;
         try {
-          const tokenDto = TokensMapper.toDtoSender(
+          tokenDto = TokensMapper.toDtoSender(
             auth as AuthorizationDto,
             tenantOwner,
           );
           const path = `/${tokenDto.country_code}/${tokenDto.party_id}/${encodeURIComponent(tokenDto.uid)}`;
-          await this.tokensClientApi.request(
+          const pushResult = await this.tokensClientApi.request(
             ourCountryCode,
             ourPartyId,
             partnerCountryCode,
@@ -673,12 +697,37 @@ export class TokensService {
             path,
             partnerRow.awsSecretCertificateArn,
           );
-          pushSucceeded++;
+          if (
+            pushResult?.status_code !==
+            OcpiResponseStatusCode.GenericSuccessCode
+          ) {
+            pushFailed++;
+            failures.push({
+              authId: String(auth.id),
+              uid: tokenDto?.uid,
+              statusCode: pushResult?.status_code,
+              statusMessage: pushResult?.status_message,
+              reason:
+                pushResult?.status_message ??
+                `OCPI status_code ${pushResult?.status_code}`,
+            });
+          } else {
+            pushSucceeded++;
+          }
         } catch (err) {
           if (String(err).includes('Issuer not found')) {
             skippedInvalid++;
           } else {
             pushFailed++;
+            const { statusCode, statusMessage, reason } =
+              extractFailureReason(err);
+            failures.push({
+              authId: String(auth.id),
+              uid: tokenDto?.uid,
+              statusCode,
+              statusMessage,
+              reason,
+            });
             this.logger.error(
               `pushPartnerTokens failed for auth ${auth.id}`,
               err,
@@ -696,6 +745,7 @@ export class TokensService {
       pushSucceeded,
       pushFailed,
       skippedInvalid,
+      failures,
     };
   }
 }
