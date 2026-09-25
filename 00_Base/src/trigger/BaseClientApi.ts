@@ -384,9 +384,14 @@ export abstract class BaseClientApi {
         httpMethod !== HttpMethodForPartner &&
         HttpMethodForPartner === HttpMethod.Put &&
         (moduleId === ModuleId.Tokens || moduleId === ModuleId.Sessions) &&
-        body && typeof body === 'object'
+        body &&
+        typeof body === 'object'
       ) {
-        effectiveBody = { ...body, party_id: cpoPartyId, country_code: cpoCountryCode };
+        effectiveBody = {
+          ...body,
+          party_id: cpoPartyId,
+          country_code: cpoCountryCode,
+        };
       }
 
       this.logger.debug(
