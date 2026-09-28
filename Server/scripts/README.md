@@ -16,7 +16,9 @@ Production image (after `npm run build`):
 npm run gireve-retry:dist
 ```
 
-Kubernetes (sizopt): CronJob example — same env as the OCPI pod, `concurrencyPolicy: Forbid`, schedule aligned with `CITRINEOS_OCPI_GIREVE_RETRY_INTERVAL_SECONDS`:
+Retries use an exponential backoff stored in `nextRetryAt`: the n-th failed attempt is rescheduled after `retryIntervalSeconds * retryBackoffMultiplier^n` (defaults: 300s × 2 → 5, 10, 20, 40 min…), capped at `retryMaxIntervalSeconds` (default 24h). The CronJob only picks rows whose `nextRetryAt` is due, so its schedule just sets the granularity (e.g. every 5 minutes).
+
+Kubernetes (sizopt): CronJob example — same env as the OCPI pod, `concurrencyPolicy: Forbid`, `schedule: '*/5 * * * *'`:
 
 ```yaml
 command: ['node', 'Server/dist/gireve-retry/index.js']

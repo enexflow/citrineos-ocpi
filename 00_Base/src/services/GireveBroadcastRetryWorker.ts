@@ -20,6 +20,11 @@ import {
   GireveBroadcastRetryOutbox,
   type GireveRetryQueueItem,
 } from './GireveBroadcastRetryOutbox.js';
+import {
+  computeGireveNextRetryAt,
+  getGireveRetryBackoffOptions,
+  type GireveRetryBackoffOptions,
+} from './gireveRetryBackoff.js';
 
 export interface GireveRetryRunResult {
   processed: number;
@@ -34,8 +39,8 @@ export class GireveBroadcastRetryWorker {
     return Container.get<OcpiConfig>(OcpiConfigToken);
   }
 
-  private get retryIntervalSeconds(): number {
-    return this.config.gireve?.retryIntervalSeconds ?? 300;
+  private get backoffOptions(): GireveRetryBackoffOptions {
+    return getGireveRetryBackoffOptions(this.config);
   }
 
   private get retryBatchSize(): number {
@@ -101,6 +106,12 @@ export class GireveBroadcastRetryWorker {
 
   private async retryOne(item: GireveRetryQueueItem): Promise<boolean> {
     const now = new Date();
+    const attemptCount = item.attemptCount + 1;
+    const nextRetryAt = computeGireveNextRetryAt(
+      attemptCount,
+      this.backoffOptions,
+      now,
+    );
 
     const partnerRes = await this.ocpiGraphqlClient.request<
       {
@@ -119,8 +130,8 @@ export class GireveBroadcastRetryWorker {
     if (!partner?.partnerProfileOCPI) {
       await this.outbox.reschedule(
         item.id,
-        item.attemptCount + 1,
-        new Date(now.getTime() + this.retryIntervalSeconds * 1000),
+        attemptCount,
+        nextRetryAt,
         `Gireve retry: tenantPartner not found for id=${item.partnerTenantPartnerId}`,
       );
       return false;
@@ -205,22 +216,19 @@ export class GireveBroadcastRetryWorker {
       return true;
     } catch (e) {
       const lastError = this.parseError(e);
-      const nextRetryAt = new Date(
-        now.getTime() + this.retryIntervalSeconds * 1000,
-      );
 
       this.logger.warn('Gireve retry failed, rescheduled', {
         id: item.id,
         moduleId: item.moduleId,
         resourceType: item.resourceType,
         resourceId: item.resourceId,
-        attemptCount: item.attemptCount + 1,
+        attemptCount,
         nextRetryAt: nextRetryAt.toISOString(),
       });
 
       await this.outbox.reschedule(
         item.id,
-        item.attemptCount + 1,
+        attemptCount,
         nextRetryAt,
         lastError,
       );

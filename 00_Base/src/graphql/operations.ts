@@ -954,7 +954,9 @@ export type FindGireveRetryQueueQueryVariables = Exact<{
 
 export type FindGireveRetryQueueQueryResult = {
   GireveBroadcastRetryQueues: Array<{
-    id: any
+    id: any,
+    status: string,
+    attemptCount: number
   }>
 };
 
@@ -989,6 +991,7 @@ export type UpdateGireveRetryQueueMutationVariables = Exact<{
   payload: Scalars['jsonb']['input'];
   ocpiPath?: InputMaybe<Scalars['String']['input']>;
   lastError: Scalars['String']['input'];
+  attemptCount: Scalars['Int']['input'];
 }>;
 
 

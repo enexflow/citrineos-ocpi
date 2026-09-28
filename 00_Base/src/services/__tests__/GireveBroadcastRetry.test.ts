@@ -32,18 +32,15 @@ jest.mock('../../util/helpers', () => ({
 
 describe('Gireve broadcast retry mechanism', () => {
   beforeEach(() => {
-    Container.set(
-      OcpiConfigToken,
-      {
-        gireve: {
-          countryCode: 'FR',
-          partyId: '007',
-          retryIntervalSeconds: 300,
-          retryBatchSize: 50,
-          retryStaleLockSeconds: 900,
-        },
-      } as any,
-    );
+    Container.set(OcpiConfigToken, {
+      gireve: {
+        countryCode: 'FR',
+        partyId: '007',
+        retryIntervalSeconds: 300,
+        retryBatchSize: 50,
+        retryStaleLockSeconds: 900,
+      },
+    } as any);
   });
 
   describe('upsertOnFailure (BaseClientApi broadcastToClients)', () => {
@@ -124,7 +121,9 @@ describe('Gireve broadcast retry mechanism', () => {
 
   describe('retry runner runOnce', () => {
     it('marks the retry item as sent when the push succeeds', async () => {
-      const { GireveBroadcastRetryWorker } = require('../GireveBroadcastRetryWorker');
+      const {
+        GireveBroadcastRetryWorker,
+      } = require('../GireveBroadcastRetryWorker');
       const { HttpMethod } = require('@zetra/citrineos-base');
 
       const mockLogger = {
@@ -202,6 +201,81 @@ describe('Gireve broadcast retry mechanism', () => {
         failed: 0,
         staleLocksReleased: 0,
       });
+    });
+
+    it('reschedules a failed retry with an exponential backoff', async () => {
+      const {
+        GireveBroadcastRetryWorker,
+      } = require('../GireveBroadcastRetryWorker');
+      const { HttpMethod } = require('@zetra/citrineos-base');
+
+      const mockLogger = {
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+      } as unknown as Logger<unknown>;
+
+      const item = {
+        id: 'uuid-2',
+        partnerTenantPartnerId: 7,
+        cpoCountryCode: 'FR',
+        cpoPartyId: 'ZET',
+        moduleId: ModuleId.Sessions,
+        interfaceRole: InterfaceRole.RECEIVER,
+        httpMethod: HttpMethod.Patch,
+        resourceType: 'session',
+        resourceId: 'sess-002',
+        ocpiPath: '/FR/ZET/sess-002',
+        payload: { id: 'sess-002' },
+        attemptCount: 2,
+        nextRetryAt: new Date().toISOString(),
+      };
+
+      const mockOutbox = {
+        releaseStaleLocks: jest.fn().mockResolvedValue(0),
+        claimDueRetries: jest.fn().mockResolvedValue([item]),
+        markSent: jest.fn().mockResolvedValue(undefined),
+        reschedule: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const mockOcpiGraphqlClient = {
+        request: jest.fn().mockResolvedValue({
+          TenantPartners_by_pk: {
+            id: 7,
+            countryCode: 'FR',
+            partyId: '007',
+            awsSecretCertificateArn: null,
+            partnerProfileOCPI: { credentials: { token: 'dummy' } },
+          },
+        }),
+      };
+
+      const worker = new GireveBroadcastRetryWorker(
+        mockOutbox as any,
+        mockLogger as any,
+        { request: jest.fn().mockRejectedValue(new Error('non-2xx')) } as any,
+        { request: jest.fn() } as any,
+        { request: jest.fn() } as any,
+        mockOcpiGraphqlClient as any,
+      );
+
+      const before = Date.now();
+      const result = await worker.runOnce();
+
+      expect(mockOutbox.markSent).not.toHaveBeenCalled();
+      expect(mockOutbox.reschedule).toHaveBeenCalledWith(
+        'uuid-2',
+        3,
+        expect.any(Date),
+        expect.stringContaining('non-2xx'),
+      );
+      // 3rd failed attempt => 300 * 2^3 = 2400s (40 min)
+      const nextRetryAt: Date = mockOutbox.reschedule.mock.calls[0][2];
+      expect(nextRetryAt.getTime() - before).toBeGreaterThanOrEqual(
+        2400 * 1000,
+      );
+      expect(nextRetryAt.getTime() - before).toBeLessThan(2410 * 1000);
+      expect(result.failed).toBe(1);
     });
   });
 });

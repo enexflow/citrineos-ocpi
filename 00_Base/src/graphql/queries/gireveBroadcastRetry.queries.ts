@@ -21,6 +21,8 @@ export const FIND_GIREVE_RETRY_QUEUE = gql`
       limit: 1
     ) {
       id
+      status
+      attemptCount
     }
   }
 `;
@@ -76,12 +78,14 @@ export const UPDATE_GIREVE_RETRY_QUEUE = gql`
     $payload: jsonb!
     $ocpiPath: String
     $lastError: String!
+    $attemptCount: Int!
   ) {
     update_GireveBroadcastRetryQueues_by_pk(
       pk_columns: { id: $id }
       _set: {
         payload: $payload
         ocpiPath: $ocpiPath
+        attemptCount: $attemptCount
         nextRetryAt: $nextRetryAt
         lastError: $lastError
         status: "pending"
