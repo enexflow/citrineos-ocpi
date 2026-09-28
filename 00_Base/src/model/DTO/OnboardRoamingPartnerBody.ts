@@ -14,6 +14,9 @@ export const OnboardRoamingPartnerBodySchema = z.object({
   partnerPartyId: z.string().min(1).max(3),
   roamingPartnerCountryCode: z.string().min(2).max(2),
   roamingPartnerPartyId: z.string().min(1).max(3),
+  roamingPartnerName: z.string().min(1).max(100),
+  roamingPartnerSignatureDate: z.string().min(1).max(100),
+  roamingPartnerContractStartDate: z.string().min(1).max(100),
 });
 
 export const OnboardRoamingPartnerBodySchemaName =
