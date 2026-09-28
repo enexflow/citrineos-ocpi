@@ -18,6 +18,8 @@ import {
   DEFAULT_LIMIT,
   DEFAULT_OFFSET,
 } from '../model/PaginatedResponse.js';
+import { ModuleId, Role, shouldBroadcastToPartner } from '../index.js';
+
 import {
   buildOcpiResponse,
   OcpiResponseStatusCode,
@@ -25,6 +27,7 @@ import {
 import { buildOcpiErrorResponse } from '../model/OcpiErrorResponse.js';
 import { OcpiHeaders } from '../model/OcpiHeaders.js';
 import { NotFoundException } from '../exception/NotFoundException.js';
+import { EvseStatus } from '../model/EvseStatus.js';
 import type {
   GetLocationByOcpiIdQueryResult,
   GetLocationByOcpiIdQueryVariables,
@@ -35,6 +38,14 @@ import type {
   GetOurLocationsQueryResult,
   GetOurLocationsQueryVariables,
   Locations_Bool_Exp,
+  UpdateLocationPatchMutationVariables,
+  UpdateLocationPatchMutationResult,
+  GetOurLocationByIdQueryResult,
+  GetOurLocationByIdQueryVariables,
+  TenantPartnersListQueryVariables,
+  TenantPartnersListQueryResult,
+  MarkEvseRemovedMutationResult,
+  MarkEvseRemovedMutationVariables,
 } from '../graphql/index.js';
 import {
   GET_CONNECTOR_BY_ID_QUERY,
@@ -42,6 +53,10 @@ import {
   GET_OWN_LOCATION_QUERY,
   GET_OUR_LOCATIONS_QUERY,
   OcpiGraphqlClient,
+  UPDATE_LOCATION_PATCH_MUTATION,
+  GET_OUR_LOCATION_BY_ID_QUERY,
+  LIST_TENANT_PARTNERS_BY_CPO,
+  MARK_EVSE_REMOVED_QUERY,
 } from '../graphql/index.js';
 import {
   ConnectorMapper,
@@ -51,9 +66,13 @@ import {
 import type {
   ChargingStationDto,
   ConnectorDto,
+  Endpoint,
   EvseDto,
   LocationDto,
+  PartnerProfile,
 } from '@zetra/citrineos-base';
+import type { DeleteLocationBody, DeleteLocationSummary } from '../index.js';
+import { EndpointIdentifier } from '../model/EndpointIdentifier.js';
 
 export type KnownLocationRef = {
   id: number;
@@ -299,6 +318,114 @@ export class LocationsService {
         statusCode,
         (e as Error).message,
       ) as ConnectorResponse;
+    }
+  }
+
+  /**
+   * Deletes a location from the OCPI system. This does not delete the location from the CPO system.
+   * It changes the disableOCPI field to true in the location table and sends a PATCH with EVSE status to REMOVED.
+   */
+  async deleteLocationOCPI(
+    body: DeleteLocationBody,
+  ): Promise<{ status: string } & DeleteLocationSummary> {
+    this.logger.info(
+      `Deleting location from OCPI system with body ${JSON.stringify(body)}`,
+    );
+    const noPatchesAttempted: DeleteLocationSummary = {
+      patchSucceeded: 0,
+      patchFailed: 0,
+    };
+    try {
+      const partners = await this.ocpiGraphqlClient.request<
+        TenantPartnersListQueryResult,
+        TenantPartnersListQueryVariables
+      >(LIST_TENANT_PARTNERS_BY_CPO, {
+        cpoCountryCode: body.ourCountryCode,
+        cpoPartyId: body.ourPartyId,
+        endpointIdentifier: EndpointIdentifier.LOCATIONS_RECEIVER,
+      });
+
+      const locationLookup = await this.ocpiGraphqlClient.request<
+        GetOurLocationByIdQueryResult,
+        GetOurLocationByIdQueryVariables
+      >(GET_OUR_LOCATION_BY_ID_QUERY, { id: Number(body.locationId) });
+      const dbLocationId = locationLookup.Locations?.[0]?.id;
+      if (!dbLocationId) {
+        this.logger.error(`Location ${body.locationId} not found`);
+        return { status: 'failed to find location', ...noPatchesAttempted };
+      }
+
+      const result = await this.ocpiGraphqlClient.request<
+        UpdateLocationPatchMutationResult,
+        UpdateLocationPatchMutationVariables
+      >(UPDATE_LOCATION_PATCH_MUTATION, {
+        id: dbLocationId,
+        changes: { disableOCPI: true },
+      });
+      if (!result.update_Locations_by_pk) {
+        this.logger.error(
+          `Failed to disable OCPI for location ${body.locationId}`,
+        );
+        return {
+          status: 'failed to disable OCPI for location',
+          ...noPatchesAttempted,
+        };
+      }
+      const evseIds =
+        locationLookup.Locations?.[0]?.chargingPool?.flatMap((station) =>
+          station.evses.map((evse) => evse.id),
+        ) ?? [];
+
+      await Promise.all(
+        evseIds.map((evseId) =>
+          this.ocpiGraphqlClient
+            .request<
+              MarkEvseRemovedMutationResult,
+              MarkEvseRemovedMutationVariables
+            >(MARK_EVSE_REMOVED_QUERY, { evseId })
+            .catch((e) =>
+              this.logger.error(
+                `Failed to mark EVSE ${evseId} removed for location ${body.locationId}: ${(e as Error).message}`,
+              ),
+            ),
+        ),
+      );
+
+      let patchSucceeded = 0;
+      let patchFailed = 0;
+      for (const partner of partners.TenantPartners) {
+        if (!shouldBroadcastToPartner(partner, ModuleId.Locations, this.logger))
+          continue;
+
+        try {
+          await this.locationsClientApi.patchLocationEVSEStatus(
+            body.ourCountryCode,
+            body.ourPartyId,
+            partner.countryCode,
+            partner.partyId,
+            partner.partnerProfileOCPI!,
+            body.locationId,
+            EvseStatus.REMOVED,
+            partner.awsSecretCertificateArn ?? undefined, // nouveau param à ajouter
+          );
+          patchSucceeded++;
+        } catch (e) {
+          this.logger.error(
+            `Failed to PATCH EVSE status to partner ${partner.countryCode}/${partner.partyId} for location ${body.locationId}: ${(e as Error).message}`,
+          );
+          patchFailed++;
+        }
+      }
+
+      return { status: 'ok', patchSucceeded, patchFailed };
+    } catch (e) {
+      this.logger.error(
+        `Failed to delete location from OCPI system: ${(e as Error).message}`,
+      );
+      return {
+        status: 'failed to delete location from OCPI system',
+        ...noPatchesAttempted,
+      };
     }
   }
 }
