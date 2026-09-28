@@ -76,17 +76,14 @@ export class SessionMapper extends BaseTransactionMapper {
     transaction: Partial<TransactionDto>,
   ): Promise<Partial<Session>> {
     // If we don't have a transaction ID, we can only map basic fields
-    const locationResponse = await this.locationsService.getLocationById(
-      transaction.locationId!,
-    );
+    const locationMap = await this.getLocationDTOsForTransactions([
+      transaction as TransactionDto,
+    ]);
+    const locationDto = locationMap.get(transaction.transactionId as string);
 
-    if (!locationResponse.data) {
-      throw new Error(
-        `Location ${transaction.locationId} not found: ${locationResponse.status_message}`,
-      );
+    if (!locationDto) {
+      throw new Error(`Location ${transaction.locationId} not found`);
     }
-
-    const locationDto: LocationDTO = locationResponse.data;
     if (!transaction.transactionId) {
       return this.mapPartialTransactionWithoutContext(transaction, locationDto);
     }

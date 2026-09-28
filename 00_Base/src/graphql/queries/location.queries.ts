@@ -73,6 +73,7 @@ export const GET_OUR_LOCATIONS_QUERY = gql`
           removed
           createdAt
           updatedAt
+          ocpiStatus
           connectors: Connectors {
             id
             stationId
@@ -202,9 +203,9 @@ export const GET_OUR_LOCATION_BY_ID_QUERY = gql`
   }
 `;
 
-export const GET_LOCATION_BY_OCPID_ID_QUERY = gql`
-  query GetLocationByOcpiId($id: String!) {
-    Locations(where: { ocpiId: { _eq: $id } }) {
+export const GET_OWN_LOCATION_QUERY = gql`
+  query GetLocationByOcpiId($where: Locations_bool_exp!) {
+    Locations(where: $where) {
       id
       name
       address
@@ -254,6 +255,7 @@ export const GET_LOCATION_BY_OCPID_ID_QUERY = gql`
           removed
           createdAt
           updatedAt
+          ocpiStatus
           connectors: Connectors {
             id
             stationId
@@ -290,8 +292,12 @@ export const GET_LOCATION_BY_OCPID_ID_QUERY = gql`
 `;
 
 export const GET_EVSE_BY_ID_QUERY = gql`
-  query GetEvseById($locationId: Int!, $stationId: String!, $evseId: Int!) {
-    Locations(where: { id: { _eq: $locationId } }) {
+  query GetEvseById(
+    $locationWhere: Locations_bool_exp!
+    $stationId: String!
+    $evseId: Int!
+  ) {
+    Locations(where: $locationWhere) {
       chargingPool: ChargingStations(where: { id: { _eq: $stationId } }) {
         id
         isOnline
@@ -315,6 +321,7 @@ export const GET_EVSE_BY_ID_QUERY = gql`
         evses: Evses(where: { id: { _eq: $evseId } }) {
           id
           stationId
+          ocpiStatus
           evseTypeId
           evseId
           ocpiUid
@@ -330,12 +337,12 @@ export const GET_EVSE_BY_ID_QUERY = gql`
 
 export const GET_CONNECTOR_BY_ID_QUERY = gql`
   query GetConnectorById(
-    $locationId: Int!
+    $locationWhere: Locations_bool_exp!
     $stationId: String!
     $evseId: Int!
     $connectorId: Int!
   ) {
-    Locations(where: { id: { _eq: $locationId } }) {
+    Locations(where: $locationWhere) {
       chargingPool: ChargingStations(where: { id: { _eq: $stationId } }) {
         evses: Evses(where: { id: { _eq: $evseId } }) {
           connectors: Connectors(

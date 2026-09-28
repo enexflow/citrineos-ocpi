@@ -39,7 +39,7 @@ import type {
 import {
   GET_CONNECTOR_BY_ID_QUERY,
   GET_EVSE_BY_ID_QUERY,
-  GET_LOCATION_BY_OCPID_ID_QUERY,
+  GET_OWN_LOCATION_QUERY,
   GET_OUR_LOCATIONS_QUERY,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
@@ -134,17 +134,52 @@ export class LocationsService {
     ) as PaginatedLocationResponse;
   }
 
-  async getLocationById(locationId: number): Promise<LocationResponse> {
+  /**
+   * Scopes a Locations query to the requesting party's own, non-roamed
+   * locations, mirroring the filter used by getLocations(). Prevents the
+   * Sender Interface's by-id lookups from returning other tenants'/partners'
+   * locations via the unfiltered `roaming_reader` Hasura role.
+   */
+  private buildOwnLocationWhere(
+    locationId: number,
+    ocpiHeaders: OcpiHeaders,
+  ): Locations_Bool_Exp {
+    return {
+      id: { _eq: locationId },
+      Tenant: {
+        countryCode: { _eq: ocpiHeaders.toCountryCode },
+        partyId: { _eq: ocpiHeaders.toPartyId },
+      },
+      ownerTenantPartnerId: { _is_null: true },
+      roamingPartnerId: { _is_null: true },
+      deletedAt: { _is_null: true },
+      // don't expose OCPI-disabled locations (null = not disabled)
+      _or: [
+        { disableOCPI: { _is_null: true } },
+        { disableOCPI: { _eq: false } },
+      ],
+    };
+  }
+
+  async getLocationById(
+    locationId: number,
+    ocpiHeaders: OcpiHeaders,
+  ): Promise<LocationResponse> {
     this.logger.debug(`Getting location ${locationId}`);
 
     try {
-      const variables = { id: locationId.toString() };
+      const variables = {
+        where: this.buildOwnLocationWhere(locationId, ocpiHeaders),
+      };
       const response = await this.ocpiGraphqlClient.request<
         GetLocationByOcpiIdQueryResult,
         GetLocationByOcpiIdQueryVariables
-      >(GET_LOCATION_BY_OCPID_ID_QUERY, variables);
+      >(GET_OWN_LOCATION_QUERY, variables);
       // response.Locations is an array, so pick the first
-      if (response.Locations && response.Locations.length > 1) {
+      if (!response.Locations || response.Locations.length === 0) {
+        throw new NotFoundException(`Location ${locationId} not found`);
+      }
+      if (response.Locations.length > 1) {
         this.logger.warn(
           `Multiple locations found for id ${locationId}. Returning the first one. All entries: ${JSON.stringify(response.Locations)}`,
         );
@@ -172,6 +207,7 @@ export class LocationsService {
     locationId: number,
     stationId: string,
     evseId: number,
+    ocpiHeaders: OcpiHeaders,
   ): Promise<EvseResponse> {
     this.logger.debug(
       `Getting EVSE ${evseId} from Charging Station ${stationId} in Location ${locationId}`,
@@ -179,7 +215,7 @@ export class LocationsService {
 
     try {
       const variables = {
-        locationId: locationId,
+        locationWhere: this.buildOwnLocationWhere(locationId, ocpiHeaders),
         stationId,
         evseId,
       };
@@ -187,6 +223,11 @@ export class LocationsService {
         GetEvseByIdQueryResult,
         GetEvseByIdQueryVariables
       >(GET_EVSE_BY_ID_QUERY, variables);
+      if (!response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]) {
+        throw new NotFoundException(
+          `Evse ${evseId} not found for location ${locationId}`,
+        );
+      }
       const evse = EvseMapper.fromGraphql(
         response.Locations[0].chargingPool[0] as unknown as ChargingStationDto,
         response.Locations[0].chargingPool[0].evses[0] as EvseDto,
@@ -209,6 +250,7 @@ export class LocationsService {
     stationId: string,
     evseId: number,
     connectorId: number,
+    ocpiHeaders: OcpiHeaders,
   ): Promise<ConnectorResponse> {
     this.logger.debug(
       `Getting Connector ${connectorId} from EVSE ${evseId} in Charging Station ${stationId} in Location ${locationId}`,
@@ -216,7 +258,7 @@ export class LocationsService {
 
     try {
       const variables = {
-        locationId: locationId,
+        locationWhere: this.buildOwnLocationWhere(locationId, ocpiHeaders),
         stationId,
         evseId,
         connectorId,
@@ -227,7 +269,13 @@ export class LocationsService {
       >(GET_CONNECTOR_BY_ID_QUERY, variables);
       // Traverse to the Connector object
       if (
-        response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]?.connectors &&
+        !response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]?.connectors?.[0]
+      ) {
+        throw new NotFoundException(
+          `Connector ${connectorId} not found for evse ${evseId} in location ${locationId}`,
+        );
+      }
+      if (
         response.Locations[0].chargingPool[0].evses[0].connectors.length > 1
       ) {
         this.logger.warn(

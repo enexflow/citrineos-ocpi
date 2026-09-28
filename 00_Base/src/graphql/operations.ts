@@ -37,6 +37,7 @@ export type Authorizations_Set_Input = {
   roamingPartnerId?: InputMaybe<Scalars['Int']['input']>;
 };
 export type Locations_Bool_Exp = {
+  id?: InputMaybe<Int_Comparison_Exp>;
   _and?: InputMaybe<Array<Locations_Bool_Exp>>;
   _or?: InputMaybe<Array<Locations_Bool_Exp>>;
   _not?: InputMaybe<Locations_Bool_Exp>;
@@ -1147,6 +1148,7 @@ export type GetOurLocationsQueryResult = {
         removed?: boolean | null,
         createdAt: any,
         updatedAt: any,
+        ocpiStatus?: string | null,
         connectors: Array<{
           id: number,
           stationId: string,
@@ -1275,7 +1277,7 @@ export type GetOurLocationByIdQueryResult = {
 };
 
 export type GetLocationByOcpiIdQueryVariables = Exact<{
-  id: Scalars['String']['input'];
+  where: Locations_Bool_Exp;
 }>;
 
 
@@ -1330,6 +1332,7 @@ export type GetLocationByOcpiIdQueryResult = {
         removed?: boolean | null,
         createdAt: any,
         updatedAt: any,
+        ocpiStatus?: string | null,
         connectors: Array<{
           id: number,
           stationId: string,
@@ -1365,7 +1368,7 @@ export type GetLocationByOcpiIdQueryResult = {
 };
 
 export type GetEvseByIdQueryVariables = Exact<{
-  locationId: Scalars['Int']['input'];
+  locationWhere: Locations_Bool_Exp;
   stationId: Scalars['String']['input'];
   evseId: Scalars['Int']['input'];
 }>;
@@ -1396,6 +1399,7 @@ export type GetEvseByIdQueryResult = {
       evses: Array<{
         id: number,
         stationId?: string | null,
+        ocpiStatus?: string | null,
         evseTypeId?: number | null,
         evseId?: string | null,
         ocpiUid?: string | null,
@@ -1409,7 +1413,7 @@ export type GetEvseByIdQueryResult = {
 };
 
 export type GetConnectorByIdQueryVariables = Exact<{
-  locationId: Scalars['Int']['input'];
+  locationWhere: Locations_Bool_Exp;
   stationId: Scalars['String']['input'];
   evseId: Scalars['Int']['input'];
   connectorId: Scalars['Int']['input'];

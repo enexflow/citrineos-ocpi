@@ -408,8 +408,9 @@ export class LocationsModuleApi
   async getLocationById(
     @VersionNumberParam() version: VersionNumber,
     @Param('location_id') locationId: number,
+    @FunctionalEndpointParams() ocpiHeaders: OcpiHeaders,
   ): Promise<LocationResponse> {
-    return this.locationsService.getLocationById(locationId);
+    return this.locationsService.getLocationById(locationId, ocpiHeaders);
   }
 
   /**
@@ -428,6 +429,7 @@ export class LocationsModuleApi
     @VersionNumberParam() version: VersionNumber,
     @Param('location_id') locationId: number,
     @Param('evse_uid') evseUid: string,
+    @FunctionalEndpointParams() ocpiHeaders: OcpiHeaders,
   ): Promise<EvseResponse> {
     const stationId = EXTRACT_STATION_ID(evseUid);
     const evseId = EXTRACT_EVSE_ID(evseUid);
@@ -436,6 +438,7 @@ export class LocationsModuleApi
       locationId,
       stationId,
       Number(evseId),
+      ocpiHeaders,
     );
   }
 
@@ -456,6 +459,7 @@ export class LocationsModuleApi
     @Param('location_id') locationId: number,
     @Param('evse_uid') evseUid: string,
     @Param('connector_id') connectorId: string,
+    @FunctionalEndpointParams() ocpiHeaders: OcpiHeaders,
   ): Promise<ConnectorResponse> {
     const stationId = EXTRACT_STATION_ID(evseUid);
     const evseId = EXTRACT_EVSE_ID(evseUid);
@@ -465,6 +469,7 @@ export class LocationsModuleApi
       stationId,
       Number(evseId),
       Number(connectorId),
+      ocpiHeaders,
     );
   }
 

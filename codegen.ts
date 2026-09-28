@@ -64,6 +64,7 @@ export type Authorizations_Set_Input = {
   roamingPartnerId?: InputMaybe<Scalars['Int']['input']>;
 };
 export type Locations_Bool_Exp = {
+  id?: InputMaybe<Int_Comparison_Exp>;
   _and?: InputMaybe<Array<Locations_Bool_Exp>>;
   _or?: InputMaybe<Array<Locations_Bool_Exp>>;
   _not?: InputMaybe<Locations_Bool_Exp>;
