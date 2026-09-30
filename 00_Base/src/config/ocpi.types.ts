@@ -203,10 +203,20 @@ export const ocpiConfigInputSchema = z.object({
       countryCode: z.string().optional(),
       partyId: z.coerce.string().optional(),
       /**
-       * How often to retry failed Gireve broadcasts (in seconds).
-       * Used by the outbox/worker retry mechanism.
+       * Base delay (in seconds) before retrying a failed Gireve broadcast.
+       * Used by the outbox/worker retry mechanism; subsequent retries back off
+       * exponentially (base, base * multiplier, base * multiplier^2, ...).
        */
       retryIntervalSeconds: z.number().int().positive().default(300).optional(),
+      /** Exponential backoff factor applied per failed retry attempt. */
+      retryBackoffMultiplier: z.number().min(1).default(2).optional(),
+      /** Upper bound (in seconds) for the delay between two retries. */
+      retryMaxIntervalSeconds: z
+        .number()
+        .int()
+        .positive()
+        .default(86400)
+        .optional(),
       /** Max rows claimed per CronJob run. */
       retryBatchSize: z.number().int().positive().default(50).optional(),
       /** Release processing locks older than this (seconds) at run start. */
@@ -388,10 +398,20 @@ export const ocpiConfigSchema = z.object({
       countryCode: z.string().optional(),
       partyId: z.coerce.string().optional(),
       /**
-       * How often to retry failed Gireve broadcasts (in seconds).
-       * Used by the outbox/worker retry mechanism.
+       * Base delay (in seconds) before retrying a failed Gireve broadcast.
+       * Used by the outbox/worker retry mechanism; subsequent retries back off
+       * exponentially (base, base * multiplier, base * multiplier^2, ...).
        */
       retryIntervalSeconds: z.number().int().positive().default(300).optional(),
+      /** Exponential backoff factor applied per failed retry attempt. */
+      retryBackoffMultiplier: z.number().min(1).default(2).optional(),
+      /** Upper bound (in seconds) for the delay between two retries. */
+      retryMaxIntervalSeconds: z
+        .number()
+        .int()
+        .positive()
+        .default(86400)
+        .optional(),
       /** Max rows claimed per CronJob run. */
       retryBatchSize: z.number().int().positive().default(50).optional(),
       /** Release processing locks older than this (seconds) at run start. */
