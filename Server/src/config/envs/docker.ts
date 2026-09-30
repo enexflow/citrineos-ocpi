@@ -12,6 +12,10 @@ export function createDockerOcpiConfig(): OcpiConfigInput {
     ocpiServer: {
       host: '0.0.0.0',
       port: 8085,
+      allowedOrigins: (process.env.OCPI_ALLOWED_ORIGINS || '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
     },
 
     ocpiModules: {
