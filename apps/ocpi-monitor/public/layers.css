@@ -1,0 +1,17 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+@layer tailwind-theme;
+@layer tailwind-reset;
+
+@layer vuetify-core;
+@layer vuetify-components;
+@layer vuetify-overrides;
+@layer vuetify-utilities;
+
+@layer tailwind-utilities;
+
+@layer vuetify-final;

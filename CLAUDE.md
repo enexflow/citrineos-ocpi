@@ -12,7 +12,7 @@
 - **Discipline de fork** : changements rebasables upstream ; isole les specifics enexflow.
 - **Conformité OCPI** : un champ optionnel ajouté = additif ; rendre un champ mandatory / changer un type / retirer un champ = **breaking** pour les partenaires → le signaler.
 - **Gate avant PR** : `npm run lint` + `npm run test` (+ `prettier` ; `npm run generate` si le codegen est concerné). Build : `npm run build`.
-- **Branches/PR** : base `env/staging`, conventional **ASCII**, ne pas merger soi-même.
+- **Branches/PR** : partir de `env/dev` à jour, PR vers `env/dev`, conventional **ASCII**, ne pas merger soi-même.
 - ⚠️ Les **données de roaming** (Sessions/CDRs/Tokens) vivent ici (CitrineOS), **pas** dans le Postgres de sizopt (cf. ADR-0004 côté sizopt).
 
 ## Cross-repo

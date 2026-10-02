@@ -19,6 +19,7 @@
   "author": "S44",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@types/koa__cors": "^5.0.1",
     "@types/koa-logger": "3.1.5",
     "@types/lodash.capitalize": "4.2.9",
     "@types/lodash.merge": "4.6.9",
@@ -33,9 +34,10 @@
     "typescript": "5.0.4"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.826.0",
+    "@koa/cors": "^5.0.0",
     "@zetra/citrineos-base": "file:../../citrineos-core/00_Base",
     "@zetra/citrineos-util": "file:../../citrineos-core/02_Util",
-    "@aws-sdk/client-secrets-manager": "^3.826.0",
     "ajv": "8.18.0",
     "ajv-formats": "^3.0.1",
     "amqplib": "0.10.9",

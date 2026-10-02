@@ -70,6 +70,7 @@ export default tseslint.config(
       '**/*.test.ts',
       'jest.config.cjs',
       'tmp/**',
+      'apps/**',
     ],
   },
   // Disable ESLint rules that conflict with Prettier

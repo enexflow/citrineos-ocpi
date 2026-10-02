@@ -33,6 +33,9 @@ export class RoamingPartnerService {
       partnerPartyId,
       roamingPartnerCountryCode,
       roamingPartnerPartyId,
+      roamingPartnerName,
+      roamingPartnerSignatureDate,
+      roamingPartnerContractStartDate,
     } = body;
     const tenantPartner = await this.ocpiGraphqlClient.request<
       GetTenantPartnerByCpoClientAndModuleIdQueryResult,
@@ -59,6 +62,9 @@ export class RoamingPartnerService {
         countryCode: roamingPartnerCountryCode,
         partyId: roamingPartnerPartyId,
         tenantPartnerId: tenantPartner.TenantPartners[0].id,
+        name: roamingPartnerName,
+        signatureDate: roamingPartnerSignatureDate,
+        contractStartDate: roamingPartnerContractStartDate,
       });
       if (!roamingPartner) {
         throw new Error('Failed to create roaming partner');

@@ -50,6 +50,7 @@ export type Scalars = {
   timestamptz: { input: any; output: any; }
   citext: { input: string; output: string; }
   authorization_status: { input: string; output: string; }
+  date: { input: string; output: string; }
   uuid: { input: string; output: string; }
 };
 export type Authorizations_Set_Input = {
@@ -64,13 +65,15 @@ export type Authorizations_Set_Input = {
 };
 export type Locations_Bool_Exp = {
   id?: InputMaybe<Int_Comparison_Exp>;
+  _and?: InputMaybe<Array<Locations_Bool_Exp>>;
+  _or?: InputMaybe<Array<Locations_Bool_Exp>>;
+  _not?: InputMaybe<Locations_Bool_Exp>;
   ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
   deletedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
-  _or?: InputMaybe<Array<Locations_Bool_Exp>>;
 };
 export type Boolean_Comparison_Exp = {
   _eq?: InputMaybe<Scalars['Boolean']['input']>;
@@ -143,10 +146,13 @@ export type Cdrs_Bool_Exp = {
   countryCode?: InputMaybe<String_Comparison_Exp>;
   partyId?: InputMaybe<String_Comparison_Exp>;
   ocpiCdrId?: InputMaybe<String_Comparison_Exp>;
-  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  fromTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   lastUpdated?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
+  FromTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+  ToTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;

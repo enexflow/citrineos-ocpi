@@ -41,7 +41,9 @@ describe('GireveBroadcastRetryOutbox', () => {
       request: jest
         .fn()
         .mockResolvedValueOnce({ GireveBroadcastRetryQueues: [] })
-        .mockResolvedValueOnce({ insert_GireveBroadcastRetryQueues_one: { id: 'new' } }),
+        .mockResolvedValueOnce({
+          insert_GireveBroadcastRetryQueues_one: { id: 'new' },
+        }),
     };
 
     const outbox = new GireveBroadcastRetryOutbox(
@@ -78,7 +80,9 @@ describe('GireveBroadcastRetryOutbox', () => {
       request: jest
         .fn()
         .mockResolvedValueOnce({
-          GireveBroadcastRetryQueues: [{ id: 'existing-id' }],
+          GireveBroadcastRetryQueues: [
+            { id: 'existing-id', status: 'pending', attemptCount: 2 },
+          ],
         })
         .mockResolvedValueOnce({
           update_GireveBroadcastRetryQueues_by_pk: { id: 'existing-id' },
@@ -112,7 +116,14 @@ describe('GireveBroadcastRetryOutbox', () => {
         payload: { id: 'tariff-42', currency: 'EUR' },
       }),
     );
-    expect(updateCall[1]).not.toHaveProperty('attemptCount');
+    // attemptCount kept (not incremented) and backoff based on it: 300 * 2^2
+    expect(updateCall[1].attemptCount).toBe(2);
+    expect(updateCall[1].nextRetryAt.getTime() - Date.now()).toBeGreaterThan(
+      1190 * 1000,
+    );
+    expect(
+      updateCall[1].nextRetryAt.getTime() - Date.now(),
+    ).toBeLessThanOrEqual(1200 * 1000);
     expect(mockLogger.info).toHaveBeenCalledWith(
       'Gireve retry outbox: refreshed pending retry payload (dedupe)',
       expect.objectContaining({
@@ -120,6 +131,45 @@ describe('GireveBroadcastRetryOutbox', () => {
         resourceId: 'tariff-42',
       }),
     );
+  });
+
+  it('restarts the backoff when the deduped row was already sent', async () => {
+    const mockOcpiGraphqlClient = {
+      request: jest
+        .fn()
+        .mockResolvedValueOnce({
+          GireveBroadcastRetryQueues: [
+            { id: 'sent-id', status: 'sent', attemptCount: 5 },
+          ],
+        })
+        .mockResolvedValueOnce({
+          update_GireveBroadcastRetryQueues_by_pk: { id: 'sent-id' },
+        }),
+    };
+
+    const outbox = new GireveBroadcastRetryOutbox(
+      mockOcpiGraphqlClient as any,
+      mockLogger as any,
+    );
+
+    await outbox.upsertOnFailure({
+      partnerTenantPartnerId: 7,
+      cpoCountryCode: 'FR',
+      cpoPartyId: 'ZET',
+      moduleId: ModuleId.Sessions,
+      interfaceRole: InterfaceRole.RECEIVER,
+      httpMethod: HttpMethod.Patch,
+      resourceType: 'session',
+      resourceId: 'sess-001',
+      payload: { id: 'sess-001' },
+      lastError: 'non-2xx',
+    });
+
+    const updateCall = mockOcpiGraphqlClient.request.mock.calls[1];
+    expect(updateCall[1].attemptCount).toBe(0);
+    expect(
+      updateCall[1].nextRetryAt.getTime() - Date.now(),
+    ).toBeLessThanOrEqual(300 * 1000);
   });
 
   it('claims due retries via the SQL claim function', async () => {
