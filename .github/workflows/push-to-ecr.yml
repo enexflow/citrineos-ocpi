@@ -1,6 +1,7 @@
 name: Push docker images
 
 on:
+  workflow_dispatch:
   push:
     branches: [env/*]
 
@@ -14,6 +15,7 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          base: ${{ github.event.before }}
           filters: |
             ocpi-monitor-ui:
               - 'apps/ocpi-monitor/**'
@@ -81,7 +83,7 @@ jobs:
 
   push-ocpi-monitor-to-ecr:
     needs: changes
-    if: needs.changes.outputs.ocpi-monitor-ui == 'true'
+    if: needs.changes.outputs.ocpi-monitor-ui == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
