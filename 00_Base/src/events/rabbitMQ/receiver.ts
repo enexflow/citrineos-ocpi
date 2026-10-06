@@ -48,6 +48,7 @@ export class RabbitMqDtoReceiver
   // subscription must be replayed after a reconnect or a consumer cancel.
   private readonly _subscriptions: DtoSubscription[] = [];
   private _queueSequence = 0;
+  private _lastRestoreFailureAt = 0;
 
   constructor(
     @Inject(OcpiConfigToken) config: OcpiConfig,
@@ -196,16 +197,27 @@ export class RabbitMqDtoReceiver
     let channel: amqplib.Channel | undefined;
     let restored = false;
     try {
+      // A refused declare closes the channel in the same tick, whose handler lands back here at
+      // once: wait out the delay since the last failed restore, or it becomes a reconnect storm.
+      const wait =
+        this._lastRestoreFailureAt +
+        RabbitMqDtoReceiver.RECONNECT_DELAY -
+        Date.now();
+      if (wait > 0) {
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
       channel = await this._connectWithRetry(
         this._abortReconnectController.signal,
       );
       this._channel = channel;
       await this._resubscribeAll(channel);
       restored = true;
+      this._lastRestoreFailureAt = 0;
       this._logger.info(
         `RabbitMQ reconnected successfully, ${this._subscriptions.length} subscription(s) restored.`,
       );
     } catch (err) {
+      this._lastRestoreFailureAt = Date.now();
       this._logger.error(
         'Failed to reconnect or re-subscribe to RabbitMQ (context: _handleDisconnect)',
         err,

@@ -221,4 +221,37 @@ describe('RabbitMqDtoReceiver', () => {
     expect(connectMock).toHaveBeenCalledTimes(2);
     expect(models[1].channel.consumers.size).toBe(1);
   });
+
+  it('waits RECONNECT_DELAY between restores when the broker keeps refusing the re-subscribe', async () => {
+    await receiver.subscribe(DtoEventType.UPDATE, DtoEventObjectType.Evse, {
+      eventId: 'EvseNotification',
+    });
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    try {
+      connectMock.mockImplementation(async () => {
+        const model = new FakeChannelModel();
+        // Mirrors amqplib: a refused RPC closes the channel in the same tick as the rejection.
+        model.channel.bindQueue.mockImplementation(async () => {
+          model.channel.emit('close');
+          throw new Error('ACCESS_REFUSED');
+        });
+        models.push(model);
+        return model;
+      });
+
+      models[0].dropConnection();
+      await flush();
+      expect(connectMock).toHaveBeenCalledTimes(2);
+
+      await jest.advanceTimersByTimeAsync(4000);
+      await flush();
+      expect(connectMock).toHaveBeenCalledTimes(2);
+
+      await jest.advanceTimersByTimeAsync(1500);
+      await flush();
+      expect(connectMock).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
