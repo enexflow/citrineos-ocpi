@@ -22,6 +22,11 @@ import {
   RESCHEDULE_GIREVE_RETRY,
   UPDATE_GIREVE_RETRY_QUEUE,
 } from '../graphql/queries/gireveBroadcastRetry.queries.js';
+import {
+  computeGireveNextRetryAt,
+  getGireveRetryBackoffOptions,
+  type GireveRetryBackoffOptions,
+} from './gireveRetryBackoff.js';
 
 type GireveRetryResourceType = 'session' | 'tariff' | 'cdr';
 
@@ -66,8 +71,8 @@ export class GireveBroadcastRetryOutbox {
     return Container.get<OcpiConfig>(OcpiConfigToken);
   }
 
-  private get retryIntervalSeconds(): number {
-    return this.config.gireve?.retryIntervalSeconds ?? 300;
+  private get backoffOptions(): GireveRetryBackoffOptions {
+    return getGireveRetryBackoffOptions(this.config);
   }
 
   private get retryBatchSize(): number {
@@ -81,18 +86,21 @@ export class GireveBroadcastRetryOutbox {
   /**
    * Upsert a retry item using the dedupe key:
    * (moduleId, partnerTenantPartnerId, resourceType, resourceId) => latest wins.
+   * A pending row keeps its attemptCount so the backoff is not reset by new
+   * live failures; a row already sent restarts the backoff from scratch.
    */
   async upsertOnFailure(input: UpsertGireveRetryInput): Promise<void> {
     const now = new Date();
-    const nextRetryAt = new Date(
-      now.getTime() + this.retryIntervalSeconds * 1000,
-    );
 
     const findQuery = FIND_GIREVE_RETRY_QUEUE;
 
     const existing = await this.ocpiGraphqlClient.request<
       {
-        GireveBroadcastRetryQueues: Array<Pick<GireveRetryQueueItem, 'id'>>;
+        GireveBroadcastRetryQueues: Array<
+          Pick<GireveRetryQueueItem, 'id' | 'attemptCount'> & {
+            status: string;
+          }
+        >;
       },
       {
         moduleId: ModuleId;
@@ -109,8 +117,11 @@ export class GireveBroadcastRetryOutbox {
 
     const payload = input.payload ?? {};
 
-    if (!existing.GireveBroadcastRetryQueues?.[0]) {
+    const existingRow = existing.GireveBroadcastRetryQueues?.[0];
+
+    if (!existingRow) {
       const insertQuery = INSERT_GIREVE_RETRY_QUEUE;
+      const nextRetryAt = computeGireveNextRetryAt(0, this.backoffOptions, now);
 
       await this.ocpiGraphqlClient.request(insertQuery, {
         id: uuidv4(),
@@ -141,24 +152,33 @@ export class GireveBroadcastRetryOutbox {
     }
 
     const updateQuery = UPDATE_GIREVE_RETRY_QUEUE;
+    const attemptCount =
+      existingRow.status === 'sent' ? 0 : (existingRow.attemptCount ?? 0);
+    const nextRetryAt = computeGireveNextRetryAt(
+      attemptCount,
+      this.backoffOptions,
+      now,
+    );
 
     await this.ocpiGraphqlClient.request(updateQuery, {
-      id: existing.GireveBroadcastRetryQueues[0].id,
+      id: existingRow.id,
       updatedAt: now,
       nextRetryAt,
       payload,
       ocpiPath: input.ocpiPath ?? null,
       lastError: input.lastError,
+      attemptCount,
     });
 
     this.logger.info(
       'Gireve retry outbox: refreshed pending retry payload (dedupe)',
       {
-        id: existing.GireveBroadcastRetryQueues[0].id,
+        id: existingRow.id,
         moduleId: input.moduleId,
         resourceType: input.resourceType,
         resourceId: input.resourceId,
         partnerTenantPartnerId: input.partnerTenantPartnerId,
+        attemptCount,
         nextRetryAt: nextRetryAt.toISOString(),
       },
     );

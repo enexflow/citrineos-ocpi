@@ -9,10 +9,8 @@ import { buildOcpiResponse } from '../model/OcpiResponse.js';
 import { Logger, type ILogObj } from 'tslog';
 
 import type {
-  GetTransactionsQueryResult,
-  GetTransactionsQueryVariables,
   InsertCdrMutationResult,
-  Transactions_Bool_Exp,
+  Cdrs_Bool_Exp,
   InsertCdrMutationVariables,
   GetCdrByiIdQueryResult,
   GetCdrByiIdQueryVariables,
@@ -20,19 +18,20 @@ import type {
   GetTenantPartnerByCpoClientAndModuleIdQueryVariables,
   GetCdrByiIdAndRoamingPartnerQueryResult,
   GetCdrByiIdAndRoamingPartnerQueryVariables,
-  FindSentCdrQueryResult,
-  FindSentCdrQueryVariables,
   UpdateCdrSentStatusMutationResult,
   UpdateCdrSentStatusMutationVariables,
+  GetCdrsPaginatedQueryResult,
+  GetCdrsPaginatedQueryVariables,
+  FindSentCdrQueryResult,
+  FindSentCdrQueryVariables,
 } from '../graphql/index.js';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY } from '../graphql/index.js';
-import { GET_TRANSACTIONS_QUERY, OcpiGraphqlClient } from '../graphql/index.js';
+import { OcpiGraphqlClient } from '../graphql/index.js';
 import { CdrMapper } from '../mapper/index.js';
 import type {
   RoamingPartnerDto,
   TenantPartnerDto,
-  TransactionDto,
 } from '@zetra/citrineos-base';
 import { NotFoundException } from '../exception/NotFoundException.js';
 import { findThenUpsert } from '../util/helpers.js';
@@ -46,6 +45,7 @@ import {
   GET_CDR_BY_OUR_ID_AND_ROAMING_PARTNER,
   FIND_SENT_CDR_QUERY,
   UPDATE_CDR_SENT_STATUS_MUTATION,
+  GET_CDRS_PAGINATED,
 } from '../graphql/queries/cdr.queries.js';
 import type { CdrEntity } from '../model/DTO/CdrDTO.js';
 import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
@@ -86,40 +86,56 @@ export class CdrsService {
     offset: number = DEFAULT_OFFSET,
     limit: number = DEFAULT_LIMIT,
   ): Promise<PaginatedCdrResponse> {
-    const where: Transactions_Bool_Exp = {
+    const dateFilters: any = {};
+    if (dateFrom) dateFilters._gte = dateFrom.toISOString();
+    if (dateTo) dateFilters._lte = dateTo.toISOString();
+
+    const tenantPartnerResult = await this.ocpiGraphqlClient.request<
+      GetTenantPartnerByCpoClientAndModuleIdQueryResult,
+      GetTenantPartnerByCpoClientAndModuleIdQueryVariables
+    >(GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY, {
+      ourCountryCode: toCountryCode,
+      ourPartyId: toPartyId,
+      partnerCountryCode: fromCountryCode,
+      partnerPartyId: fromPartyId,
+    });
+    const toTenantPartnerId = tenantPartnerResult.TenantPartners[0]?.id;
+
+    const storedCdrsWhere: Cdrs_Bool_Exp = {
       Tenant: {
         countryCode: { _eq: toCountryCode },
         partyId: { _eq: toPartyId },
       },
-      Authorization: {
-        TenantPartner: {
-          countryCode: { _eq: fromCountryCode },
-          partyId: { _eq: fromPartyId },
-        },
-      },
+      toTenantPartnerId: { _eq: toTenantPartnerId },
     };
-    const dateFilters: any = {};
-    if (dateFrom) dateFilters._gte = dateFrom.toISOString();
-    if (dateTo) dateFilters._lte = dateTo.toISOString();
     if (Object.keys(dateFilters).length > 0) {
-      where.updatedAt = dateFilters;
+      storedCdrsWhere.lastUpdated = dateFilters;
     }
-    const variables = {
-      offset,
-      limit,
-      where,
-    };
-    const result = await this.ocpiGraphqlClient.request<
-      GetTransactionsQueryResult,
-      GetTransactionsQueryVariables
-    >(GET_TRANSACTIONS_QUERY, variables);
-    const mappedCdr = await this.cdrMapper.mapTransactionsToCdrs(
-      result.Transactions as TransactionDto[],
+
+    // Every CDR we owe a partner is generated and stored up front by
+    // CdrBroadcaster when its transaction finalizes; this endpoint only ever
+    // serves what's already stored. A completed transaction with no stored
+    // CDR here is a bug in that broadcast flow, not something to paper over
+    // by recomputing a CDR on the fly.
+    const storedCdrsResult =
+      toTenantPartnerId == null
+        ? { Cdrs: [], Cdrs_aggregate: { aggregate: { count: 0 } } }
+        : await this.ocpiGraphqlClient.request<
+            GetCdrsPaginatedQueryResult,
+            GetCdrsPaginatedQueryVariables
+          >(GET_CDRS_PAGINATED, {
+            offset,
+            limit,
+            where: storedCdrsWhere,
+          });
+
+    const mappedCdr = storedCdrsResult.Cdrs.map((cdr) =>
+      this.cdrMapper.mapCdrReceiver(cdr as unknown as CdrEntity),
     );
 
     return {
       data: mappedCdr,
-      total: result.Transactions.length,
+      total: storedCdrsResult.Cdrs_aggregate?.aggregate?.count ?? 0,
       offset: offset,
       limit: limit,
     } as PaginatedCdrResponse;

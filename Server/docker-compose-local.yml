@@ -60,6 +60,9 @@ services:
       CITRINEOS_OCPI_GIREVE_COUNTRYCODE: 'FR'
       CITRINEOS_OCPI_GIREVE_PARTYID: '107'
       CITRINEOS_OCPI_INCLUDE_COMMAND_RESULT_MESSAGE: 'false'
+      OCPI_ALLOWED_ORIGINS: 'http://localhost:3000'
+      CITRINEOS_OCPI_OIDC_REQUIREDROLES: 'timeseries_api:admin,ocpi-monitor-ui:ocpi-monitor-user'
+
     # depends_on:
     #   ocpp-db:
     #     condition: service_healthy

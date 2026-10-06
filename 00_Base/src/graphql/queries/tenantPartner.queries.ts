@@ -49,6 +49,18 @@ export const GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY = gql`
   }
 `;
 
+/** Admin UI: identity (role/business details) for every partner, projected server-side. */
+export const GET_ALL_TENANT_PARTNERS = gql`
+  query GetAllTenantPartners {
+    TenantPartners(order_by: [{ countryCode: asc }, { partyId: asc }]) {
+      id
+      countryCode
+      partyId
+      partnerProfileOCPI
+    }
+  }
+`;
+
 export const GET_TENANT_PARTNER_BY_ID = gql`
   query GetTenantPartnerById($id: Int!) {
     TenantPartners_by_pk(id: $id) {
