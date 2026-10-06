@@ -244,6 +244,7 @@ export {
   OnboardRoamingPartnerBodySchemaName,
 } from './model/DTO/OnboardRoamingPartnerBody.js';
 export type { PushPartnerModulesBody } from './model/DTO/PushPartnerModulesBody.js';
+export type { RealTimeAuthorizationRequest } from './model/DTO/RealTimeAuthorizationRequest.js';
 export {
   PushPartnerModulesBodySchema,
   PushPartnerModulesBodySchemaName,
