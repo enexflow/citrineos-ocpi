@@ -50,6 +50,26 @@ export const READ_AUTHORIZATION = gql`
   }
 `;
 
+export const REASSIGN_REAL_TIME_AUTHORIZATION_MUTATION = gql`
+  mutation ReassignRealTimeAuthorization(
+    $idToken: citext!
+    $type: String!
+    $tenantPartnerId: Int!
+  ) {
+    update_Authorizations(
+      where: {
+        idToken: { _eq: $idToken }
+        idTokenType: { _eq: $type }
+        ocpiAuthMethod: { _eq: "AUTH_REQUEST" }
+        tenantPartnerId: { _neq: $tenantPartnerId }
+      }
+      _set: { tenantPartnerId: $tenantPartnerId }
+    ) {
+      affected_rows
+    }
+  }
+`;
+
 export const UPDATE_TOKEN_MUTATION = gql`
   mutation UpdateAuthorization(
     $idToken: citext!
