@@ -16,10 +16,7 @@ import { Service } from 'typedi';
 
 import { HttpStatus, type TenantDto } from '@zetra/citrineos-base';
 
-import type {
-  RealTimeAuthorizationRequestBody,
-  RealTimeAuthorizationResponse,
-} from '@zetra/citrineos-util';
+import type { RealTimeAuthorizationResponse } from '@zetra/citrineos-util';
 import type {
   AuthorizationInfoResponse,
   LocationReferences,
@@ -29,6 +26,7 @@ import type {
   TokenDTO,
   TokenResponse,
   PushPartnerModulesBody,
+  RealTimeAuthorizationRequest,
 } from '@citrineos/ocpi-base';
 import {
   AsAdminEndpoint,
@@ -361,7 +359,7 @@ export class TokensModuleApi
   @AsAdminEndpoint()
   async realTimeAuthorization(
     @VersionNumberParam() _version: VersionNumber,
-    @Body() realTimeAuthRequest: RealTimeAuthorizationRequestBody,
+    @Body() realTimeAuthRequest: RealTimeAuthorizationRequest,
   ): Promise<RealTimeAuthorizationResponse> {
     this.logger.info('realTimeAuthorization', realTimeAuthRequest);
     return this.tokensService.realTimeAuthorization(realTimeAuthRequest);

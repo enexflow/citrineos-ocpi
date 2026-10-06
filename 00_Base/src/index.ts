@@ -254,6 +254,7 @@ export type {
 } from './model/DTO/DeleteLocationBody.js';
 export { DeleteLocationSummarySchema } from './model/DTO/DeleteLocationBody.js';
 export type { PushPartnerModulesBody } from './model/DTO/PushPartnerModulesBody.js';
+export type { RealTimeAuthorizationRequest } from './model/DTO/RealTimeAuthorizationRequest.js';
 export {
   PushPartnerModulesBodySchema,
   PushPartnerModulesBodySchemaName,
