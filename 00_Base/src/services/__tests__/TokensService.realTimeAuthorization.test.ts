@@ -25,7 +25,7 @@ import {
   GET_REAL_TIME_TOKEN_AUTH_TENANT_PARTNERS,
   GET_TENANT_PARTNER_BY_ID,
 } from '../../graphql/queries/tenantPartner.queries';
-import { REASSIGN_REAL_TIME_AUTHORIZATION_MUTATION } from '../../graphql/queries/token.queries';
+import { GET_AUTHORIZATION_OWNER } from '../../graphql/queries/token.queries';
 
 jest.mock('../../graphql/OcpiGraphqlClient');
 
@@ -92,9 +92,11 @@ describe('TokensService.realTimeAuthorization', () => {
   let mockTokensClientApi: jest.Mocked<TokensClientApi>;
   let persistRoamingAuthorization: jest.SpyInstance;
   let answersByPartyId: Record<string, () => Promise<unknown>>;
+  let cachedOwners: { tenantPartnerId: number }[];
 
   beforeEach(() => {
     answersByPartyId = {};
+    cachedOwners = [];
     mockGraphqlClient = {
       request: jest.fn().mockImplementation(async (query) => {
         if (query === GET_REAL_TIME_TOKEN_AUTH_TENANT_PARTNERS) {
@@ -103,8 +105,8 @@ describe('TokensService.realTimeAuthorization', () => {
         if (query === GET_TENANT_PARTNER_BY_ID) {
           return { TenantPartners_by_pk: hub };
         }
-        if (query === REASSIGN_REAL_TIME_AUTHORIZATION_MUTATION) {
-          return { update_Authorizations: { affected_rows: 1 } };
+        if (query === GET_AUTHORIZATION_OWNER) {
+          return { Authorizations: cachedOwners };
         }
         throw new Error('unexpected query');
       }),
@@ -172,7 +174,21 @@ describe('TokensService.realTimeAuthorization', () => {
     expect(persistRoamingAuthorization.mock.calls[0][2]).toBe(emsp.id);
   });
 
-  it('hands over a cached answer of another partner to the winner', async () => {
+  it('does not cache a token already owned by another partner', async () => {
+    cachedOwners = [{ tenantPartnerId: hub.id }];
+    answersByPartyId['007'] = async () =>
+      anAnswer(AuthorizationInfoAllowed.NotAllowed);
+    answersByPartyId['ALP'] = async () =>
+      anAnswer(AuthorizationInfoAllowed.Allowed);
+
+    const response = await service.realTimeAuthorization(request as any);
+
+    expect(response.data.allowed).toBe(AuthorizationInfoAllowed.Allowed);
+    expect(persistRoamingAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a token cached under the same partner', async () => {
+    cachedOwners = [{ tenantPartnerId: emsp.id }];
     answersByPartyId['007'] = async () =>
       anAnswer(AuthorizationInfoAllowed.NotAllowed);
     answersByPartyId['ALP'] = async () =>
@@ -180,10 +196,7 @@ describe('TokensService.realTimeAuthorization', () => {
 
     await service.realTimeAuthorization(request as any);
 
-    expect(mockGraphqlClient.request).toHaveBeenCalledWith(
-      REASSIGN_REAL_TIME_AUTHORIZATION_MUTATION,
-      { idToken: 'BADGE1', type: 'ISO14443', tenantPartnerId: emsp.id },
-    );
+    expect(persistRoamingAuthorization.mock.calls[0][2]).toBe(emsp.id);
   });
 
   it('accepts when only one partner allows the token', async () => {

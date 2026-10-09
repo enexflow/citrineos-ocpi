@@ -2788,17 +2788,16 @@ export type GetTenantPartnerByIdQueryResult = {
   } | null
 };
 
-export type ReassignRealTimeAuthorizationMutationVariables = Exact<{
+export type GetAuthorizationOwnerQueryVariables = Exact<{
   idToken: Scalars['citext']['input'];
   type: Scalars['String']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
 }>;
 
 
-export type ReassignRealTimeAuthorizationMutationResult = {
-  update_Authorizations?: {
-    affected_rows: number
-  } | null
+export type GetAuthorizationOwnerQueryResult = {
+  Authorizations: Array<{
+    tenantPartnerId?: number | null
+  }>
 };
 
 export type GetRealTimeTokenAuthTenantPartnersQueryVariables = Exact<{
