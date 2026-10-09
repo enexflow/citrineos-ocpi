@@ -17,6 +17,8 @@ import {
   READ_AUTHORIZATION,
   UPDATE_TOKEN_MUTATION,
   GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY,
+  GET_REAL_TIME_TOKEN_AUTH_TENANT_PARTNERS,
+  GET_AUTHORIZATION_OWNER,
 } from '../graphql/index.js';
 import { TokensMapper } from '../mapper/index.js';
 
@@ -24,6 +26,7 @@ import type {
   AuthorizationDto,
   ChargingStationDto,
   Endpoint,
+  PartnerProfile,
   TenantDto,
 } from '@zetra/citrineos-base';
 import { AuthorizationStatusEnum, IdTokenEnum } from '@zetra/citrineos-base';
@@ -48,6 +51,10 @@ import type {
   UpdateAuthorizationMutationVariables,
   GetTenantPartnerByCpoClientAndModuleIdQueryResult,
   GetTenantPartnerByCpoClientAndModuleIdQueryVariables,
+  GetRealTimeTokenAuthTenantPartnersQueryResult,
+  GetRealTimeTokenAuthTenantPartnersQueryVariables,
+  GetAuthorizationOwnerQueryResult,
+  GetAuthorizationOwnerQueryVariables,
 } from '../graphql/operations.js';
 import { UnknownTokenException } from '../exception/UnknownTokenException.js';
 import type { AdditionalInfoType } from '@zetra/citrineos-base/dist/ocpp/model/2.0.1/index.js';
@@ -64,7 +71,12 @@ import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
 import { DEFAULT_LIMIT, DEFAULT_OFFSET } from '../model/PaginatedResponse.js';
 import { PaginatedParams } from '../controllers/param/PaginatedParams.js';
 import { AuthorizationInfoAllowed } from '../model/AuthorizationInfoAllowed.js';
-import type { AuthorizationInfo } from '../model/AuthorizationInfo.js';
+import type {
+  AuthorizationInfo,
+  AuthorizationInfoResponse,
+} from '../model/AuthorizationInfo.js';
+import { EndpointIdentifier } from '../model/EndpointIdentifier.js';
+import { Role } from '../model/Role.js';
 import type { Tenant, TenantPartner } from '@zetra/citrineos-data';
 import type {
   PushFailure,
@@ -104,6 +116,85 @@ export type UpsertTokenOptions = {
 
 import { getRoamingPartner } from '../util/helpers.js';
 import type { TenantPartnerDto } from '@zetra/citrineos-base';
+
+// Below core's 15 s call timeout.
+const REAL_TIME_AUTH_PARTNER_TIMEOUT_MS = 10_000;
+
+const ALLOWED_PRIORITY: string[] = [
+  AuthorizationInfoAllowed.Allowed,
+  AuthorizationInfoAllowed.Blocked,
+  AuthorizationInfoAllowed.Expired,
+  AuthorizationInfoAllowed.NoCredit,
+  AuthorizationInfoAllowed.NotAllowed,
+];
+
+type RealTimeAuthTenantPartner = NonNullable<
+  GetTenantPartnerByIdQueryResult['TenantPartners_by_pk']
+>;
+
+interface RealTimeAuthorizationAnswer {
+  tenantPartner: RealTimeAuthTenantPartner;
+  postTokenResult: AuthorizationInfoResponse;
+}
+
+const hasRole = (tenantPartner: RealTimeAuthTenantPartner, role: Role) =>
+  (
+    tenantPartner.partnerProfileOCPI as PartnerProfile | null | undefined
+  )?.roles?.some((credentialRole) => credentialRole.role === role) ?? false;
+
+const isRealTimeTokenAuthPartner = (
+  tenantPartner: RealTimeAuthTenantPartner,
+): boolean =>
+  (hasRole(tenantPartner, Role.EMSP) || hasRole(tenantPartner, Role.HUB)) &&
+  ((
+    tenantPartner.partnerProfileOCPI as PartnerProfile | null | undefined
+  )?.endpoints?.some(
+    (endpoint: Endpoint) =>
+      endpoint.identifier === EndpointIdentifier.TOKENS_SENDER,
+  ) ??
+    false);
+
+const allowedRank = (answer: RealTimeAuthorizationAnswer): number => {
+  const rank = ALLOWED_PRIORITY.indexOf(
+    answer.postTokenResult.data?.allowed ?? '',
+  );
+  return rank === -1 ? ALLOWED_PRIORITY.length : rank;
+};
+
+const selectRealTimeAuthorizationAnswer = (
+  answers: RealTimeAuthorizationAnswer[],
+): RealTimeAuthorizationAnswer | undefined =>
+  answers
+    .filter((answer) => answer.postTokenResult.data?.allowed)
+    .map((answer, index) => ({ answer, index }))
+    .sort(
+      (a, b) =>
+        allowedRank(a.answer) - allowedRank(b.answer) ||
+        Number(hasRole(b.answer.tenantPartner, Role.EMSP)) -
+          Number(hasRole(a.answer.tenantPartner, Role.EMSP)) ||
+        a.index - b.index,
+    )[0]?.answer;
+
+const toRealTimeAuthorizationResponse = (
+  postTokenResult: AuthorizationInfoResponse,
+): RealTimeAuthorizationResponse => ({
+  timestamp: postTokenResult.timestamp.toISOString(),
+  data: {
+    allowed: postTokenResult.data!.allowed,
+    reason: postTokenResult.data!.info?.text,
+  },
+});
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`timed out after ${timeoutMs} ms`)),
+      timeoutMs,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
 
 @Service()
 export class TokensService {
@@ -435,43 +526,145 @@ export class TokensService {
   async realTimeAuthorization(
     realTimeAuthRequest: RealTimeAuthorizationRequestBody,
   ): Promise<RealTimeAuthorizationResponse> {
-    const tenantPartnerResponse = await this.ocpiGraphqlClient.request<
-      GetTenantPartnerByIdQueryResult,
-      GetTenantPartnerByIdQueryVariables
-    >(GET_TENANT_PARTNER_BY_ID, { id: realTimeAuthRequest.tenantPartnerId });
-    if (!tenantPartnerResponse.TenantPartners_by_pk) {
+    if (realTimeAuthRequest.tenantPartnerId != null) {
+      const tenantPartner = await this.getTenantPartnerById(
+        realTimeAuthRequest.tenantPartnerId,
+      );
+      const locationReferences = await this.getLocationReferences(
+        realTimeAuthRequest.locationId,
+        realTimeAuthRequest.stationId,
+      );
+      const postTokenResult = await this.postRealTimeAuthorization(
+        tenantPartner,
+        realTimeAuthRequest,
+        locationReferences,
+      );
+      await this.persistRealTimeAuthorization(tenantPartner, postTokenResult);
+      return toRealTimeAuthorizationResponse(postTokenResult);
+    }
+    if (realTimeAuthRequest.tenantId == null) {
       throw new InvalidParamException(
-        `Unknown tenant partner ${realTimeAuthRequest.tenantPartnerId}`,
+        'tenantPartnerId or tenantId is required',
+      );
+    }
+    return this.realTimeAuthorizationWithAllPartners(
+      realTimeAuthRequest,
+      realTimeAuthRequest.tenantId,
+    );
+  }
+
+  private async realTimeAuthorizationWithAllPartners(
+    realTimeAuthRequest: RealTimeAuthorizationRequestBody,
+    tenantId: number,
+  ): Promise<RealTimeAuthorizationResponse> {
+    const partnersResponse = await this.ocpiGraphqlClient.request<
+      GetRealTimeTokenAuthTenantPartnersQueryResult,
+      GetRealTimeTokenAuthTenantPartnersQueryVariables
+    >(GET_REAL_TIME_TOKEN_AUTH_TENANT_PARTNERS, { tenantId });
+    const tenantPartners = partnersResponse.TenantPartners.filter(
+      isRealTimeTokenAuthPartner,
+    );
+    if (tenantPartners.length === 0) {
+      throw new UnknownTokenException(
+        `No real-time auth partner for tenant ${tenantId}`,
       );
     }
 
-    let locationReferences: LocationReferences | undefined;
-    if (realTimeAuthRequest.locationId && realTimeAuthRequest.stationId) {
-      const chargingStationResponse = await this.ocpiGraphqlClient.request<
-        GetChargingStationByIdQueryResult,
-        GetChargingStationByIdQueryVariables
-      >(GET_CHARGING_STATION_BY_ID_QUERY, {
-        id: realTimeAuthRequest.stationId,
-      });
-      if (
-        !chargingStationResponse.ChargingStations[0] ||
-        realTimeAuthRequest.locationId !==
-          chargingStationResponse.ChargingStations[0].locationId?.toString()
-      ) {
-        throw new InvalidParamException(
-          `Unknown charging station ${realTimeAuthRequest.stationId} at location ${realTimeAuthRequest.locationId}`,
+    const locationReferences = await this.getLocationReferences(
+      realTimeAuthRequest.locationId,
+      realTimeAuthRequest.stationId,
+    );
+    const results = await Promise.allSettled(
+      tenantPartners.map((tenantPartner) =>
+        withTimeout(
+          this.postRealTimeAuthorization(
+            tenantPartner,
+            realTimeAuthRequest,
+            locationReferences,
+          ),
+          REAL_TIME_AUTH_PARTNER_TIMEOUT_MS,
+        ),
+      ),
+    );
+
+    const answers: RealTimeAuthorizationAnswer[] = [];
+    results.forEach((result, index) => {
+      const tenantPartner = tenantPartners[index];
+      if (result.status === 'fulfilled') {
+        answers.push({ tenantPartner, postTokenResult: result.value });
+      } else {
+        this.logger.warn(
+          `Real-time auth failed for ${tenantPartner.countryCode}_${tenantPartner.partyId}: ${result.reason}`,
         );
       }
-      const chargingStation = chargingStationResponse.ChargingStations[0];
-      locationReferences = {
-        location_id: realTimeAuthRequest.locationId.toString(),
-        evse_uids: chargingStation.evses!.map((evse) =>
-          UID_FORMAT(chargingStation.id, evse.evseTypeId!),
-        ),
-      };
-    }
+    });
+    this.logger.info(
+      `Real-time auth answers for ${realTimeAuthRequest.idToken}: ${answers.map((answer) => `${answer.tenantPartner.countryCode}_${answer.tenantPartner.partyId}=${answer.postTokenResult.data?.allowed}`).join(', ')}`,
+    );
 
-    const tenantPartner = tenantPartnerResponse.TenantPartners_by_pk;
+    const selected = selectRealTimeAuthorizationAnswer(answers);
+    if (!selected) {
+      throw new InvalidParamException(
+        `Failed to authorize token ${realTimeAuthRequest.idToken}`,
+      );
+    }
+    // Cache only the selected answer.
+    await this.persistRealTimeAuthorization(
+      selected.tenantPartner,
+      selected.postTokenResult,
+    );
+    return toRealTimeAuthorizationResponse(selected.postTokenResult);
+  }
+
+  private async getTenantPartnerById(
+    tenantPartnerId: number,
+  ): Promise<RealTimeAuthTenantPartner> {
+    const tenantPartnerResponse = await this.ocpiGraphqlClient.request<
+      GetTenantPartnerByIdQueryResult,
+      GetTenantPartnerByIdQueryVariables
+    >(GET_TENANT_PARTNER_BY_ID, { id: tenantPartnerId });
+    if (!tenantPartnerResponse.TenantPartners_by_pk) {
+      throw new InvalidParamException(
+        `Unknown tenant partner ${tenantPartnerId}`,
+      );
+    }
+    return tenantPartnerResponse.TenantPartners_by_pk;
+  }
+
+  private async getLocationReferences(
+    locationId: string | undefined,
+    stationId: string | undefined,
+  ): Promise<LocationReferences | undefined> {
+    if (!locationId || !stationId) {
+      return undefined;
+    }
+    const chargingStationResponse = await this.ocpiGraphqlClient.request<
+      GetChargingStationByIdQueryResult,
+      GetChargingStationByIdQueryVariables
+    >(GET_CHARGING_STATION_BY_ID_QUERY, { id: stationId });
+    if (
+      !chargingStationResponse.ChargingStations[0] ||
+      locationId !==
+        chargingStationResponse.ChargingStations[0].locationId?.toString()
+    ) {
+      throw new InvalidParamException(
+        `Unknown charging station ${stationId} at location ${locationId}`,
+      );
+    }
+    const chargingStation = chargingStationResponse.ChargingStations[0];
+    return {
+      location_id: locationId,
+      evse_uids: chargingStation.evses!.map((evse) =>
+        UID_FORMAT(chargingStation.id, evse.evseTypeId!),
+      ),
+    };
+  }
+
+  private async postRealTimeAuthorization(
+    tenantPartner: RealTimeAuthTenantPartner,
+    realTimeAuthRequest: RealTimeAuthorizationRequestBody,
+    locationReferences: LocationReferences | undefined,
+  ): Promise<AuthorizationInfoResponse> {
     this.logger.info('getting real time auth response');
     const postTokenResult = await this.tokensClientApi.postToken(
       tenantPartner.tenant.countryCode!,
@@ -495,6 +688,13 @@ export class TokensService {
         `Failed to authorize token ${realTimeAuthRequest.idToken}`,
       );
     }
+    return postTokenResult;
+  }
+
+  private async persistRealTimeAuthorization(
+    tenantPartner: RealTimeAuthTenantPartner,
+    postTokenResult: AuthorizationInfoResponse,
+  ): Promise<void> {
     if (
       postTokenResult.data!.token &&
       tenantPartner.tenant.id &&
@@ -504,6 +704,20 @@ export class TokensService {
         ...postTokenResult.data!.token,
         whitelist: WhitelistType.NEVER,
       };
+      const { idToken, idTokenType } =
+        TokensMapper.mapOcpiTokenToPartialOcppAuthorization(roamingToken);
+      const ownerResponse = await this.ocpiGraphqlClient.request<
+        GetAuthorizationOwnerQueryResult,
+        GetAuthorizationOwnerQueryVariables
+      >(GET_AUTHORIZATION_OWNER, { idToken: idToken!, type: idTokenType! });
+      const owner = ownerResponse.Authorizations[0];
+      // Token is unique across partners; moving it between partners is out of scope.
+      if (owner && owner.tenantPartnerId !== tenantPartner.id) {
+        this.logger.warn(
+          `Not caching token ${idToken}: already owned by tenant partner ${owner.tenantPartnerId}`,
+        );
+        return;
+      }
       const cacheExpiryDateTime = new Date(Date.now() + 5 * 60 * 1000); // 5 min
       const roamingPartner = getRoamingPartner(
         tenantPartner as TenantPartnerDto,
@@ -524,14 +738,6 @@ export class TokensService {
         },
       );
     }
-
-    return {
-      timestamp: postTokenResult.timestamp.toISOString(),
-      data: {
-        allowed: postTokenResult.data!.allowed,
-        reason: postTokenResult.data!.info?.text,
-      },
-    };
   }
 
   private async handleGroupAuthorization(

@@ -2788,6 +2788,45 @@ export type GetTenantPartnerByIdQueryResult = {
   } | null
 };
 
+export type GetAuthorizationOwnerQueryVariables = Exact<{
+  idToken: Scalars['citext']['input'];
+  type: Scalars['String']['input'];
+}>;
+
+
+export type GetAuthorizationOwnerQueryResult = {
+  Authorizations: Array<{
+    tenantPartnerId?: number | null
+  }>
+};
+
+export type GetRealTimeTokenAuthTenantPartnersQueryVariables = Exact<{
+  tenantId: Scalars['Int']['input'];
+}>;
+
+
+export type GetRealTimeTokenAuthTenantPartnersQueryResult = {
+  TenantPartners: Array<{
+    id: number,
+    countryCode: string,
+    partyId: string,
+    partnerProfileOCPI?: any | null,
+    awsSecretCertificateArn?: string | null,
+    tenantId: number,
+    tenant: {
+      id: number,
+      countryCode?: string | null,
+      partyId?: string | null,
+      serverProfileOCPI?: any | null
+    },
+    roamingPartners: Array<{
+      id: number,
+      countryCode: string,
+      partyId: string
+    }>
+  }>
+};
+
 export type DeleteTenantPartnerByServerTokenMutationVariables = Exact<{
   serverToken: Scalars['String']['input'];
 }>;
