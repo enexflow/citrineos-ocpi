@@ -18,7 +18,7 @@ import {
   UPDATE_TOKEN_MUTATION,
   GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY,
   GET_REAL_TIME_TOKEN_AUTH_TENANT_PARTNERS,
-  REASSIGN_REAL_TIME_AUTHORIZATION_MUTATION,
+  GET_AUTHORIZATION_OWNER,
 } from '../graphql/index.js';
 import { TokensMapper } from '../mapper/index.js';
 
@@ -53,14 +53,16 @@ import type {
   GetTenantPartnerByCpoClientAndModuleIdQueryVariables,
   GetRealTimeTokenAuthTenantPartnersQueryResult,
   GetRealTimeTokenAuthTenantPartnersQueryVariables,
-  ReassignRealTimeAuthorizationMutationResult,
-  ReassignRealTimeAuthorizationMutationVariables,
+  GetAuthorizationOwnerQueryResult,
+  GetAuthorizationOwnerQueryVariables,
 } from '../graphql/operations.js';
 import { UnknownTokenException } from '../exception/UnknownTokenException.js';
 import type { AdditionalInfoType } from '@zetra/citrineos-base/dist/ocpp/model/2.0.1/index.js';
 import { MissingParamException } from '../exception/MissingParamException.js';
-import type { RealTimeAuthorizationResponse } from '@zetra/citrineos-util';
-import type { RealTimeAuthorizationRequest } from '../model/DTO/RealTimeAuthorizationRequest.js';
+import type {
+  RealTimeAuthorizationRequestBody,
+  RealTimeAuthorizationResponse,
+} from '@zetra/citrineos-util';
 import { TokensClientApi } from '../trigger/TokensClientApi.js';
 import { InvalidParamException } from '../exception/InvalidParamException.js';
 import type { LocationReferences } from '../model/LocationReferences.js';
@@ -522,14 +524,16 @@ export class TokensService {
   }
 
   async realTimeAuthorization(
-    realTimeAuthRequest: RealTimeAuthorizationRequest,
+    realTimeAuthRequest: RealTimeAuthorizationRequestBody,
   ): Promise<RealTimeAuthorizationResponse> {
     if (realTimeAuthRequest.tenantPartnerId != null) {
-      const tenantPartner = await this.getRealTimeAuthTenantPartner(
+      const tenantPartner = await this.getTenantPartnerById(
         realTimeAuthRequest.tenantPartnerId,
       );
-      const locationReferences =
-        await this.getRealTimeAuthLocationReferences(realTimeAuthRequest);
+      const locationReferences = await this.getLocationReferences(
+        realTimeAuthRequest.locationId,
+        realTimeAuthRequest.stationId,
+      );
       const postTokenResult = await this.postRealTimeAuthorization(
         tenantPartner,
         realTimeAuthRequest,
@@ -550,7 +554,7 @@ export class TokensService {
   }
 
   private async realTimeAuthorizationWithAllPartners(
-    realTimeAuthRequest: RealTimeAuthorizationRequest,
+    realTimeAuthRequest: RealTimeAuthorizationRequestBody,
     tenantId: number,
   ): Promise<RealTimeAuthorizationResponse> {
     const partnersResponse = await this.ocpiGraphqlClient.request<
@@ -566,8 +570,10 @@ export class TokensService {
       );
     }
 
-    const locationReferences =
-      await this.getRealTimeAuthLocationReferences(realTimeAuthRequest);
+    const locationReferences = await this.getLocationReferences(
+      realTimeAuthRequest.locationId,
+      realTimeAuthRequest.stationId,
+    );
     const results = await Promise.allSettled(
       tenantPartners.map((tenantPartner) =>
         withTimeout(
@@ -610,7 +616,7 @@ export class TokensService {
     return toRealTimeAuthorizationResponse(selected.postTokenResult);
   }
 
-  private async getRealTimeAuthTenantPartner(
+  private async getTenantPartnerById(
     tenantPartnerId: number,
   ): Promise<RealTimeAuthTenantPartner> {
     const tenantPartnerResponse = await this.ocpiGraphqlClient.request<
@@ -625,30 +631,29 @@ export class TokensService {
     return tenantPartnerResponse.TenantPartners_by_pk;
   }
 
-  private async getRealTimeAuthLocationReferences(
-    realTimeAuthRequest: RealTimeAuthorizationRequest,
+  private async getLocationReferences(
+    locationId: string | undefined,
+    stationId: string | undefined,
   ): Promise<LocationReferences | undefined> {
-    if (!realTimeAuthRequest.locationId || !realTimeAuthRequest.stationId) {
+    if (!locationId || !stationId) {
       return undefined;
     }
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
       GetChargingStationByIdQueryVariables
-    >(GET_CHARGING_STATION_BY_ID_QUERY, {
-      id: realTimeAuthRequest.stationId,
-    });
+    >(GET_CHARGING_STATION_BY_ID_QUERY, { id: stationId });
     if (
       !chargingStationResponse.ChargingStations[0] ||
-      realTimeAuthRequest.locationId !==
+      locationId !==
         chargingStationResponse.ChargingStations[0].locationId?.toString()
     ) {
       throw new InvalidParamException(
-        `Unknown charging station ${realTimeAuthRequest.stationId} at location ${realTimeAuthRequest.locationId}`,
+        `Unknown charging station ${stationId} at location ${locationId}`,
       );
     }
     const chargingStation = chargingStationResponse.ChargingStations[0];
     return {
-      location_id: realTimeAuthRequest.locationId.toString(),
+      location_id: locationId,
       evse_uids: chargingStation.evses!.map((evse) =>
         UID_FORMAT(chargingStation.id, evse.evseTypeId!),
       ),
@@ -657,7 +662,7 @@ export class TokensService {
 
   private async postRealTimeAuthorization(
     tenantPartner: RealTimeAuthTenantPartner,
-    realTimeAuthRequest: RealTimeAuthorizationRequest,
+    realTimeAuthRequest: RealTimeAuthorizationRequestBody,
     locationReferences: LocationReferences | undefined,
   ): Promise<AuthorizationInfoResponse> {
     this.logger.info('getting real time auth response');
@@ -699,17 +704,20 @@ export class TokensService {
         ...postTokenResult.data!.token,
         whitelist: WhitelistType.NEVER,
       };
-      // A token is unique across partners, so the winner takes over another partner's cached answer.
       const { idToken, idTokenType } =
         TokensMapper.mapOcpiTokenToPartialOcppAuthorization(roamingToken);
-      await this.ocpiGraphqlClient.request<
-        ReassignRealTimeAuthorizationMutationResult,
-        ReassignRealTimeAuthorizationMutationVariables
-      >(REASSIGN_REAL_TIME_AUTHORIZATION_MUTATION, {
-        idToken: idToken!,
-        type: idTokenType!,
-        tenantPartnerId: tenantPartner.id,
-      });
+      const ownerResponse = await this.ocpiGraphqlClient.request<
+        GetAuthorizationOwnerQueryResult,
+        GetAuthorizationOwnerQueryVariables
+      >(GET_AUTHORIZATION_OWNER, { idToken: idToken!, type: idTokenType! });
+      const owner = ownerResponse.Authorizations[0];
+      // Token is unique across partners; moving it between partners is out of scope.
+      if (owner && owner.tenantPartnerId !== tenantPartner.id) {
+        this.logger.warn(
+          `Not caching token ${idToken}: already owned by tenant partner ${owner.tenantPartnerId}`,
+        );
+        return;
+      }
       const cacheExpiryDateTime = new Date(Date.now() + 5 * 60 * 1000); // 5 min
       const roamingPartner = getRoamingPartner(
         tenantPartner as TenantPartnerDto,
