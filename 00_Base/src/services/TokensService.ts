@@ -352,6 +352,11 @@ export class TokensService {
         },
       },
       tenantPartnerId: { _is_null: true },
+      idTokenType: { _eq: IdTokenEnum.ISO14443 },
+      _or: [
+        { disableOCPI: { _is_null: true } },
+        { disableOCPI: { _eq: false } },
+      ],
     };
     const dateFilters: any = {};
     if (paginatedParams?.dateFrom)
@@ -647,6 +652,11 @@ export class TokensService {
           partyId: { _eq: ourPartyId },
         },
       },
+      idTokenType: { _eq: IdTokenEnum.ISO14443 },
+      _or: [
+        { disableOCPI: { _is_null: true } },
+        { disableOCPI: { _eq: false } },
+      ],
     };
     if (date_from || date_to) {
       where.updatedAt = {};
