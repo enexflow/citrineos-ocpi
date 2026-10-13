@@ -99,29 +99,29 @@ SPDX-License-Identifier: Apache-2.0
           </p>
         </div>
 
-        <div
-          class="d-flex flex-wrap align-center ga-3"
-        >
+        <div class="period-toolbar">
           <v-menu
             v-model="dateMenuOpen"
             :close-on-content-click="false"
             location="bottom end"
+            offset="6"
           >
             <template #activator="{ props: menuProps }">
               <v-text-field
                 v-bind="menuProps"
                 bg-color="white"
+                class="period-toolbar__range"
                 density="compact"
                 hide-details
-                label="Date range"
+                label="Period"
                 :model-value="dateRangeLabel"
                 prepend-inner-icon="mdi-calendar-range"
                 readonly
-                style="max-width: 260px"
+                variant="outlined"
               />
             </template>
 
-            <v-card class="bg-white" rounded="lg">
+            <v-card class="bg-white" elevation="8" rounded="lg">
               <v-date-picker
                 v-model="dateRangeModel"
                 bg-color="white"
@@ -134,6 +134,7 @@ SPDX-License-Identifier: Apache-2.0
           </v-menu>
           <v-btn
             color="#3687c9"
+            height="40"
             :loading="financialsLoading"
             prepend-icon="mdi-refresh"
             variant="tonal"
@@ -497,6 +498,34 @@ SPDX-License-Identifier: Apache-2.0
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* Period picker + refresh, kept on one line next to the section title */
+.period-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.period-toolbar__range {
+  flex: 0 0 auto;
+  width: 290px;
+  cursor: pointer;
+}
+
+.period-toolbar__range :deep(input) {
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .period-toolbar {
+    width: 100%;
+  }
+
+  .period-toolbar__range {
+    flex: 1 1 auto;
+    width: auto;
+  }
 }
 
 /* Each role sets its accent; the card itself stays white like the stat tiles */
