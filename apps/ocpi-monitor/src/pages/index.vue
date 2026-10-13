@@ -9,10 +9,10 @@ SPDX-License-Identifier: Apache-2.0
     <div class="mb-8 d-flex flex-wrap align-end justify-space-between ga-4">
       <div>
         <div class="overview-kicker mb-2">Partner network</div>
-        <h1 class="text-h4 font-weight-bold mb-1" style="color: #153651">
+        <h1 class="text-headline-medium font-weight-bold mb-1" style="color: #153651">
           Overview
         </h1>
-        <p class="text-body-1 mb-0" style="color: #587474">
+        <p class="text-body-large mb-0" style="color: #587474">
           Connected OCPI partners by role.
         </p>
       </div>
@@ -38,7 +38,7 @@ SPDX-License-Identifier: Apache-2.0
       {{ error }}
     </v-alert>
 
-    <v-row dense>
+    <v-row>
       <v-col
         v-for="card in cards"
         :key="card.label"
@@ -57,11 +57,17 @@ SPDX-License-Identifier: Apache-2.0
         >
           <div class="role-card__top">
             <span class="role-card__icon">
-              <v-icon :icon="card.icon" size="22" />
+              <v-icon :icon="card.icon" size="20" />
             </span>
-            <span class="role-card__value">
-              {{ loading ? '—' : card.value }}
-            </span>
+            <v-icon
+              v-if="card.to"
+              class="role-card__arrow"
+              icon="mdi-arrow-top-right"
+              size="18"
+            />
+          </div>
+          <div class="role-card__value">
+            {{ loading ? '—' : card.value }}
           </div>
           <div class="role-card__label">{{ card.label }}</div>
           <div class="role-card__hint">{{ card.hint }}</div>
@@ -81,20 +87,20 @@ SPDX-License-Identifier: Apache-2.0
     </v-alert>
 
     <div class="mt-16">
-      <div class="mb-4 d-flex flex-wrap align-end justify-space-between ga-4">
+      <div class="mb-5 d-flex flex-wrap align-end justify-space-between ga-4">
         <div>
           <div class="overview-kicker mb-2">Cumulative from CDRs</div>
-          <h2 class="text-h5 font-weight-bold mb-1" style="color: #153651">
+          <h2 class="text-title-large font-weight-bold mb-1" style="color: #153651">
             Money earned VS owed
           </h2>
-          <p class="text-body-1 mb-0" style="color: #587474">
+          <p class="text-body-large mb-0" style="color: #587474">
             Sum of CDR total cost by end date — earned = CDRs we sent to eMSPs,
             owed = CDRs we received from CPOs.
           </p>
         </div>
 
         <div
-          class="flex flex-row gap-20 align-center ga-3 rounded-lg px-4 py-2"
+          class="d-flex flex-wrap align-center ga-3"
         >
           <v-menu
             v-model="dateMenuOpen"
@@ -148,7 +154,7 @@ SPDX-License-Identifier: Apache-2.0
         {{ financialsError }}
       </v-alert>
 
-      <v-row dense>
+      <v-row>
         <v-col cols="12" sm="6">
           <div class="money-tile money-tile--earned">
             <div class="money-tile__label">
@@ -198,13 +204,13 @@ SPDX-License-Identifier: Apache-2.0
     </div>
 
     <div class="mt-16">
-      <div class="mb-4 d-flex flex-wrap align-end justify-space-between ga-4">
+      <div class="mb-5 d-flex flex-wrap align-end justify-space-between ga-4">
         <div>
           <div class="overview-kicker mb-2">Latest activity</div>
-          <h2 class="text-h5 font-weight-bold mb-1" style="color: #153651">
+          <h2 class="text-title-large font-weight-bold mb-1" style="color: #153651">
             Last sessions received VS sent
           </h2>
-          <p class="text-body-1 mb-0" style="color: #587474">
+          <p class="text-body-large mb-0" style="color: #587474">
             5 most recently updated — received = Sessions pushed to us by CPOs,
             sent = Transactions we map and push to eMSPs.
           </p>
@@ -231,7 +237,7 @@ SPDX-License-Identifier: Apache-2.0
         {{ recentError }}
       </v-alert>
 
-      <v-row dense>
+      <v-row>
         <v-col v-for="table in recentTables" :key="table.key" cols="12">
           <div class="money-tile__label mb-2">
             <v-icon :icon="table.icon" size="18" />
@@ -493,17 +499,36 @@ SPDX-License-Identifier: Apache-2.0
   text-transform: uppercase;
 }
 
+/* Each role sets its accent; the card itself stays white like the stat tiles */
 .role-card {
-  display: block;
+  --role-accent: #3687c9;
+  --role-tint: #ebf3fa;
+  --role-ink: #205179;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  height: 100%;
+  overflow: hidden;
   text-align: left;
-  border: 1px solid transparent;
-  border-radius: 1rem;
-  padding: 1.25rem 1.35rem;
-  min-height: 148px;
+  background: #ffffff;
+  border: 1px solid #e2e9e9;
+  border-radius: 16px;
+  padding: 1.35rem 1.4rem 1.3rem;
+  box-shadow: 0 1px 2px rgb(21 54 81 / 4%);
   transition:
     transform 0.15s ease,
-    box-shadow 0.15s ease;
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.role-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--role-accent);
 }
 
 .role-card--clickable {
@@ -511,80 +536,87 @@ SPDX-License-Identifier: Apache-2.0
 }
 
 .role-card--clickable:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px color-mix(in srgb, #153651 8%, transparent);
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--role-accent) 35%, #e2e9e9);
+  box-shadow: 0 10px 24px rgb(21 54 81 / 10%);
+}
+
+.role-card:focus-visible {
+  outline: 2px solid var(--role-accent);
+  outline-offset: 2px;
 }
 
 .role-card__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.1rem;
 }
 
 .role-card__icon {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 12px;
   display: grid;
   place-items: center;
+  background: var(--role-tint);
+  color: var(--role-ink);
+}
+
+.role-card__arrow {
+  color: #a8bdbd;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.role-card--clickable:hover .role-card__arrow {
+  color: var(--role-accent);
+  transform: translate(2px, -2px);
 }
 
 .role-card__value {
   font-size: 2.25rem;
   font-weight: 700;
   line-height: 1;
+  color: #153651;
+  font-variant-numeric: tabular-nums;
 }
 
 .role-card__label {
-  font-size: 1.05rem;
+  margin-top: 0.6rem;
+  font-size: 0.95rem;
   font-weight: 700;
+  color: #153651;
 }
 
 .role-card__hint {
-  margin-top: 0.25rem;
+  margin-top: 0.2rem;
   font-size: 0.8rem;
-  opacity: 0.8;
+  line-height: 1.35;
+  color: #587474;
 }
 
 .role-card--cpo {
-  background: #e7fbfe;
-  border-color: #9ff0f9;
-  color: #032c30;
-}
-.role-card--cpo .role-card__icon {
-  background: #0edaf1;
-  color: #021f22;
+  --role-accent: #0bafc1;
+  --role-tint: #e7fbfe;
+  --role-ink: #065760;
 }
 
 .role-card--emsp {
-  background: #eceff8;
-  border-color: #b5bfe3;
-  color: #0e1325;
-}
-.role-card--emsp .role-card__icon {
-  background: #4560ba;
-  color: #fff;
+  --role-accent: #4560ba;
+  --role-tint: #eceff8;
+  --role-ink: #293a70;
 }
 
 .role-card--hub {
-  background: #eef1f7;
-  border-color: #bbc6dd;
-  color: #111722;
-}
-.role-card--hub .role-card__icon {
-  background: #5471ab;
-  color: #fff;
+  --role-accent: #5471ab;
+  --role-tint: #eef1f7;
+  --role-ink: #324467;
 }
 
 .role-card--total {
-  background: #ebf3fa;
-  border-color: #aecfea;
-  color: #0b1b28;
-}
-.role-card--total .role-card__icon {
-  background: #3687c9;
-  color: #fff;
+  --role-accent: #3687c9;
+  --role-tint: #ebf3fa;
+  --role-ink: #205179;
 }
 
 .money-tile {

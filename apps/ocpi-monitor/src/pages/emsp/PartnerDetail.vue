@@ -32,13 +32,13 @@ SPDX-License-Identifier: Apache-2.0
     </div>
 
     <template v-else-if="detail">
-      <div class="mb-6 d-flex flex-wrap align-end justify-space-between ga-3">
+      <div class="mb-8 d-flex flex-wrap align-end justify-space-between ga-4">
         <div>
           <div class="overview-kicker mb-2">Received &amp; stored</div>
-          <h1 class="text-h4 font-weight-bold mb-1" style="color: #153651">
+          <h1 class="text-headline-medium font-weight-bold mb-1" style="color: #153651">
             {{ detail.partner.name }}
           </h1>
-          <p class="text-body-1 mb-0" style="color: #587474">
+          <p class="text-body-large mb-0" style="color: #587474">
             {{ detail.partner.countryCode }}/{{ detail.partner.partyId }} ·
             {{ detail.partner.role }} · id {{ detail.partner.id }}
           </p>
@@ -55,7 +55,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-btn>
       </div>
 
-      <v-row class="mb-6" dense>
+      <v-row class="mb-8">
         <v-col
           v-for="stat in stats"
           :key="stat.label"
@@ -83,7 +83,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-col>
       </v-row>
 
-      <v-tabs v-model="tab" class="mb-4" color="#3687c9">
+      <v-tabs v-model="tab" class="mb-6" color="#3687c9">
         <v-tab value="locations">
           Locations ({{ detail.locations.length }})
         </v-tab>
@@ -95,7 +95,7 @@ SPDX-License-Identifier: Apache-2.0
 
       <v-tabs-window v-model="tab">
         <v-tabs-window-item value="locations">
-          <p class="text-body-2 mb-3" style="color: #587474">
+          <p class="text-body-medium mb-3" style="color: #587474">
             Locations pushed to us by this CPO/HUB partner
             (Locations.ownerTenantPartnerId).
           </p>
@@ -125,7 +125,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-tabs-window-item>
 
         <v-tabs-window-item value="sessions">
-          <p class="text-body-2 mb-3" style="color: #587474">
+          <p class="text-body-medium mb-3" style="color: #587474">
             Sessions received and stored for this partner
             (Sessions.tenantPartnerId).
           </p>
@@ -165,7 +165,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-tabs-window-item>
 
         <v-tabs-window-item value="cdrs">
-          <p class="text-body-2 mb-3" style="color: #587474">
+          <p class="text-body-medium mb-3" style="color: #587474">
             CDRs received from this partner (Cdrs.fromTenantPartnerId) — money
             we owe them.
           </p>
@@ -365,37 +365,6 @@ SPDX-License-Identifier: Apache-2.0
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.stat-tile {
-  background: #ffffff;
-  border: 1px solid #c5d3d3;
-  border-left: 4px solid #3687c9;
-  border-radius: 0.75rem;
-  padding: 1rem 1.1rem;
-}
-
-.stat-tile__label {
-  color: #587474;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.stat-tile__hint {
-  cursor: help;
-  opacity: 0.7;
-}
-
-.stat-tile__value {
-  color: #153651;
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 0.15rem;
 }
 
 .partners-table {
