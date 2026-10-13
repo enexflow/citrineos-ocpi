@@ -80,7 +80,7 @@ SPDX-License-Identifier: Apache-2.0
       or unknown role.
     </v-alert>
 
-    <div class="mt-10">
+    <div class="mt-16">
       <div class="mb-4 d-flex flex-wrap align-end justify-space-between ga-4">
         <div>
           <div class="overview-kicker mb-2">Cumulative from CDRs</div>
@@ -196,6 +196,88 @@ SPDX-License-Identifier: Apache-2.0
         </v-col>
       </v-row>
     </div>
+
+    <div class="mt-16">
+      <div class="mb-4 d-flex flex-wrap align-end justify-space-between ga-4">
+        <div>
+          <div class="overview-kicker mb-2">Latest activity</div>
+          <h2 class="text-h5 font-weight-bold mb-1" style="color: #153651">
+            Last sessions received VS sent
+          </h2>
+          <p class="text-body-1 mb-0" style="color: #587474">
+            5 most recently updated — received = Sessions pushed to us by CPOs,
+            sent = Transactions we map and push to eMSPs.
+          </p>
+        </div>
+
+        <v-btn
+          color="#3687c9"
+          :loading="recentLoading"
+          prepend-icon="mdi-refresh"
+          variant="tonal"
+          @click="loadRecentSessions"
+        >
+          Refresh
+        </v-btn>
+      </div>
+
+      <v-alert
+        v-if="recentError"
+        class="mb-4"
+        density="comfortable"
+        type="error"
+        variant="tonal"
+      >
+        {{ recentError }}
+      </v-alert>
+
+      <v-row dense>
+        <v-col v-for="table in recentTables" :key="table.key" cols="12">
+          <div class="money-tile__label mb-2">
+            <v-icon :icon="table.icon" size="18" />
+            {{ table.title }}
+          </div>
+          <v-data-table
+            class="rounded-lg"
+            density="compact"
+            :headers="recentHeaders"
+            hide-default-footer
+            item-value="id"
+            :items="table.items"
+            :items-per-page="-1"
+            :loading="recentLoading"
+          >
+            <template #item.sessionId="{ item }">
+              <code class="id-code">{{ item.sessionId }}</code>
+            </template>
+            <template #item.tokenId="{ item }">
+              <code v-if="item.tokenId" class="id-code">{{ item.tokenId }}</code>
+              <span v-else>—</span>
+            </template>
+            <template #item.status="{ item }">
+              {{ item.status ?? '—' }}
+            </template>
+            <template #item.startDateTime="{ item }">
+              {{ formatDate(item.startDateTime) }}
+            </template>
+            <template #item.kwh="{ item }">
+              {{ formatNumber(item.kwh) }}
+            </template>
+            <template #item.totalCost="{ item }">
+              {{ formatCost(item.totalCost, item.currency) }}
+            </template>
+            <template #item.lastUpdated="{ item }">
+              {{ formatDate(item.lastUpdated) }}
+            </template>
+            <template #no-data>
+              <div class="py-6 text-center text-medium-emphasis">
+                {{ table.empty }}
+              </div>
+            </template>
+          </v-data-table>
+        </v-col>
+      </v-row>
+    </div>
   </div>
 </template>
 
@@ -204,10 +286,16 @@ SPDX-License-Identifier: Apache-2.0
     CdrFinancials,
     CurrencyAmount,
     PartnerRoleCounts,
+    RecentSessions,
   } from '@/types/partner'
   import { computed, onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
-  import { fetchCdrFinancials, fetchPartnerRoleCounts } from '@/api/partners'
+  import {
+    amountOf,
+    fetchCdrFinancials,
+    fetchPartnerRoleCounts,
+    fetchRecentSessions,
+  } from '@/api/partners'
 
   const router = useRouter()
   const counts = ref<PartnerRoleCounts | null>(null)
@@ -323,8 +411,73 @@ SPDX-License-Identifier: Apache-2.0
     }
   }
 
+  const recent = ref<RecentSessions | null>(null)
+  const recentLoading = ref(false)
+  const recentError = ref<string | null>(null)
+
+  const recentHeaders = [
+    { title: 'Session id', key: 'sessionId', sortable: false },
+    { title: 'Partner', key: 'partner', sortable: false },
+    { title: 'Token', key: 'tokenId', sortable: false },
+    { title: 'Status', key: 'status', sortable: false },
+    { title: 'Start', key: 'startDateTime', sortable: false },
+    { title: 'kWh', key: 'kwh', sortable: false, align: 'end' as const },
+    { title: 'Cost', key: 'totalCost', sortable: false, align: 'end' as const },
+    { title: 'Last updated', key: 'lastUpdated', sortable: false },
+  ]
+
+  const recentTables = computed(() => [
+    {
+      key: 'received',
+      title: 'Last 5 sessions received',
+      icon: 'mdi-download',
+      items: recent.value?.received ?? [],
+      empty: 'No sessions received yet.',
+    },
+    {
+      key: 'sent',
+      title: 'Last 5 sessions sent',
+      icon: 'mdi-upload',
+      items: recent.value?.sent ?? [],
+      empty: 'No sessions sent yet.',
+    },
+  ])
+
+  function formatDate (value: string | null): string {
+    return value ? new Date(value).toLocaleString() : '—'
+  }
+
+  function formatNumber (value: number | null): string {
+    if (value == null || Number.isNaN(value)) return '—'
+    return value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  }
+
+  function formatCost (value: unknown, currency: string | null): string {
+    if (value == null) return '—'
+    const amount = amountOf(value).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    return currency ? `${amount} ${currency}` : amount
+  }
+
+  async function loadRecentSessions () {
+    recentLoading.value = true
+    recentError.value = null
+    try {
+      recent.value = await fetchRecentSessions(5)
+    } catch (error_) {
+      recent.value = null
+      recentError.value
+        = error_ instanceof Error ? error_.message : String(error_)
+    } finally {
+      recentLoading.value = false
+    }
+  }
+
   onMounted(load)
   onMounted(loadFinancials)
+  onMounted(loadRecentSessions)
 </script>
 
 <style scoped>
@@ -472,5 +625,11 @@ SPDX-License-Identifier: Apache-2.0
 .money-tile__hint-icon {
   cursor: help;
   opacity: 0.7;
+}
+
+.id-code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8rem;
+  color: #205179;
 }
 </style>

@@ -213,8 +213,11 @@ SPDX-License-Identifier: Apache-2.0
             <template #item.totalEnergy="{ item }">
               {{ formatNumber(item.totalEnergy) }}
             </template>
-            <template #item.totalCost="{ item }">
-              {{ formatCost(item.totalCost, item.currency) }}
+            <template #item.costExclVat="{ item }">
+              {{ formatVatPart(item.totalCost, 'excl_vat', item.currency) }}
+            </template>
+            <template #item.costInclVat="{ item }">
+              {{ formatVatPart(item.totalCost, 'incl_vat', item.currency) }}
             </template>
             <template #item.startDateTime="{ item }">
               {{ formatDate(item.startDateTime) }}
@@ -279,7 +282,8 @@ SPDX-License-Identifier: Apache-2.0
     { title: 'Start', key: 'startDateTime' },
     { title: 'End', key: 'endDateTime' },
     { title: 'Energy', key: 'totalEnergy' },
-    { title: 'Cost', key: 'totalCost' },
+    { title: 'Cost excl. VAT', key: 'costExclVat', sortable: false },
+    { title: 'Cost incl. VAT', key: 'costInclVat', sortable: false },
   ]
 
   const stats = computed(() => {
@@ -339,24 +343,25 @@ SPDX-License-Identifier: Apache-2.0
 
   function formatNumber (value: number | null) {
     if (value == null || Number.isNaN(value)) return '—'
-    return value.toLocaleString(undefined, { maximumFractionDigits: 3 })
+    return value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  }
+
+  // OCPI Price { excl_vat, incl_vat? }; a bare number is OCPI 2.1.1's total_cost (excl. VAT)
+  function vatPart (value: unknown, part: 'excl_vat' | 'incl_vat'): number | null {
+    if (typeof value === 'number') return part === 'excl_vat' ? value : null
+    if (value == null || typeof value !== 'object') return null
+    const amount = Number((value as Record<string, unknown>)[part] ?? Number.NaN)
+    return Number.isFinite(amount) ? amount : null
+  }
+
+  function formatVatPart (value: unknown, part: 'excl_vat' | 'incl_vat', currency: string) {
+    const amount = vatPart(value, part)
+    return amount == null ? '—' : `${formatNumber(amount)} ${currency}`
   }
 
   function formatCost (value: unknown, currency: string) {
-    if (value == null) return '—'
-    if (typeof value === 'number') return `${formatNumber(value)} ${currency}`
-    if (typeof value === 'object' && value !== null && 'incl_vat' in value) {
-      const incl = (value as { incl_vat?: number }).incl_vat
-      return incl == null
-        ? JSON.stringify(value)
-        : `${formatNumber(incl)} ${currency}`
-    }
-    if (typeof value === 'string') return value
-    try {
-      return JSON.stringify(value)
-    } catch {
-      return String(value)
-    }
+    const amount = vatPart(value, 'incl_vat') ?? vatPart(value, 'excl_vat')
+    return amount == null ? '—' : `${formatNumber(amount)} ${currency}`
   }
 
   async function load () {

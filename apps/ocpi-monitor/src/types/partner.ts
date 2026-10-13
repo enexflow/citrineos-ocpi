@@ -243,3 +243,25 @@ export interface HubCdrExportGroup {
   totalCost: CurrencyAmount[]
   cdrs: HubCdrExportRow[]
 }
+
+export interface RecentSession {
+  id: number
+  sessionId: string
+  /** country/party of the partner; "X (via HUB)" when relayed through a hub */
+  partner: string
+  /** token uid used for the session (cdrToken.uid received / Authorization.idToken sent) */
+  tokenId: string | null
+  status: string | null
+  startDateTime: string | null
+  kwh: number | null
+  totalCost: unknown
+  currency: string | null
+  lastUpdated: string | null
+}
+
+export interface RecentSessions {
+  /** Sessions pushed to us by CPOs (Sessions table) */
+  received: RecentSession[]
+  /** Transactions we map and push to eMSPs as OCPI sessions */
+  sent: RecentSession[]
+}

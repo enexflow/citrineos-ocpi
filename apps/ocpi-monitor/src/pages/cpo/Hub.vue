@@ -137,6 +137,10 @@ SPDX-License-Identifier: Apache-2.0
         </div>
       </template>
 
+      <template #item.totalEnergyKwh="{ item }">
+        {{ formatNumber(item.totalEnergyKwh) }}
+      </template>
+
       <template #item.actions="{ item }">
         <v-btn
           color="#3687c9"
@@ -223,6 +227,15 @@ SPDX-License-Identifier: Apache-2.0
     fromDate.value && toDate.value ? `${fromDate.value} → ${toDate.value}` : '',
   )
 
+  // Display/export at most 4 decimals
+  function formatNumber (value: number) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  }
+
+  function round4 (value: number): number {
+    return Math.round(value * 10_000) / 10_000
+  }
+
   function onDateRangeSelected (value: Date[]) {
     if (value.length < 2) {
       return
@@ -256,8 +269,8 @@ SPDX-License-Identifier: Apache-2.0
         countryCode: g.countryCode,
         partyId: g.partyId,
         cdrCount: g.cdrCount,
-        totalEnergyKwh: g.totalEnergyKwh,
-        ...Object.fromEntries(g.totalCost.map(c => [`total_${c.currency}`, c.amount])),
+        totalEnergyKwh: round4(g.totalEnergyKwh),
+        ...Object.fromEntries(g.totalCost.map(c => [`total_${c.currency}`, round4(c.amount)])),
       }))
 
       const sheets = [
@@ -269,9 +282,9 @@ SPDX-License-Identifier: Apache-2.0
             sessionId: cdr.sessionId ?? '',
             startDateTime: cdr.startDateTime ?? '',
             endDateTime: cdr.endDateTime ?? '',
-            totalEnergyKwh: cdr.totalEnergy ?? 0,
+            totalEnergyKwh: round4(cdr.totalEnergy ?? 0),
             currency: cdr.currency,
-            totalCost: amountOf(cdr.totalCost),
+            totalCost: round4(amountOf(cdr.totalCost)),
           })),
         })),
       ]

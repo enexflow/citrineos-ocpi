@@ -14,6 +14,7 @@ import type {
   OcpiSessionSent,
   PartnerOverview,
   PartnerRoleCounts,
+  RecentSessions,
 } from '@/types/partner'
 import { graphqlRequest } from './graphql.js'
 import { fetchMappedSessionsForPartner } from './ocpiSender'
@@ -836,5 +837,163 @@ export async function fetchCdrFinancials (
   return {
     earned: sumByCurrency(data.earned),
     owed: sumByCurrency(data.owed),
+  }
+}
+
+const RECENT_SESSIONS_QUERY = `
+  query RecentSessions($limit: Int!) {
+    received: Sessions(
+      where: { tenantPartnerId: { _is_null: false } }
+      order_by: { lastUpdated: desc_nulls_last }
+      limit: $limit
+    ) {
+      id
+      ocpiSessionId
+      status
+      startDateTime
+      kwh
+      totalCost
+      currency
+      lastUpdated
+      cdrToken
+      TenantPartner {
+        countryCode
+        partyId
+      }
+      RoamingPartner {
+        countryCode
+        partyId
+      }
+    }
+    sent: Transactions(
+      where: { Authorization: { tenantPartnerId: { _is_null: false } } }
+      order_by: { updatedAt: desc_nulls_last }
+      limit: $limit
+    ) {
+      id
+      transactionId
+      chargingState
+      startTime
+      endTime
+      totalKwh
+      totalCost
+      updatedAt
+      Tariff {
+        currency
+      }
+      Authorization {
+        idToken
+        TenantPartner {
+          countryCode
+          partyId
+        }
+        RoamingPartner {
+          countryCode
+          partyId
+        }
+      }
+    }
+  }
+`
+
+interface Party {
+  countryCode: string
+  partyId: string
+}
+
+interface RecentSessionsQueryResult {
+  received: Array<{
+    id: number
+    ocpiSessionId: string
+    status: string | null
+    startDateTime: string
+    kwh: number | null
+    totalCost: unknown
+    currency: string
+    lastUpdated: string
+    cdrToken: { uid?: string } | null
+    TenantPartner: Party | null
+    RoamingPartner: Party | null
+  }>
+  sent: Array<{
+    id: number
+    transactionId: string
+    chargingState: string | null
+    startTime: string | null
+    endTime: string | null
+    totalKwh: unknown
+    totalCost: unknown
+    updatedAt: string | null
+    Tariff: { currency: string } | null
+    Authorization: {
+      idToken: string | null
+      TenantPartner: Party | null
+      RoamingPartner: Party | null
+    } | null
+  }>
+}
+
+function partnerLabel (
+  tenantPartner: Party | null | undefined,
+  roamingPartner: Party | null | undefined,
+): string {
+  const label = (p: Party | null | undefined) =>
+    p ? `${p.countryCode}/${p.partyId}` : '—'
+  return roamingPartner
+    ? `${label(roamingPartner)} (via ${label(tenantPartner)})`
+    : label(tenantPartner)
+}
+
+// Same rule as SessionMapper.getTransactionStatus (00_Base/src/mapper/SessionMapper.ts)
+function sentStatus (
+  chargingState: string | null,
+  endTime: string | null,
+): string {
+  if (chargingState === 'EVConnected') {
+    return 'PENDING'
+  }
+  return endTime ? 'COMPLETED' : 'ACTIVE'
+}
+
+/**
+ * Home dashboard: the N most recently updated sessions received (Sessions
+ * pushed by CPOs) and sent (Transactions we map and push to eMSPs).
+ */
+export async function fetchRecentSessions (
+  limit = 5,
+): Promise<RecentSessions> {
+  const data = await graphqlRequest<RecentSessionsQueryResult>(
+    RECENT_SESSIONS_QUERY,
+    { limit },
+  )
+
+  return {
+    received: data.received.map(row => ({
+      id: row.id,
+      sessionId: row.ocpiSessionId,
+      partner: partnerLabel(row.TenantPartner, row.RoamingPartner),
+      tokenId: row.cdrToken?.uid ?? null,
+      status: row.status,
+      startDateTime: iso(row.startDateTime),
+      kwh: num(row.kwh),
+      totalCost: row.totalCost,
+      currency: row.currency,
+      lastUpdated: iso(row.lastUpdated),
+    })),
+    sent: data.sent.map(row => ({
+      id: row.id,
+      sessionId: row.transactionId,
+      partner: partnerLabel(
+        row.Authorization?.TenantPartner,
+        row.Authorization?.RoamingPartner,
+      ),
+      tokenId: row.Authorization?.idToken ?? null,
+      status: sentStatus(row.chargingState, row.endTime),
+      startDateTime: iso(row.startTime),
+      kwh: num(row.totalKwh),
+      totalCost: num(row.totalCost),
+      currency: row.Tariff?.currency ?? null,
+      lastUpdated: iso(row.updatedAt),
+    })),
   }
 }
