@@ -83,6 +83,47 @@ export interface OcpiLocationReceived {
   ownership?: LocationOwnership
 }
 
+/** OCPI PriceComponent as stored in TariffElements.priceComponents (wire format). */
+export interface TariffPriceComponent {
+  type: string
+  price: number | null
+  vat: number | null
+  stepSize: number | null
+}
+
+/** One TariffElements row: its price components + optional OCPI restrictions. */
+export interface TariffElementView {
+  priceComponents: TariffPriceComponent[]
+  restrictions: Record<string, unknown> | null
+}
+
+/** One of our tariffs as applied to a location's connectors (ConnectorTariffs). */
+export interface LocationTariff {
+  /** Tariffs.id — null if the ConnectorTariff row has no matching Tariff */
+  id: number | null
+  /** OCPI tariff id as published in the connector's tariff_ids */
+  ocpiTariffId: string
+  currency: string | null
+  taxRate: number | null
+  startDateTime: string | null
+  endDateTime: string | null
+  /** How many of the location's connectors carry this tariff */
+  connectorCount: number
+  /** Price content of the tariff (TariffElements) */
+  elements: TariffElementView[]
+  /**
+   * Connectors on which selectApplicableTariff would pick this tariff right
+   * now (first ConnectorTariff whose validity window contains "now").
+   */
+  appliesNowOn: number
+}
+
+export interface OurLocation extends OcpiLocationReceived {
+  tariffs: LocationTariff[]
+  /** All connectors at the location, to show partial tariff coverage */
+  connectorCount: number
+}
+
 export interface OcpiSessionReceived {
   id: number
   ocpiSessionId: string
@@ -107,9 +148,13 @@ export interface OcpiCdrReceived {
   lastUpdated: string | null
 }
 
+/** Tariff received from a CPO — same shape for peer-to-peer and hub-relayed partners. */
+export type OcpiTariffReceived = RoamingTariffSummary
+
 export interface EmspPartnerDetail {
   partner: PartnerOverview
   locations: OcpiLocationReceived[]
+  tariffs: OcpiTariffReceived[]
   sessions: OcpiSessionReceived[]
   cdrs: OcpiCdrReceived[]
   totalKwh: number

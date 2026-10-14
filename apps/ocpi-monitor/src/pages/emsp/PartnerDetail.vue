@@ -87,6 +87,7 @@ SPDX-License-Identifier: Apache-2.0
         <v-tab value="locations">
           Locations ({{ detail.locations.length }})
         </v-tab>
+        <v-tab value="tariffs"> Tariffs ({{ detail.tariffs.length }}) </v-tab>
         <v-tab value="sessions">
           Sessions ({{ detail.sessions.length }})
         </v-tab>
@@ -119,6 +120,37 @@ SPDX-License-Identifier: Apache-2.0
             <template #no-data>
               <div class="py-8 text-center text-medium-emphasis">
                 No locations received from this partner yet.
+              </div>
+            </template>
+          </v-data-table>
+        </v-tabs-window-item>
+
+        <v-tabs-window-item value="tariffs">
+          <p class="text-body-medium mb-3" style="color: #587474">
+            Tariffs pushed to us by this CPO partner (Tariffs.tenantPartnerId).
+          </p>
+          <v-data-table
+            class="partners-table rounded-lg"
+            :headers="tariffHeaders"
+            hover
+            item-value="id"
+            :items="detail.tariffs"
+          >
+            <template #item.ocpiTariffId="{ item }">
+              <code class="id-code">{{ item.ocpiTariffId ?? '—' }}</code>
+            </template>
+            <template #item.taxRate="{ item }">
+              {{ item.taxRate == null ? '—' : `${formatNumber(item.taxRate)}%` }}
+            </template>
+            <template #item.startDateTime="{ item }">
+              {{ formatDate(item.startDateTime) }}
+            </template>
+            <template #item.endDateTime="{ item }">
+              {{ formatDate(item.endDateTime) }}
+            </template>
+            <template #no-data>
+              <div class="py-8 text-center text-medium-emphasis">
+                No tariffs received from this partner yet.
               </div>
             </template>
           </v-data-table>
@@ -231,6 +263,14 @@ SPDX-License-Identifier: Apache-2.0
     { title: 'Last updated', key: 'lastUpdated' },
   ]
 
+  const tariffHeaders = [
+    { title: 'OCPI tariff id', key: 'ocpiTariffId' },
+    { title: 'Currency', key: 'currency' },
+    { title: 'Tax rate', key: 'taxRate' },
+    { title: 'Start', key: 'startDateTime' },
+    { title: 'End', key: 'endDateTime' },
+  ]
+
   const sessionHeaders = [
     { title: 'OCPI session id', key: 'ocpiSessionId' },
     { title: 'Status', key: 'status' },
@@ -255,6 +295,7 @@ SPDX-License-Identifier: Apache-2.0
     if (!d) return []
     return [
       { label: 'Locations', value: d.locations.length },
+      { label: 'Tariffs', value: d.tariffs.length },
       { label: 'Sessions', value: d.sessions.length },
       { label: 'CDRs', value: d.cdrs.length },
       {

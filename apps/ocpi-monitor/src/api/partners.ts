@@ -12,6 +12,7 @@ import type {
   OcpiLocationReceived,
   OcpiSessionReceived,
   OcpiSessionSent,
+  OcpiTariffReceived,
   PartnerOverview,
   PartnerRoleCounts,
   RecentSessions,
@@ -210,6 +211,14 @@ const EMSP_PARTNER_DETAIL_QUERY = `
         }
       }
     }
+    Tariffs(where: { tenantPartnerId: { _eq: $id } }, order_by: { id: asc }) {
+      id
+      ocpiTariffId
+      currency
+      taxRate
+      startDateTime
+      endDateTime
+    }
     Sessions(where: { tenantPartnerId: { _eq: $id } }, order_by: { id: asc }) {
       id
       ocpiSessionId
@@ -256,6 +265,14 @@ interface EmspPartnerDetailQueryResult {
     coordinates: { type: string, coordinates: [number, number] } | null
     updatedAt: string | null
     ChargingStations_aggregate: AggregateCount
+  }>
+  Tariffs: Array<{
+    id: number
+    ocpiTariffId: string | null
+    currency: string
+    taxRate: number | null
+    startDateTime: string | null
+    endDateTime: string | null
   }>
   Sessions: Array<{
     id: number
@@ -324,6 +341,15 @@ export async function fetchEmspPartnerDetail (
     lastUpdated: iso(loc.updatedAt),
   }))
 
+  const tariffs: OcpiTariffReceived[] = data.Tariffs.map(t => ({
+    id: t.id,
+    ocpiTariffId: t.ocpiTariffId,
+    currency: t.currency,
+    taxRate: num(t.taxRate),
+    startDateTime: iso(t.startDateTime),
+    endDateTime: iso(t.endDateTime),
+  }))
+
   const sessions: OcpiSessionReceived[] = data.Sessions.map(session => ({
     id: session.id,
     ocpiSessionId: session.ocpiSessionId,
@@ -351,6 +377,7 @@ export async function fetchEmspPartnerDetail (
   return {
     partner,
     locations,
+    tariffs,
     sessions,
     cdrs,
     totalKwh: row.Sessions_aggregate.aggregate?.sum?.kwh ?? 0,
