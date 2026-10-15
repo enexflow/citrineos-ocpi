@@ -1838,6 +1838,7 @@ export type CreateRoamingPartnerMutationVariables = Exact<{
   signatureDate: Scalars['date']['input'];
   contractStartDate: Scalars['date']['input'];
   roles: Scalars['jsonb']['input'];
+  isHdv?: InputMaybe<Scalars['Boolean']['input']>;
 }>;
 
 
@@ -1860,7 +1861,8 @@ export type GetRoamingPartnerByIdentityQueryResult = {
     name?: string | null,
     signatureDate?: any | null,
     contractStartDate?: any | null,
-    roles: any
+    roles: any,
+    isHdv: boolean
   }>
 };
 
