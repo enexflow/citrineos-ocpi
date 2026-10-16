@@ -18,6 +18,7 @@ import {
   OcpiHeaders,
   OcpiLogger,
   OcpiResponseStatusCode,
+  OpenAPI,
   OnboardRoamingPartnerBodySchema,
   OnboardRoamingPartnerBodySchemaName,
   OnboardRoamingPartnerEmspBodySchema,
@@ -287,6 +288,11 @@ export class AdminModuleApi extends BaseController {
   }
 
   @Post('/onboard-roaming-partner-cpo')
+  @OpenAPI({
+    summary: 'Onboard a CPO behind a hub',
+    description:
+      'Upserts a RoamingPartner with role `CPO` on the hub TenantPartner, then pulls tariffs and then locations **in the background**. Returns `accepted`, or `already onboarded` (no pull). See 03_Modules/AdminModule/README.md.',
+  })
   @AsAdminEndpoint()
   async onboardRoamingPartnerCpo(
     @BodyWithSchema(
@@ -337,6 +343,11 @@ export class AdminModuleApi extends BaseController {
   }
 
   @Post('/create-roaming-partner-cpo')
+  @OpenAPI({
+    summary: 'Register a CPO behind a hub (no data pull)',
+    description:
+      'Upserts a RoamingPartner with role `CPO` on the hub TenantPartner. Does not pull tariffs or locations. See 03_Modules/AdminModule/README.md.',
+  })
   @AsAdminEndpoint()
   async createRoamingPartnerCpo(
     @BodyWithSchema(
@@ -353,6 +364,11 @@ export class AdminModuleApi extends BaseController {
   }
 
   @Post('/create-roaming-partner-emsp')
+  @OpenAPI({
+    summary: 'Register an EMSP behind a hub (no billing)',
+    description:
+      'Upserts a RoamingPartner with role `EMSP` on the hub TenantPartner. Does not create a Pennylane customer. See 03_Modules/AdminModule/README.md.',
+  })
   @AsAdminEndpoint()
   async createRoamingPartnerEmsp(
     @BodyWithSchema(
@@ -369,6 +385,11 @@ export class AdminModuleApi extends BaseController {
   }
 
   @Post('/onboard-roaming-partner-emsp')
+  @OpenAPI({
+    summary: 'Onboard an EMSP behind a hub',
+    description:
+      'Upserts a RoamingPartner with role `EMSP` on the hub TenantPartner. Creates the Pennylane customer only if the partner is new. Billing is validated before anything is written. See 03_Modules/AdminModule/README.md.',
+  })
   @AsAdminEndpoint()
   async onboardRoamingPartnerEmsp(
     @BodyWithSchema(
@@ -453,6 +474,11 @@ export class AdminModuleApi extends BaseController {
    * API failure is returned to the caller as is.
    */
   @Post('/onboard-tenant-partner-emsp')
+  @OpenAPI({
+    summary: 'Set up billing for a direct EMSP (no hub)',
+    description:
+      'Creates the Pennylane customer for an existing TenantPartner (404 if the credentials exchange has not been done). Writes nothing to OCPI. See 03_Modules/AdminModule/README.md.',
+  })
   @AsAdminEndpoint()
   async onboardTenantPartnerEmsp(
     @BodyWithSchema(
