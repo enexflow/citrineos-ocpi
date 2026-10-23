@@ -98,7 +98,7 @@ const billing = {
   externalReference: 'patterm-company-1234',
 };
 
-const emspBody = { ...body, ...billing };
+const emspBody = { ...body, ...billing, contractNb: 'GIR-2026-001' };
 
 const flushBackgroundWork = () =>
   new Promise((resolve) => setImmediate(resolve));
@@ -321,6 +321,7 @@ describe('AdminModuleApi roaming partner routes', () => {
           external_reference: 'patterm-company-1234',
           tenant_partner_id: 2,
           roaming_partner_id: 1,
+          contract_nb: 'GIR-2026-001',
         },
         'Bearer caller.token',
       );

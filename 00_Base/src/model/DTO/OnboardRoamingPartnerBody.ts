@@ -78,7 +78,11 @@ export type PennylaneBilling = z.infer<
  * roamingPartnerName.
  */
 export const OnboardRoamingPartnerEmspBodySchema =
-  OnboardRoamingPartnerBodySchema.extend(PennylaneBillingShape);
+  OnboardRoamingPartnerBodySchema.extend({
+    ...PennylaneBillingShape,
+    // Gireve contract number, stored by the TS API on the OCPI partner link.
+    contractNb: z.string().trim().min(1).max(100),
+  });
 
 export const OnboardRoamingPartnerEmspBodySchemaName =
   'OnboardRoamingPartnerEmspBodySchema';

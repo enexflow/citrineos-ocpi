@@ -420,6 +420,7 @@ export class AdminModuleApi extends BaseController {
             ...toPennylaneCompanyCustomer(body.roamingPartnerName, body),
             tenant_partner_id: tenantPartnerId,
             roaming_partner_id: id,
+            contract_nb: body.contractNb,
           },
           authorization,
         );
