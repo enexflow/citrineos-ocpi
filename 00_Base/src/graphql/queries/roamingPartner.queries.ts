@@ -13,6 +13,7 @@ export const CREATE_ROAMING_PARTNER = gql`
     $signatureDate: date!
     $contractStartDate: date!
     $roles: jsonb!
+    $isHdv: Boolean
   ) {
     insert_RoamingPartners_one(
       object: {
@@ -23,6 +24,7 @@ export const CREATE_ROAMING_PARTNER = gql`
         signatureDate: $signatureDate
         contractStartDate: $contractStartDate
         roles: $roles
+        isHdv: $isHdv
       }
     ) {
       id
@@ -45,10 +47,12 @@ export const GET_ROAMING_PARTNER_BY_IDENTITY = gql`
       limit: 1
     ) {
       id
+
       name
       signatureDate
       contractStartDate
       roles
+      isHdv
     }
   }
 `;

@@ -333,7 +333,7 @@ export {
   UPDATE,
 } from './util/Consts.js';
 
-export { ResponseSchema } from './openapi-spec-helper/decorators.js';
+export { OpenAPI, ResponseSchema } from './openapi-spec-helper/decorators.js';
 export { BaseClientApi } from './trigger/BaseClientApi.js';
 export { LocationsClientApi } from './trigger/LocationsClientApi.js';
 export { PartnerMtlsCertificateService } from './util/PartnerMtlsCertificateService.js';

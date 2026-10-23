@@ -22,6 +22,7 @@ export const OnboardRoamingPartnerBodySchema = z.object({
   // Strict YYYY-MM-DD (rejects time parts and impossible dates like 2026-02-30).
   roamingPartnerSignatureDate: z.string().date(),
   roamingPartnerContractStartDate: z.string().date(),
+  roamingPartnerIsHdv: z.boolean().optional(),
 });
 
 export const OnboardRoamingPartnerBodySchemaName =

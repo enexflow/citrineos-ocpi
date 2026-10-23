@@ -71,6 +71,7 @@ export class RoamingPartnerService {
       roamingPartnerName,
       roamingPartnerSignatureDate,
       roamingPartnerContractStartDate,
+      roamingPartnerIsHdv,
     } = body;
 
     const tenantPartnerResult = await this.ocpiGraphqlClient.request<
@@ -109,6 +110,7 @@ export class RoamingPartnerService {
         signatureDate: roamingPartnerSignatureDate,
         contractStartDate: roamingPartnerContractStartDate,
         roles: [role],
+        isHdv: roamingPartnerIsHdv ?? false,
       });
       const id = created.insert_RoamingPartners_one?.id;
       if (!id) {
@@ -121,10 +123,12 @@ export class RoamingPartnerService {
     const sameDetails =
       existing.name === roamingPartnerName &&
       existing.signatureDate === roamingPartnerSignatureDate &&
-      existing.contractStartDate === roamingPartnerContractStartDate;
+      existing.contractStartDate === roamingPartnerContractStartDate &&
+      (roamingPartnerIsHdv === undefined ||
+        existing.isHdv === roamingPartnerIsHdv);
     if (!sameDetails) {
       throw new InvalidParamException(
-        `Roaming partner ${roamingPartnerCountryCode}-${roamingPartnerPartyId} already exists with different name or contract dates`,
+        `Roaming partner ${roamingPartnerCountryCode}-${roamingPartnerPartyId} already exists with different name, contract dates or HDV status`,
       );
     }
 
