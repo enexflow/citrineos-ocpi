@@ -24,38 +24,22 @@ SPDX-License-Identifier: Apache-2.0
 <script lang="ts" setup>
   import type { OcpiLocationReceived } from '@/types/partner'
   import L from 'leaflet'
-  import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png'
-  import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
-  import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png'
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import 'leaflet/dist/leaflet.css'
 
-  // Vite doesn't resolve Leaflet's default marker icon paths the way its
-  // bundled `_getIconUrl` expects, so icons 404 unless re-pointed at the
-  // Vite-processed asset URLs.
-  delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: markerIcon2xUrl,
-    iconUrl: markerIconUrl,
-    shadowUrl: markerShadowUrl,
-  })
-
-  // Same silhouette/size as Leaflet's default pin, just recolored, so
-  // partner locations stand out without needing a separate image asset.
-  function coloredPinIcon (color: string) {
-    return L.divIcon({
-      className: 'colored-pin-icon',
-      html: `<svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12.5 0C5.6 0 0 5.6 0 12.5c0 9.4 12.5 28.5 12.5 28.5s12.5-19.1 12.5-28.5C25 5.6 19.4 0 12.5 0z" fill="${color}" stroke="#153651" stroke-width="1" />
-        <circle cx="12.5" cy="12.5" r="5" fill="#ffffff" />
-      </svg>`,
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-    })
+  // Circle markers drawn on a single shared canvas (preferCanvas) instead of
+  // one DOM <img>/SVG pin per location — stays smooth with thousands of points.
+  const OWN_STYLE: L.CircleMarkerOptions = {
+    radius: 6,
+    color: '#153651',
+    weight: 1,
+    fillColor: '#3687c9',
+    fillOpacity: 0.9,
   }
-
-  const partnerIcon = coloredPinIcon('#f2b705')
+  const PARTNER_STYLE: L.CircleMarkerOptions = {
+    ...OWN_STYLE,
+    fillColor: '#f2b705',
+  }
 
   const props = defineProps<{
     locations: OcpiLocationReceived[]
@@ -63,7 +47,24 @@ SPDX-License-Identifier: Apache-2.0
 
   const mapEl = ref<HTMLElement | null>(null)
   let map: L.Map | null = null
-  let markers: L.LayerGroup | null = null
+  let markers: L.FeatureGroup | null = null
+  // One popup reused for every marker, filled on click, rather than one
+  // pre-built popup bound to each of the N markers.
+  const sharedPopup = L.popup()
+
+  // Names/addresses come from partners — escape before injecting into popup HTML.
+  function escapeHtml (value: string): string {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll('\'', '&#39;')
+  }
+
+  function popupHtml (loc: OcpiLocationReceived): string {
+    return `<strong>${escapeHtml(loc.name ?? loc.ocpiId)}</strong><br>${escapeHtml(`${loc.address}, ${loc.city}`)}`
+  }
 
   type LocatedLocation = OcpiLocationReceived & {
     latitude: number
@@ -84,40 +85,53 @@ SPDX-License-Identifier: Apache-2.0
   function render () {
     if (!mapEl.value) return
     const pts = points.value
+
+    map?.closePopup()
+    markers?.remove()
+    markers = null
     if (pts.length === 0) return
 
     if (!map) {
-      // eslint-disable-next-line unicorn/no-array-callback-reference -- Leaflet's map factory, not Array.prototype.map
-      map = L.map(mapEl.value)
+      // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet's map factory, not Array.prototype.map
+      map = L.map(mapEl.value, { preferCanvas: true })
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19,
       }).addTo(map)
     }
 
-    markers?.remove()
-    markers = L.layerGroup(
+    const locByMarker = new Map<L.Layer, LocatedLocation>()
+    markers = L.featureGroup(
       pts.map(loc => {
-        const popup = `<strong>${loc.name ?? loc.ocpiId}</strong><br>${loc.address}, ${loc.city}`
-        const marker = loc.ownership === 'partner'
-          ? L.marker([loc.latitude, loc.longitude], { icon: partnerIcon })
-          : L.marker([loc.latitude, loc.longitude])
-        return marker.bindPopup(popup)
+        const marker = L.circleMarker(
+          [loc.latitude, loc.longitude],
+          loc.ownership === 'partner' ? PARTNER_STYLE : OWN_STYLE,
+        )
+        locByMarker.set(marker, loc)
+        return marker
       }),
-    ).addTo(map)
-
-    const bounds = L.latLngBounds(
-      pts.map(loc => [loc.latitude, loc.longitude]),
     )
+      .on('click', (event: L.LeafletMouseEvent) => {
+        const loc = locByMarker.get(event.propagatedFrom)
+        if (!loc || !map) return
+        sharedPopup
+          .setLatLng([loc.latitude, loc.longitude])
+          .setContent(popupHtml(loc))
+          .openOn(map)
+      })
+      .addTo(map)
+
     if (pts.length === 1) {
-      map.setView(bounds.getCenter(), 14)
+      map.setView([pts[0].latitude, pts[0].longitude], 14)
     } else {
-      map.fitBounds(bounds, { padding: [24, 24] })
+      map.fitBounds(markers.getBounds(), { padding: [24, 24] })
     }
     map.invalidateSize()
   }
 
-  watch(() => props.locations, render, { deep: true, flush: 'post' })
+  // Shallow: callers replace the array on (re)load. A deep watch would walk
+  // every field of every location on each check.
+  watch(() => props.locations, render, { flush: 'post' })
   onMounted(render)
   onBeforeUnmount(() => {
     map?.remove()

@@ -6,12 +6,12 @@ SPDX-License-Identifier: Apache-2.0
 
 <template>
   <div>
-    <div class="mb-6 d-flex flex-wrap align-center justify-space-between ga-3">
+    <div class="mb-8 d-flex flex-wrap align-center justify-space-between ga-4">
       <div>
-        <h1 class="text-h5 font-weight-bold mb-1" style="color: #153651">
+        <h1 class="text-headline-medium font-weight-bold mb-1" style="color: #153651">
           {{ heading }}
         </h1>
-        <p class="text-body-2 mb-0" style="color: #587474">
+        <p class="text-body-medium mb-0" style="color: #587474">
           {{ description }}
         </p>
       </div>
@@ -37,7 +37,7 @@ SPDX-License-Identifier: Apache-2.0
       {{ error }}
     </v-alert>
 
-    <v-row class="mb-4" dense>
+    <v-row class="mb-6">
       <v-col
         v-for="stat in summaryStats"
         :key="stat.label"
@@ -79,7 +79,7 @@ SPDX-License-Identifier: Apache-2.0
           <div class="font-weight-medium" style="color: #153651">
             {{ item.name }}
           </div>
-          <div class="text-caption" style="color: #587474">
+          <div class="text-body-small" style="color: #587474">
             {{ item.countryCode }}/{{ item.partyId }}
             <span class="mx-1">·</span>
             id {{ item.id }}
@@ -301,37 +301,6 @@ SPDX-License-Identifier: Apache-2.0
 </script>
 
 <style scoped>
-.stat-tile {
-  background: #ffffff;
-  border: 1px solid #c5d3d3;
-  border-left: 4px solid #3687c9;
-  border-radius: 0.75rem;
-  padding: 1rem 1.1rem;
-}
-
-.stat-tile__label {
-  color: #587474;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.stat-tile__hint {
-  cursor: help;
-  opacity: 0.7;
-}
-
-.stat-tile__value {
-  color: #153651;
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 0.15rem;
-}
-
 .partners-table {
   background: #ffffff !important;
   border: 1px solid #c5d3d3;
