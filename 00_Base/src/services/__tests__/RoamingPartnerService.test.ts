@@ -189,6 +189,8 @@ describe('RoamingPartnerService.upsertRoamingPartner', () => {
           contractStartDate: '2026-02-01',
           isHdv: false,
           roles: [role],
+          // roamingPartnerIsHdv omitted from the body defaults to false.
+          isHdv: false,
         });
         expect(callsTo(ADD_ROAMING_PARTNER_ROLE)).toHaveLength(0);
       },

@@ -44,6 +44,8 @@ export type PennylaneCompanyCustomerRequest = {
   // CitrineOS ids the TS API links the customer to; never sent on to Pennylane.
   tenant_partner_id?: number;
   roaming_partner_id?: number;
+  // Gireve contract number, stored on the partner link; requires tenant_partner_id.
+  contract_nb?: string;
 };
 
 /** Response of POST /api/v1/pennylane/company_customers (subset). */

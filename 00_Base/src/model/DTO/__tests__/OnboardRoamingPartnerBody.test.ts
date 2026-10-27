@@ -40,7 +40,7 @@ const billing = {
   billingLanguage: 'fr_FR',
 };
 
-const validBody = { ...identity, ...billing };
+const validBody = { ...identity, ...billing, contractNb: 'GIR-2026-001' };
 
 const issuePaths = (body: unknown) => {
   const result = OnboardRoamingPartnerEmspBodySchema.safeParse(body);
@@ -99,6 +99,13 @@ describe('OnboardRoamingPartnerEmspBodySchema', () => {
       new RegExp(`^${field}`),
     );
   });
+
+  it.each([[undefined], ['   ']])(
+    'requires a contractNb (%j)',
+    (contractNb) => {
+      expect(issuePaths({ ...validBody, contractNb })).toEqual(['contractNb']);
+    },
+  );
 
   it('still requires the roaming partner identity', () => {
     const { roamingPartnerName: _omitted, ...body } = validBody;
