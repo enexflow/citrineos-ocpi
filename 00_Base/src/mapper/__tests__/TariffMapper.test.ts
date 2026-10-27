@@ -299,7 +299,7 @@ describe('TariffMapper', () => {
       expect((coreTariff as any).tariffType).toBeNull();
     });
 
-    it('should include tariff_alt_text as a JSON string when present', () => {
+    it('should include tariff_alt_text as an array when present', () => {
       const ocpiTariff: PutTariffRequest = {
         id: 'tariff-alt-text-test',
         country_code: 'DE',
@@ -317,9 +317,9 @@ describe('TariffMapper', () => {
 
       const { coreTariff } = TariffMapper.mapFromOcpi(ocpiTariff);
 
-      expect(JSON.parse(coreTariff.tariffAltText as unknown as string)).toEqual(
-        [{ language: 'de', text: 'Standardtarif' }],
-      );
+      expect(coreTariff.tariffAltText).toEqual([
+        { language: 'de', text: 'Standardtarif' },
+      ]);
     });
 
     it('should include tenantId and tenantPartnerId when provided', () => {

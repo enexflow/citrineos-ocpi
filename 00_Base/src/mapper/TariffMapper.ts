@@ -169,9 +169,7 @@ export class TariffMapper {
       ocpiTariffId: tariff.id,
       currency: tariff.currency,
       tariffType: tariff.type ?? null,
-      tariffAltText: tariff.tariff_alt_text
-        ? JSON.stringify(tariff.tariff_alt_text)
-        : undefined,
+      tariffAltText: tariff.tariff_alt_text ?? undefined,
       tariffAltUrl: tariff.tariff_alt_url ?? null,
       minPrice: tariff.min_price ?? null,
       maxPrice: tariff.max_price ?? null,
