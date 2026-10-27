@@ -21,7 +21,8 @@ const PACKAGE = 'citrineos-server';
 function targetPrefix() {
   const branch =
     process.env.GITHUB_BASE_REF || process.env.GITHUB_REF_NAME || '';
-  return /(^|\/)prod$/.test(branch) ? 'prod' : 'staging';
+  const match = branch.match(/(?:^|\/)(dev|staging|prod)$/);
+  return match ? match[1] : 'staging';
 }
 
 export async function resolveCoreImage(fallback) {

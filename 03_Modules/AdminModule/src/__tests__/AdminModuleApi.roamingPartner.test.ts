@@ -9,8 +9,8 @@ jest.mock('@citrineos/ocpi-base', () => {
   const stubClass = () => class {};
   return {
     AsAdminEndpoint: noopDecorator,
-    BodyWithSchema: noopDecorator,
     OpenAPI: noopDecorator,
+    BodyWithSchema: noopDecorator,
     Paginated: noopDecorator,
     BaseController: class {},
     OnboardRoamingPartnerBodySchema: {},
