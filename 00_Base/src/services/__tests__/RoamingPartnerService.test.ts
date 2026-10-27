@@ -187,7 +187,6 @@ describe('RoamingPartnerService.upsertRoamingPartner', () => {
           name: 'ABC Mobility',
           signatureDate: '2026-01-15',
           contractStartDate: '2026-02-01',
-          isHdv: false,
           roles: [role],
           // roamingPartnerIsHdv omitted from the body defaults to false.
           isHdv: false,

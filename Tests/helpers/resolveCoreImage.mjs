@@ -25,7 +25,6 @@ function targetPrefix() {
   return match ? match[1] : 'staging';
 }
 
-
 export async function resolveCoreImage(fallback) {
   if (process.env.CORE_TEST_IMAGE) {
     return process.env.CORE_TEST_IMAGE;
