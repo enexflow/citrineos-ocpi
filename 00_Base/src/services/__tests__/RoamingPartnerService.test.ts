@@ -187,6 +187,7 @@ describe('RoamingPartnerService.upsertRoamingPartner', () => {
           name: 'ABC Mobility',
           signatureDate: '2026-01-15',
           contractStartDate: '2026-02-01',
+          isHdv: false,
           roles: [role],
         });
         expect(callsTo(ADD_ROAMING_PARTNER_ROLE)).toHaveLength(0);

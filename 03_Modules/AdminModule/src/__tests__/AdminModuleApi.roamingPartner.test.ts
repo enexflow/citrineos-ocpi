@@ -10,6 +10,7 @@ jest.mock('@citrineos/ocpi-base', () => {
   return {
     AsAdminEndpoint: noopDecorator,
     BodyWithSchema: noopDecorator,
+    OpenAPI: noopDecorator,
     Paginated: noopDecorator,
     BaseController: class {},
     OnboardRoamingPartnerBodySchema: {},
@@ -56,8 +57,11 @@ jest.mock('@citrineos/ocpi-base', () => {
     PennylaneService: stubClass(),
     TariffsService: stubClass(),
     LocationsPullService: stubClass(),
+    LocationsService: stubClass(),
     SessionsService: stubClass(),
     CdrsService: stubClass(),
+    DeleteLocationBodySchema: {},
+    DeleteLocationBodySchemaName: 'DeleteLocationBodySchema',
   };
 });
 
