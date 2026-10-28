@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AuthorizationDto, TenantDto } from '@zetra/citrineos-base';
+import {
+  IdTokenEnum,
+  type AuthorizationDto,
+  type TenantDto,
+} from '@zetra/citrineos-base';
 import { TokensModuleApi } from './module/TokensModuleApi.js';
 import {
   AbstractDtoModule,
@@ -25,6 +29,11 @@ import { Inject, Service } from 'typedi';
 import { logDbBroadcast } from '@citrineos/ocpi-base';
 export { TokensModuleApi } from './module/TokensModuleApi.js';
 export type { ITokensModuleApi } from './module/ITokensModuleApi.js';
+type AuthorizationNotifyPayload = AuthorizationDto & {
+  disableOCPI?: boolean | null;
+  // only set on Authorizations UPDATE events (see AuthorizationNotify trigger)
+  previousDisableOCPI?: boolean;
+};
 
 @Service()
 export class TokensModule extends AbstractDtoModule implements OcpiModule {
@@ -47,13 +56,39 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     await super.shutdown();
   }
 
+  // only our own ISO14443 (RFID) tokens are exposed over OCPI
+  private isBroadcastable(
+    event: IDtoEvent<Partial<AuthorizationNotifyPayload>>,
+    action: string,
+  ): boolean {
+    if (event._payload.tenantPartnerId) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        `Authorization ${action} for tenant partner, skipping broadcast.`,
+        event,
+      );
+      return false;
+    }
+    if (event._payload.idTokenType !== IdTokenEnum.ISO14443) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        `Authorization ${action} is not ISO14443, skipping broadcast.`,
+        event,
+      );
+      return false;
+    }
+    return true;
+  }
+
   @AsDtoEventHandler(
     DtoEventType.INSERT,
     DtoEventObjectType.Authorization,
     'AuthorizationNotification',
   )
   async handleAuthorizationInsert(
-    event: IDtoEvent<AuthorizationDto>,
+    event: IDtoEvent<AuthorizationNotifyPayload>,
   ): Promise<void> {
     logDbBroadcast(
       this._logger,
@@ -61,9 +96,13 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       'Handling Authorization Insert:',
       event,
     );
-    if (event._payload.tenantPartnerId) {
-      this._logger.debug(
-        'Authorization Insert for tenant partner, skipping broadcast.',
+    if (!this.isBroadcastable(event, 'Insert')) return;
+    if (event._payload.disableOCPI === true) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        'Authorization on OCPI-disabled token, skipping broadcast.',
+        event,
       );
       return;
     }
@@ -101,7 +140,7 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     'AuthorizationNotification',
   )
   async handleAuthorizationUpdate(
-    event: IDtoEvent<Partial<AuthorizationDto>>,
+    event: IDtoEvent<Partial<AuthorizationNotifyPayload>>,
   ): Promise<void> {
     logDbBroadcast(
       this._logger,
@@ -109,13 +148,23 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       'Handling Authorization Update:',
       event,
     );
-    if (event._payload.tenantPartnerId) {
-      this._logger.debug(
-        'Authorization Update for tenant partner, skipping broadcast.',
+    if (!this.isBroadcastable(event, 'Update')) return;
+    const authorizationDto = event._payload;
+    const isDisabled = authorizationDto.disableOCPI === true;
+    const wasDisabled = authorizationDto.previousDisableOCPI;
+    // already disabled before this change (or no transition info, e.g. an
+    // AuthorizationTenants update): partners already have it as invalid
+    if (isDisabled && wasDisabled !== false) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        'Authorization Update on OCPI-disabled token, skipping broadcast.',
+        event,
       );
       return;
     }
-    const authorizationDto = event._payload;
+    const justDisabled = isDisabled;
+    const justEnabled = !isDisabled && wasDisabled === true;
     const tenants = authorizationDto.tenants as unknown as
       | TenantDto[]
       | null
@@ -132,10 +181,22 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
         return;
       }
       try {
-        await this.tokenBroadcaster.broadcastPatchToken(
-          tenant!,
-          authorizationDto,
-        );
+        if (justDisabled) {
+          await this.tokenBroadcaster.broadcastDeleteToken(
+            tenant,
+            authorizationDto,
+          );
+        } else if (justEnabled) {
+          await this.tokenBroadcaster.broadcastPutToken(
+            tenant,
+            authorizationDto as AuthorizationDto,
+          );
+        } else {
+          await this.tokenBroadcaster.broadcastPatchToken(
+            tenant,
+            authorizationDto,
+          );
+        }
       } catch (e) {
         this._logger.error(
           `broadcastPatchToken failed for ${tenant.countryCode}/${tenant.partyId}/${authorizationDto.idToken}`,
@@ -151,7 +212,7 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
     'AuthorizationNotification',
   )
   async handleAuthorizationDelete(
-    event: IDtoEvent<Partial<AuthorizationDto>>,
+    event: IDtoEvent<Partial<AuthorizationNotifyPayload>>,
   ): Promise<void> {
     logDbBroadcast(
       this._logger,
@@ -159,11 +220,12 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       'Handling Authorization Delete:',
       event,
     );
-    if (event._payload.tenantPartnerId) {
+    if (!this.isBroadcastable(event, 'Delete')) return;
+    if (event._payload.disableOCPI === true) {
       logDbBroadcast(
         this._logger,
         'debug',
-        'Authorization Delete for tenant partner, skipping broadcast.',
+        'Authorization on OCPI-disabled token, skipping broadcast.',
         event,
       );
       return;
