@@ -231,6 +231,86 @@ describe('TokensService', () => {
     });
   });
 
+  describe('upsertToken - roaming partner key', () => {
+    const token = {
+      country_code: 'FR',
+      party_id: 'ABC',
+      uid: 'TOKEN001',
+      type: TokenType.RFID,
+      contract_id: 'CONTRACT001',
+      issuer: 'IssuerCo',
+      valid: true,
+      whitelist: 'ALWAYS' as any,
+      last_updated: new Date('2024-06-01T00:00:00Z'),
+    };
+
+    it('should match a null roaming partner with _is_null for a direct partner', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ Authorizations: [] })
+        .mockResolvedValueOnce({
+          insert_Authorizations_one: mockAuthorization,
+        });
+
+      await service.upsertToken(token, 10, 5);
+
+      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
+        GET_AUTHORIZATION_BY_TOKEN,
+        {
+          where: {
+            idToken: { _eq: 'TOKEN001' },
+            idTokenType: { _eq: 'ISO14443' },
+            tenantPartnerId: { _eq: 5 },
+            roamingPartnerId: { _is_null: true },
+          },
+        },
+      );
+    });
+
+    it('should key the lookup on the roaming partner behind a hub', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ Authorizations: [] })
+        .mockResolvedValueOnce({
+          insert_Authorizations_one: mockAuthorization,
+        });
+
+      await service.upsertToken(token, 10, 5, 42);
+
+      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
+        GET_AUTHORIZATION_BY_TOKEN,
+        {
+          where: expect.objectContaining({
+            tenantPartnerId: { _eq: 5 },
+            roamingPartnerId: { _eq: 42 },
+          }),
+        },
+      );
+      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
+        CREATE_AUTHORIZATION_MUTATION,
+        expect.objectContaining({ tenantPartnerId: 5, roamingPartnerId: 42 }),
+      );
+    });
+
+    it('should update only the matched row and never move it to another roaming partner', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({
+          Authorizations: [{ ...mockAuthorization, roamingPartnerId: 42 }],
+        })
+        .mockResolvedValueOnce({
+          update_Authorizations: {
+            returning: [{ ...mockAuthorization, roamingPartnerId: 42 }],
+          },
+        });
+
+      await service.upsertToken(token, 10, 5, 42);
+
+      const updateVariables = mockGraphqlClient.request.mock.calls.find(
+        (call: unknown[]) => call[0] === UPDATE_TOKEN_MUTATION,
+      )?.[1] as { where: unknown; set: object } | undefined;
+      expect(updateVariables?.where).toEqual({ id: { _eq: 1 } });
+      expect(updateVariables?.set).not.toHaveProperty('roamingPartnerId');
+    });
+  });
+
   describe('patchToken', () => {
     it('should patch an existing token', async () => {
       mockGraphqlClient.request
@@ -253,6 +333,38 @@ describe('TokensService', () => {
 
       expect(result).toBeDefined();
       expect(result.uid).toBe('TOKEN001');
+    });
+
+    it('should only patch the row of the given roaming partner', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({
+          Authorizations: [{ ...mockAuthorization, roamingPartnerId: 42 }],
+        })
+        .mockResolvedValueOnce({
+          update_Authorizations: {
+            returning: [{ ...mockAuthorization, status: 'Blocked' }],
+          },
+        });
+
+      await service.patchToken(
+        'TOKEN001',
+        TokenType.RFID,
+        { valid: false, last_updated: new Date('2024-07-01T00:00:00Z') },
+        10,
+        5,
+        42,
+      );
+
+      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
+        GET_AUTHORIZATION_BY_TOKEN,
+        {
+          where: expect.objectContaining({ roamingPartnerId: { _eq: 42 } }),
+        },
+      );
+      expect(mockGraphqlClient.request).toHaveBeenCalledWith(
+        UPDATE_TOKEN_MUTATION,
+        expect.objectContaining({ where: { id: { _eq: 1 } } }),
+      );
     });
 
     it('should throw UnknownTokenException when token does not exist', async () => {

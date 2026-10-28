@@ -13,19 +13,15 @@
  * ocpiCpoHeaders()), which is the established convention in the other
  * *Mapping.test.ts files in this repo.
  *
- * There is no separate hub/roaming curl script for Tokens, and — unlike
- * Tariffs/Cdrs — the Tokens receiver endpoints (PUT/PATCH/GET/authorize)
- * never look up or persist a RoamingPartner: TokensModuleApi.putToken calls
- * tokensService.upsertToken() without a roamingPartnerId, and the existence
- * check (GET_AUTHORIZATION_BY_TOKEN) keys only on idToken + idTokenType +
- * tenantPartnerId — never on RoamingPartner or on country_code/party_id in
- * the body. So two different roaming partners forwarded through the same
- * hub TenantPartner with the same token uid+type would collide/overwrite
- * each other, and the GET-by-country/party lookup (READ_AUTHORIZATION)
- * joins on TenantPartner, not RoamingPartner, which would not resolve a
- * hub-forwarded token back out again. Per the task instructions, since the
- * script itself has no hub scenario, this suite does not fabricate one and
- * only exercises the direct-CPO path the script actually covers.
+ * There is no separate hub/roaming curl script for Tokens. PUT/PATCH resolve
+ * the RoamingPartner from the URL country_code/party_id and key the token on
+ * idToken + idTokenType + tenantPartnerId + roamingPartnerId, so the same
+ * uid+type from two roaming partners behind one hub are kept apart. The
+ * GET-by-country/party lookup (READ_AUTHORIZATION) still joins on
+ * TenantPartner, not RoamingPartner, so it would not resolve a hub-forwarded
+ * token back out again. Per the task instructions, since the script itself
+ * has no hub scenario, this suite does not fabricate one and only exercises
+ * the direct-CPO path the script actually covers.
  *
  * Tokens has no DELETE route (see 03_Modules/Tokens/src/module/TokensModuleApi.ts),
  * so — as with CDRs — there is no afterEach cleanup. PUT is an upsert keyed

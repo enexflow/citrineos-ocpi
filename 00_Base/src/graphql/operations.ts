@@ -76,6 +76,11 @@ export type Transactions_Bool_Exp = {
 };
 export type Authorizations_Bool_Exp = {
   TenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+  id?: InputMaybe<Int_Comparison_Exp>;
+  idToken?: InputMaybe<String_Comparison_Exp>;
+  idTokenType?: InputMaybe<String_Comparison_Exp>;
+  tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
+  roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type Authorizations_Paginated_Bool_Exp = {
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
@@ -2950,9 +2955,7 @@ export type ReadAuthorizationsQueryResult = {
 };
 
 export type UpdateAuthorizationMutationVariables = Exact<{
-  idToken: Scalars['citext']['input'];
-  type: Scalars['String']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
+  where: Authorizations_Bool_Exp;
   set?: InputMaybe<Authorizations_Set_Input>;
 }>;
 
@@ -2991,9 +2994,7 @@ export type UpdateAuthorizationMutationResult = {
 };
 
 export type GetAuthorizationByTokenQueryVariables = Exact<{
-  idToken: Scalars['citext']['input'];
-  idTokenType: Scalars['String']['input'];
-  tenantPartnerId: Scalars['Int']['input'];
+  where: Authorizations_Bool_Exp;
 }>;
 
 

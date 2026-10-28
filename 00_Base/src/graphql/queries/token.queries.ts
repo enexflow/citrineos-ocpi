@@ -52,19 +52,10 @@ export const READ_AUTHORIZATION = gql`
 
 export const UPDATE_TOKEN_MUTATION = gql`
   mutation UpdateAuthorization(
-    $idToken: citext!
-    $type: String!
-    $tenantPartnerId: Int!
+    $where: Authorizations_bool_exp!
     $set: Authorizations_set_input
   ) {
-    update_Authorizations(
-      where: {
-        idToken: { _eq: $idToken }
-        idTokenType: { _eq: $type }
-        tenantPartnerId: { _eq: $tenantPartnerId }
-      }
-      _set: $set
-    ) {
+    update_Authorizations(where: $where, _set: $set) {
       returning {
         id
         createdAt
@@ -98,18 +89,8 @@ export const UPDATE_TOKEN_MUTATION = gql`
 `;
 
 export const GET_AUTHORIZATION_BY_TOKEN = gql`
-  query GetAuthorizationByToken(
-    $idToken: citext!
-    $idTokenType: String!
-    $tenantPartnerId: Int!
-  ) {
-    Authorizations(
-      where: {
-        idToken: { _eq: $idToken }
-        idTokenType: { _eq: $idTokenType }
-        tenantPartnerId: { _eq: $tenantPartnerId }
-      }
-    ) {
+  query GetAuthorizationByToken($where: Authorizations_bool_exp!) {
+    Authorizations(where: $where) {
       id
       idToken
       idTokenType

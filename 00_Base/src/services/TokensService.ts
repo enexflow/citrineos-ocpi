@@ -28,6 +28,7 @@ import type {
 } from '@zetra/citrineos-base';
 import { AuthorizationStatusEnum, IdTokenEnum } from '@zetra/citrineos-base';
 import type {
+  Authorizations_Bool_Exp,
   Authorizations_Paginated_Bool_Exp,
   Authorizations_Set_Input,
   CreateAuthorizationMutationResult,
@@ -141,6 +142,28 @@ export class TokensService {
     return TokensMapper.toDto(result.Authorizations[0] as AuthorizationDto);
   }
 
+  /**
+   * A token is unique per (uid, type, tenant partner, roaming partner): behind a
+   * hub the same uid can belong to several eMSPs. A null roaming partner must be
+   * matched with _is_null, Hasura does not turn _eq: null into IS NULL.
+   */
+  private tokenKey(
+    idToken: string,
+    idTokenType: string,
+    tenantPartnerId: number,
+    roamingPartnerId?: number | null,
+  ): Authorizations_Bool_Exp {
+    return {
+      idToken: { _eq: idToken },
+      idTokenType: { _eq: idTokenType },
+      tenantPartnerId: { _eq: tenantPartnerId },
+      roamingPartnerId:
+        roamingPartnerId != null
+          ? { _eq: roamingPartnerId }
+          : { _is_null: true },
+    };
+  }
+
   private async upsertTokenInternal(
     token: TokenDTO,
     tenantId: number,
@@ -155,9 +178,12 @@ export class TokensService {
       GetAuthorizationByTokenQueryResult,
       GetAuthorizationByTokenQueryVariables
     >(GET_AUTHORIZATION_BY_TOKEN, {
-      idToken: authorization.idToken!,
-      idTokenType: authorization.idTokenType!,
-      tenantPartnerId,
+      where: this.tokenKey(
+        authorization.idToken!,
+        authorization.idTokenType!,
+        tenantPartnerId,
+        roamingPartnerId,
+      ),
     });
 
     const cacheExpiryDateTime = options?.cacheExpiryDateTime?.toISOString();
@@ -178,15 +204,12 @@ export class TokensService {
         UpdateAuthorizationMutationResult,
         UpdateAuthorizationMutationVariables
       >(UPDATE_TOKEN_MUTATION, {
-        idToken: authorization.idToken!,
-        type: authorization.idTokenType!,
-        tenantPartnerId,
+        where: { id: { _eq: existingAuth.Authorizations[0].id } },
         set: {
           additionalInfo: authorization.additionalInfo,
           status: authorization.status!,
           language1: authorization.language1,
           groupAuthorizationId,
-          ...(roamingPartnerId != null && { roamingPartnerId }),
           ...(authorization.realTimeAuth != null && {
             realTimeAuth: authorization.realTimeAuth,
           }),
@@ -244,13 +267,14 @@ export class TokensService {
     token: TokenDTO,
     tenantId: number,
     tenantPartnerId: number,
+    roamingPartnerId?: number,
     options?: UpsertTokenOptions,
   ): Promise<TokenDTO> {
     const authorization = await this.upsertTokenInternal(
       token,
       tenantId,
       tenantPartnerId,
-      undefined,
+      roamingPartnerId,
       options,
     );
     return TokensMapper.toDto(authorization);
@@ -277,6 +301,7 @@ export class TokensService {
     token: Partial<TokenDTO>,
     tenantId: number,
     tenantPartnerId: number,
+    roamingPartnerId?: number,
   ): Promise<TokenDTO> {
     if (!token.last_updated)
       throw new MissingParamException(
@@ -290,9 +315,12 @@ export class TokensService {
       GetAuthorizationByTokenQueryResult,
       GetAuthorizationByTokenQueryVariables
     >(GET_AUTHORIZATION_BY_TOKEN, {
-      idToken: tokenUid,
-      idTokenType,
-      tenantPartnerId,
+      where: this.tokenKey(
+        tokenUid,
+        idTokenType,
+        tenantPartnerId,
+        roamingPartnerId,
+      ),
     });
 
     if (existingAuth.Authorizations.length < 1) {
@@ -324,9 +352,7 @@ export class TokensService {
       set.realTimeAuth = authorization.realTimeAuth;
 
     const updateVariables = {
-      idToken: tokenUid,
-      type: idTokenType,
-      tenantPartnerId,
+      where: { id: { _eq: existingAuth.Authorizations[0].id } },
       set,
     };
     const result = await this.ocpiGraphqlClient.request<
@@ -394,9 +420,12 @@ export class TokensService {
       GetAuthorizationByTokenQueryResult,
       GetAuthorizationByTokenQueryVariables
     >(GET_AUTHORIZATION_BY_TOKEN, {
-      idToken: tokenUid,
-      idTokenType,
-      tenantPartnerId,
+      // The authorize request carries no token owner, so any roaming partner matches.
+      where: {
+        idToken: { _eq: tokenUid },
+        idTokenType: { _eq: idTokenType },
+        tenantPartnerId: { _eq: tenantPartnerId },
+      },
     });
 
     if (existingAuth.Authorizations.length === 0) {
