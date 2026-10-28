@@ -129,6 +129,7 @@ export type Cdrs_Bool_Exp = {
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
   FromTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
   ToTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;
