@@ -2,6 +2,71 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// citrineos-base is ESM-only, jest can't load it: stub the enums the
+// service and TokensMapper use (same as CdrsService.test.ts)
+jest.mock('@zetra/citrineos-base', () => {
+  const toEnum = (values: string[]) =>
+    Object.fromEntries(values.map((v) => [v, v]));
+  return {
+    HttpMethod: {
+      Get: 'GET',
+      Post: 'POST',
+      Put: 'PUT',
+      Patch: 'PATCH',
+      Delete: 'DELETE',
+    },
+    HttpHeader: { Authorization: 'Authorization' },
+    AuthorizationStatusEnum: toEnum([
+      'Accepted',
+      'Blocked',
+      'ConcurrentTx',
+      'Expired',
+      'Invalid',
+      'NoCredit',
+      'NotAllowedTypeEVSE',
+      'NotAtThisLocation',
+      'NotAtThisTime',
+      'Unknown',
+    ]),
+    AuthorizationWhitelistEnum: toEnum([
+      'Never',
+      'Allowed',
+      'AllowedOffline',
+      'Always',
+    ]),
+    IdTokenEnum: toEnum([
+      'Central',
+      'eMAID',
+      'ISO14443',
+      'ISO15693',
+      'KeyCode',
+      'Local',
+      'MacAddress',
+      'NoAuthorization',
+      'Other',
+    ]),
+    OCPP2_0_1: {
+      IdTokenEnumType: toEnum([
+        'Central',
+        'eMAID',
+        'ISO14443',
+        'ISO15693',
+        'KeyCode',
+        'Local',
+        'MacAddress',
+        'NoAuthorization',
+      ]),
+    },
+  };
+});
+
+// helpers.ts imports ../index.js, which drags the whole Koa server in
+jest.mock('../../util/helpers', () => ({
+  getTokenOwnerFromAuthorization: (auth: any) =>
+    auth.roamingPartner ?? auth.tenantPartner,
+  getRoamingPartner: jest.fn(),
+}));
+
 jest.mock('../../mapper/index', () => ({
   ...jest.requireActual('../../mapper/TokensMapper'),
   TokensMapper: jest.requireActual('../../mapper/TokensMapper').TokensMapper,
@@ -279,24 +344,42 @@ describe('TokensService', () => {
   });
 
   describe('getTokensPaginated', () => {
-    it('should return paginated tokens filtering by Tenant and excluding partner tokens', async () => {
+    const ourTenant: TenantDto = {
+      id: 10,
+      name: 'ZTA',
+      countryCode: 'FR',
+      partyId: 'ZTA',
+      isUserTenant: true,
+    };
+
+    const exposedOverOcpiFilter = {
+      tenants: {
+        tenant: {
+          countryCode: { _eq: 'FR' },
+          partyId: { _eq: 'ZTA' },
+        },
+      },
+      tenantPartnerId: { _is_null: true },
+      idTokenType: { _eq: 'ISO14443' },
+      _or: [
+        { disableOCPI: { _is_null: true } },
+        { disableOCPI: { _eq: false } },
+      ],
+    };
+
+    it('should only list our own ISO14443 tokens that are not OCPI-disabled', async () => {
       mockGraphqlClient.request.mockResolvedValue({
         Authorizations: [mockOwnAuthorization],
       });
 
-      const ocpiHeaders = new OcpiHeaders('DE', 'ABC', 'FR', 'ZTA');
       const paginatedParams = new PaginatedParams();
       paginatedParams.limit = 10;
       paginatedParams.offset = 0;
 
-      const tenant: TenantDto = {
-        name: 'test-tenant',
-        isUserTenant: false,
-        countryCode: 'FR',
-        partyId: 'ZTA',
-      };
-
-      const result = await service.getTokensPaginated(tenant, paginatedParams);
+      const result = await service.getTokensPaginated(
+        ourTenant,
+        paginatedParams,
+      );
 
       expect(result.data).toHaveLength(1);
       expect(result.count).toBe(1);
@@ -305,19 +388,7 @@ describe('TokensService', () => {
       expect(result.data[0].party_id).toBe('ZTA');
       expect(mockGraphqlClient.request).toHaveBeenCalledWith(
         GET_AUTHORIZATIONS_PAGINATED,
-        expect.objectContaining({
-          limit: 10,
-          offset: 0,
-          where: expect.objectContaining({
-            tenants: {
-              tenant: {
-                countryCode: { _eq: 'FR' },
-                partyId: { _eq: 'ZTA' },
-              },
-            },
-            tenantPartnerId: { _is_null: true },
-          }),
-        }),
+        { limit: 10, offset: 0, where: exposedOverOcpiFilter },
       );
     });
 
@@ -326,12 +397,6 @@ describe('TokensService', () => {
         Authorizations: [],
       });
 
-      const tenant: TenantDto = {
-        name: 'test-tenant',
-        isUserTenant: false,
-        countryCode: 'FR',
-        partyId: 'ZTA',
-      };
       const dateFrom = new Date('2024-01-01');
       const dateTo = new Date('2024-12-31');
 
@@ -341,24 +406,18 @@ describe('TokensService', () => {
       paginatedParams.dateFrom = dateFrom;
       paginatedParams.dateTo = dateTo;
 
-      await service.getTokensPaginated(tenant, paginatedParams);
+      await service.getTokensPaginated(ourTenant, paginatedParams);
 
       expect(mockGraphqlClient.request).toHaveBeenCalledWith(
         GET_AUTHORIZATIONS_PAGINATED,
         expect.objectContaining({
-          where: expect.objectContaining({
-            tenants: {
-              tenant: {
-                countryCode: { _eq: 'FR' },
-                partyId: { _eq: 'ZTA' },
-              },
-            },
-            tenantPartnerId: { _is_null: true },
+          where: {
+            ...exposedOverOcpiFilter,
             updatedAt: {
               _gte: dateFrom.toISOString(),
               _lte: dateTo.toISOString(),
             },
-          }),
+          },
         }),
       );
     });
@@ -368,17 +427,65 @@ describe('TokensService', () => {
         Authorizations: [],
       });
 
-      const tenant: TenantDto = {
-        name: 'test-tenant',
-        isUserTenant: false,
-        countryCode: 'FR',
-        partyId: 'ZTA',
-      };
-
-      const result = await service.getTokensPaginated(tenant);
+      const result = await service.getTokensPaginated(ourTenant);
 
       expect(result.data).toHaveLength(0);
       expect(result.count).toBe(0);
+    });
+  });
+
+  describe('pushTokensToPartner', () => {
+    it('should only push our own ISO14443 tokens that are not OCPI-disabled', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({
+          TenantPartners: [
+            {
+              id: 5,
+              partnerProfileOCPI: {
+                endpoints: [
+                  {
+                    identifier: 'tokens_RECEIVER',
+                    url: 'https://emsp.example/tokens',
+                  },
+                ],
+              },
+              tenant: { countryCode: 'FR', partyId: 'ZTA' },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ Authorizations: [] });
+
+      const summary = await service.pushTokensToPartner({
+        ourCountryCode: 'FR',
+        ourPartyId: 'ZTA',
+        partnerCountryCode: 'DE',
+        partnerPartyId: 'ABC',
+        offset: 0,
+        limit: 50,
+      } as any);
+
+      expect(summary.processed).toBe(0);
+      expect(mockGraphqlClient.request).toHaveBeenLastCalledWith(
+        GET_AUTHORIZATIONS_PAGINATED,
+        {
+          limit: 50,
+          offset: 0,
+          where: {
+            tenantPartnerId: { _is_null: true },
+            tenants: {
+              tenant: {
+                countryCode: { _eq: 'FR' },
+                partyId: { _eq: 'ZTA' },
+              },
+            },
+            idTokenType: { _eq: 'ISO14443' },
+            _or: [
+              { disableOCPI: { _is_null: true } },
+              { disableOCPI: { _eq: false } },
+            ],
+          },
+        },
+      );
     });
   });
 
