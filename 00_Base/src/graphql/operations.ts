@@ -83,7 +83,11 @@ export type Authorizations_Paginated_Bool_Exp = {
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
   tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   tenants?: InputMaybe<AuthorizationTenants_Bool_Exp>;
+  idTokenType?: InputMaybe<String_Comparison_Exp>;
+  disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
+  _or?: InputMaybe<Array<Authorizations_Paginated_Bool_Exp>>;
 };
+
 export type Timestamptz_Comparison_Exp = {
   _gte?: InputMaybe<Scalars['timestamptz']['input']>;
   _lte?: InputMaybe<Scalars['timestamptz']['input']>;
@@ -125,7 +129,6 @@ export type Cdrs_Bool_Exp = {
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
   FromTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
   ToTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
-  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;
