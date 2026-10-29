@@ -23,8 +23,8 @@ export type Scalars = {
   date: { input: string; output: string; }
   timestamptz: { input: any; output: any; }
   citext: { input: string; output: string; }
-  authorization_status: { input: string; output: string; }
   uuid: { input: string; output: string; }
+  authorization_status: { input: string; output: string; }
 };
 export type Authorizations_Set_Input = {
   additionalInfo?: InputMaybe<Scalars['jsonb']['input']>;
@@ -38,11 +38,13 @@ export type Authorizations_Set_Input = {
 };
 export type Locations_Bool_Exp = {
   id?: InputMaybe<Int_Comparison_Exp>;
+  _and?: InputMaybe<Array<Locations_Bool_Exp>>;
+  _not?: InputMaybe<Locations_Bool_Exp>;
+  disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   ownerTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   roamingPartnerId?: InputMaybe<Int_Comparison_Exp>;
   deletedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
-  disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
   _or?: InputMaybe<Array<Locations_Bool_Exp>>;
 };
@@ -118,10 +120,12 @@ export type Cdrs_Bool_Exp = {
   partyId?: InputMaybe<String_Comparison_Exp>;
   ocpiCdrId?: InputMaybe<String_Comparison_Exp>;
   fromTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
-  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   updatedAt?: InputMaybe<Timestamptz_Comparison_Exp>;
   lastUpdated?: InputMaybe<Timestamptz_Comparison_Exp>;
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
+  FromTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+  ToTenantPartner?: InputMaybe<TenantPartners_Bool_Exp>;
+  toTenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
 };
 export type AuthorizationTenants_Bool_Exp = {
   tenant?: InputMaybe<Tenants_Bool_Exp>;
@@ -1835,12 +1839,44 @@ export type CreateRoamingPartnerMutationVariables = Exact<{
   name: Scalars['String']['input'];
   signatureDate: Scalars['date']['input'];
   contractStartDate: Scalars['date']['input'];
+  roles: Scalars['jsonb']['input'];
+  isHdv?: InputMaybe<Scalars['Boolean']['input']>;
 }>;
 
 
 export type CreateRoamingPartnerMutationResult = {
   insert_RoamingPartners_one?: {
     id: number
+  } | null
+};
+
+export type GetRoamingPartnerByIdentityQueryVariables = Exact<{
+  tenantPartnerId: Scalars['Int']['input'];
+  countryCode: Scalars['String']['input'];
+  partyId: Scalars['String']['input'];
+}>;
+
+
+export type GetRoamingPartnerByIdentityQueryResult = {
+  RoamingPartners: Array<{
+    id: number,
+    name?: string | null,
+    signatureDate?: any | null,
+    contractStartDate?: any | null,
+    roles: any,
+    isHdv: boolean
+  }>
+};
+
+export type AddRoamingPartnerRoleMutationVariables = Exact<{
+  id: Scalars['Int']['input'];
+  role: Scalars['jsonb']['input'];
+}>;
+
+
+export type AddRoamingPartnerRoleMutationResult = {
+  append?: {
+    affected_rows: number
   } | null
 };
 
@@ -2099,7 +2135,7 @@ export type GetTariffByKeyQueryResult = {
     ocpiTariffId?: string | null,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tenantPartnerId?: number | null,
     updatedAt: any,
     tenant: {
@@ -2134,7 +2170,7 @@ export type GetTariffForBroadcastQueryResult = {
     minPrice?: any | null,
     maxPrice?: any | null,
     energyMix?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tenantPartnerId?: number | null,
     TariffElements: Array<{
       id: number,
@@ -2162,7 +2198,7 @@ export type GetTariffsQueryResult = {
     currency: any,
     id: number,
     ocpiTariffId?: string | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tenantPartnerId?: number | null,
     updatedAt: any,
     startDateTime?: any | null,
@@ -2198,7 +2234,7 @@ export type CreateOrUpdateTariffMutationResult = {
     currency: any,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tenantPartnerId?: number | null,
     updatedAt: any,
     tariffType?: string | null,
@@ -2234,7 +2270,7 @@ export type CreateOrUpdatePartnerTariffMutationResult = {
     currency: any,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tariffType?: string | null,
     tariffAltUrl?: string | null,
     minPrice?: any | null,
@@ -2276,7 +2312,7 @@ export type CreateOrUpdatePartnerTariffRoamingPartnerMutationResult = {
     currency: any,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tariffType?: string | null,
     tariffAltUrl?: string | null,
     minPrice?: any | null,
@@ -2356,7 +2392,7 @@ export type GetTariffByOcpiIdQueryResult = {
     ocpiTariffId?: string | null,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tariffType?: string | null,
     tariffAltUrl?: string | null,
     minPrice?: any | null,
@@ -2398,7 +2434,7 @@ export type GetTariffByPartnerQueryResult = {
     ocpiTariffId?: string | null,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tariffType?: string | null,
     tariffAltUrl?: string | null,
     minPrice?: any | null,
@@ -2441,7 +2477,7 @@ export type GetTariffByPartnerRoamingPartnerQueryResult = {
     ocpiTariffId?: string | null,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tariffType?: string | null,
     tariffAltUrl?: string | null,
     minPrice?: any | null,
@@ -2531,7 +2567,7 @@ export type UpdatePartnerTariffByPkMutationResult = {
     currency: any,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tariffType?: string | null,
     tariffAltUrl?: string | null,
     minPrice?: any | null,
@@ -2573,7 +2609,7 @@ export type InsertPartnerTariffMutationResult = {
     currency: any,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tariffType?: string | null,
     tariffAltUrl?: string | null,
     minPrice?: any | null,
@@ -2627,7 +2663,7 @@ export type UpdatePartnerTariffMutationResult = {
     currency: any,
     paymentFee?: any | null,
     taxRate?: any | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tariffType?: string | null,
     tariffAltUrl?: string | null,
     minPrice?: any | null,
@@ -2670,7 +2706,7 @@ export type GetTariffsPaginatedQueryResult = {
     authorizationAmount?: any | null,
     currency: any,
     ocpiTariffId?: string | null,
-    tariffAltText?: string | null,
+    tariffAltText?: any | null,
     tenantPartnerId?: number | null,
     startDateTime?: any | null,
     endDateTime?: any | null,
@@ -2758,7 +2794,7 @@ export type GetTenantPartnerIdByCountryPartyQueryResult = {
   }>
 };
 
-export type GetAllTenantPartnersQueryVariables = Exact<{ [key: string]: never }>;
+export type GetAllTenantPartnersQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type GetAllTenantPartnersQueryResult = {
@@ -3169,6 +3205,10 @@ export type GetTransactionsQueryResult = {
     locationId?: number | null,
     authorizationId?: number | null,
     tariffId?: number | null,
+    tenant: {
+      countryCode?: string | null,
+      partyId?: string | null
+    },
     transactionEvents: Array<{
       id: number,
       eventType?: string | null,

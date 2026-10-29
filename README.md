@@ -88,6 +88,10 @@ which will wait for the debugger to attach before proceeding with execution.
 You can now connect your OCPP compliant charging stations to the CitrineOS server. Make sure to configure the
 charging stations to point to the server's IP address and port as specified in the config.json file.
 
+## Partner onboarding
+
+How to register hub and direct partners (TenantPartner / RoamingPartner) and set up their billing: see the [Admin Module README](./03_Modules/AdminModule/README.md).
+
 ## Testing with EVerest
 
 This [README](./Server/everest/README.md)

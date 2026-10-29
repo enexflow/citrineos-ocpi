@@ -22,4 +22,89 @@
   .v-list-item--active {
     background: color-mix(in srgb, #0edaf1 18%, transparent) !important;
   }
+
+  /* Tables: lighter, more readable headers and roomier rows */
+  .v-data-table .v-data-table__th {
+    height: 44px !important;
+    background: #f7fafa;
+    color: #587474;
+    font-size: 0.72rem;
+    font-weight: 600 !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .v-data-table .v-data-table__td {
+    height: 52px !important;
+  }
+
+  .v-data-table .v-data-table__th,
+  .v-data-table .v-data-table__td {
+    padding-inline: 18px !important;
+  }
+
+  .v-data-table-footer {
+    padding: 4px 12px;
+    border-top: 1px solid #e2e9e9;
+  }
+
+  /* Separate tab bars from the content below them */
+  .v-tabs {
+    border-bottom: 1px solid #e2e9e9;
+  }
+
+  .v-alert {
+    border-radius: 0.75rem;
+  }
+
+  /* Count tiles (partner lists + partner detail pages) */
+  .stat-tile {
+    height: 100%;
+    background: #ffffff;
+    border: 1px solid #e2e9e9;
+    border-radius: 14px;
+    padding: 1rem 1.2rem 1.1rem;
+    box-shadow: 0 1px 2px rgb(21 54 81 / 4%);
+  }
+
+  .stat-tile__label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #587474;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .stat-tile__label::before {
+    content: '';
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #3687c9;
+  }
+
+  .stat-tile__hint {
+    margin-left: auto;
+    cursor: help;
+    opacity: 0.55;
+  }
+
+  .stat-tile__hint:hover {
+    opacity: 1;
+  }
+
+  .stat-tile__value {
+    margin-top: 0.55rem;
+    color: #153651;
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
 }
