@@ -15,6 +15,7 @@ import { SessionsClientApi } from '../trigger/SessionsClientApi.js';
 import { CdrsClientApi } from '../trigger/CdrsClientApi.js';
 import { TariffsClientApi } from '../trigger/TariffsClientApi.js';
 import { OcpiGraphqlClient } from '../graphql/index.js';
+import { CdrsService } from './CdrsService.js';
 
 import {
   GireveBroadcastRetryOutbox,
@@ -54,6 +55,7 @@ export class GireveBroadcastRetryWorker {
     @Inject() private readonly cdrsClientApi: CdrsClientApi,
     @Inject() private readonly tariffsClientApi: TariffsClientApi,
     @Inject() private readonly ocpiGraphqlClient: OcpiGraphqlClient,
+    @Inject() private readonly cdrsService: CdrsService,
   ) {}
 
   /**
@@ -101,6 +103,34 @@ export class GireveBroadcastRetryWorker {
       return JSON.stringify(e);
     } catch {
       return String(e);
+    }
+  }
+
+  /**
+   * Best-effort: the CDR was delivered, so a failure here must not reschedule
+   * the item (that would POST the CDR again).
+   */
+  private async markCdrRowAsSent(item: GireveRetryQueueItem): Promise<void> {
+    try {
+      const cdrId = await this.cdrsService.findSentCdrId(
+        item.resourceId,
+        item.partnerTenantPartnerId,
+      );
+      if (cdrId === undefined) {
+        this.logger.warn('Gireve retry: sent CDR row not found', {
+          id: item.id,
+          resourceId: item.resourceId,
+          partnerTenantPartnerId: item.partnerTenantPartnerId,
+        });
+        return;
+      }
+      await this.cdrsService.markCdrAsSent(cdrId, new Date().toISOString());
+    } catch (e) {
+      this.logger.error('Gireve retry: failed to mark CDR as sent', {
+        id: item.id,
+        resourceId: item.resourceId,
+        error: this.parseError(e),
+      });
     }
   }
 
@@ -178,6 +208,7 @@ export class GireveBroadcastRetryWorker {
             item.ocpiPath ?? undefined,
             partner.awsSecretCertificateArn ?? undefined,
           );
+          await this.markCdrRowAsSent(item);
           break;
         }
         case ModuleId.Tariffs: {

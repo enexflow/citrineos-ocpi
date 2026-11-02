@@ -321,6 +321,17 @@ export class CdrsService {
     return result.insert_Cdrs_one!.id;
   }
 
+  async findSentCdrId(
+    ocpiCdrId: string,
+    toTenantPartnerId: number,
+  ): Promise<number | undefined> {
+    const existing = await this.ocpiGraphqlClient.request<
+      FindSentCdrQueryResult,
+      FindSentCdrQueryVariables
+    >(FIND_SENT_CDR_QUERY, { ocpiCdrId, toTenantPartnerId });
+    return existing.Cdrs[0]?.id;
+  }
+
   async markCdrAsSent(cdrId: number, sentAt: string): Promise<void> {
     await this.ocpiGraphqlClient.request<
       UpdateCdrSentStatusMutationResult,

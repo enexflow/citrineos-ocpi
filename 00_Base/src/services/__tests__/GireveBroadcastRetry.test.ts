@@ -22,6 +22,9 @@ jest.mock('@zetra/citrineos-base', () => ({
   },
 }));
 
+// The worker only needs CdrsService as an injected dependency; don't load its import graph.
+jest.mock('../CdrsService', () => ({ CdrsService: class {} }));
+
 jest.mock('../../util/helpers', () => ({
   shouldBroadcastToPartner: jest.fn().mockReturnValue(true),
   handleHttpMethodForPartner: jest.fn((httpMethod: unknown) => httpMethod),
@@ -200,6 +203,124 @@ describe('Gireve broadcast retry mechanism', () => {
         succeeded: 1,
         failed: 0,
         staleLocksReleased: 0,
+      });
+    });
+
+    describe('CDR retry', () => {
+      const buildCdrWorker = (cdrsService: {
+        findSentCdrId: jest.Mock;
+        markCdrAsSent: jest.Mock;
+      }) => {
+        const {
+          GireveBroadcastRetryWorker,
+        } = require('../GireveBroadcastRetryWorker');
+        const { HttpMethod } = require('@zetra/citrineos-base');
+
+        const item = {
+          id: 'uuid-cdr',
+          partnerTenantPartnerId: 7,
+          cpoCountryCode: 'FR',
+          cpoPartyId: 'ZET',
+          moduleId: ModuleId.Cdrs,
+          interfaceRole: InterfaceRole.RECEIVER,
+          httpMethod: HttpMethod.Post,
+          resourceType: 'cdr',
+          resourceId: 'FR*ZET*F2028*8552',
+          ocpiPath: null,
+          payload: { id: 'FR*ZET*F2028*8552' },
+          attemptCount: 1,
+          nextRetryAt: new Date().toISOString(),
+        };
+
+        const mockOutbox = {
+          releaseStaleLocks: jest.fn().mockResolvedValue(0),
+          claimDueRetries: jest.fn().mockResolvedValue([item]),
+          markSent: jest.fn().mockResolvedValue(undefined),
+          reschedule: jest.fn().mockResolvedValue(undefined),
+        };
+
+        const mockCdrsClientApi = {
+          request: jest.fn().mockResolvedValue({}),
+        };
+
+        const mockOcpiGraphqlClient = {
+          request: jest.fn().mockResolvedValue({
+            TenantPartners_by_pk: {
+              id: 7,
+              countryCode: 'FR',
+              partyId: '007',
+              awsSecretCertificateArn: null,
+              partnerProfileOCPI: { credentials: { token: 'dummy' } },
+            },
+          }),
+        };
+
+        const worker = new GireveBroadcastRetryWorker(
+          mockOutbox as any,
+          { info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any,
+          { request: jest.fn() } as any,
+          mockCdrsClientApi as any,
+          { request: jest.fn() } as any,
+          mockOcpiGraphqlClient as any,
+          cdrsService as any,
+        );
+
+        return { worker, mockOutbox, mockCdrsClientApi };
+      };
+
+      it('sets successfullySentAt on the CDR row when the retry succeeds', async () => {
+        const cdrsService = {
+          findSentCdrId: jest.fn().mockResolvedValue(42),
+          markCdrAsSent: jest.fn().mockResolvedValue(undefined),
+        };
+        const { worker, mockOutbox, mockCdrsClientApi } =
+          buildCdrWorker(cdrsService);
+
+        const result = await worker.runOnce();
+
+        expect(mockCdrsClientApi.request).toHaveBeenCalled();
+        expect(cdrsService.findSentCdrId).toHaveBeenCalledWith(
+          'FR*ZET*F2028*8552',
+          7,
+        );
+        expect(cdrsService.markCdrAsSent).toHaveBeenCalledWith(
+          42,
+          expect.any(String),
+        );
+        expect(mockOutbox.markSent).toHaveBeenCalledWith('uuid-cdr');
+        expect(result.succeeded).toBe(1);
+      });
+
+      it('does not reschedule (and re-POST) when marking the CDR row fails', async () => {
+        const cdrsService = {
+          findSentCdrId: jest.fn().mockRejectedValue(new Error('hasura down')),
+          markCdrAsSent: jest.fn(),
+        };
+        const { worker, mockOutbox } = buildCdrWorker(cdrsService);
+
+        const result = await worker.runOnce();
+
+        expect(cdrsService.markCdrAsSent).not.toHaveBeenCalled();
+        expect(mockOutbox.markSent).toHaveBeenCalledWith('uuid-cdr');
+        expect(mockOutbox.reschedule).not.toHaveBeenCalled();
+        expect(result.succeeded).toBe(1);
+      });
+
+      it('does not call markCdrAsSent when the CDR push fails', async () => {
+        const cdrsService = {
+          findSentCdrId: jest.fn(),
+          markCdrAsSent: jest.fn(),
+        };
+        const { worker, mockOutbox, mockCdrsClientApi } =
+          buildCdrWorker(cdrsService);
+        mockCdrsClientApi.request.mockRejectedValue(new Error('non-2xx'));
+
+        const result = await worker.runOnce();
+
+        expect(cdrsService.findSentCdrId).not.toHaveBeenCalled();
+        expect(cdrsService.markCdrAsSent).not.toHaveBeenCalled();
+        expect(mockOutbox.reschedule).toHaveBeenCalled();
+        expect(result.failed).toBe(1);
       });
     });
 
