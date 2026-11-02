@@ -47,11 +47,15 @@ export class CdrMapper extends BaseTransactionMapper {
           sessions,
           transactionIdToTariffMap,
         );
+      const transactionIdToDbIdMap = new Map<string, number | undefined>(
+        validTransactions.map((t) => [t.transactionId, t.id]),
+      );
       return await this.mapSessionsToCDRs(
         sessions,
         transactionIdToLocationMap,
         transactionIdToTariffMap,
         transactionIdToOcpiTariffMap,
+        transactionIdToDbIdMap,
       );
     } catch (error) {
       // Log the original error for debugging
@@ -75,6 +79,7 @@ export class CdrMapper extends BaseTransactionMapper {
     transactionIdToLocationMap: Map<string, LocationDTO>,
     transactionIdToTariffMap: Map<string, TariffDto>,
     transactionIdToOcpiTariffMap: Map<string, OcpiTariff>,
+    transactionIdToDbIdMap: Map<string, number | undefined>,
   ): Promise<CdrDTO[]> {
     return Promise.all(
       sessions
@@ -85,6 +90,7 @@ export class CdrMapper extends BaseTransactionMapper {
             transactionIdToLocationMap.get(session.id)!,
             transactionIdToTariffMap.get(session.id)!,
             transactionIdToOcpiTariffMap.get(session.id)!,
+            transactionIdToDbIdMap.get(session.id),
           ),
         ),
     );
@@ -95,11 +101,12 @@ export class CdrMapper extends BaseTransactionMapper {
     location: LocationDTO,
     tariff: TariffDto,
     ocpiTariff: OcpiTariff,
+    transactionDbId: number | undefined,
   ): Promise<CdrDTO> {
     return {
       country_code: session.country_code,
       party_id: session.party_id,
-      id: this.generateCdrId(session),
+      id: this.generateCdrId(session, transactionDbId, location),
       start_date_time: session.start_date_time,
       end_date_time: session.end_date_time!,
       session_id: session.id,
@@ -156,8 +163,18 @@ export class CdrMapper extends BaseTransactionMapper {
       .filter((cp) => cp.dimensions.length > 0);
   }
 
-  private generateCdrId(session: Session): string {
-    return session.id;
+  // Format: {country_code}*{party_id}*F{Transactions.id}*{Locations.id}, "F" = facture
+  private generateCdrId(
+    session: Session,
+    transactionDbId: number | undefined,
+    location: LocationDTO,
+  ): string {
+    if (transactionDbId === undefined) {
+      throw new Error(
+        `CDR ${session.id}: missing Transactions.id, cannot build CDR id`,
+      );
+    }
+    return `${session.country_code}*${session.party_id}*F${transactionDbId}*${location.id}`;
   }
 
   private async createCdrLocation(
