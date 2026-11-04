@@ -31,6 +31,8 @@ import { roundOcpiNumber, toRoundedHours } from '../util/Util.js';
 interface SessionStart {
   timestamp: Date;
   energyKwh?: number;
+  // Only used to identify the transaction when meterStart is rejected
+  transactionId?: string;
 }
 
 interface SessionEnd {
@@ -40,6 +42,11 @@ interface SessionEnd {
 
 // Rounding slack when comparing session boundaries with register readings (kWh)
 const ENERGY_TOLERANCE_KWH = 1e-6;
+// Per-phase energy registers, summed when a station sends no total (core MeterValueUtils order)
+const PHASE_GROUPS: string[][] = [
+  ['L1', 'L2', 'L3'],
+  ['L1-N', 'L2-N', 'L3-N'],
+];
 
 @Service()
 export class SessionMapper extends BaseTransactionMapper {
@@ -512,17 +519,7 @@ export class SessionMapper extends BaseTransactionMapper {
     }
     const firstReading = readings[0];
     const lastReading = readings[readings.length - 1];
-
-    // Transactions started before core stored meterStart in kWh still hold Wh, and some
-    // stations take meterStart from another register: only trust a start energy that is
-    // not above the first reading.
-    const firstKwh = this.getEnergyKwh(firstReading);
-    const startKwh =
-      sessionStart?.energyKwh !== undefined &&
-      (firstKwh === undefined ||
-        sessionStart.energyKwh <= firstKwh + ENERGY_TOLERANCE_KWH)
-        ? sessionStart.energyKwh
-        : undefined;
+    const startKwh = this.getTrustedStartKwh(readings, sessionStart);
     if (
       sessionStart &&
       sessionStart.timestamp.getTime() <
@@ -560,6 +557,38 @@ export class SessionMapper extends BaseTransactionMapper {
     }));
   }
 
+  /**
+   * Transactions started before core stored meterStart in kWh still hold Wh, and some
+   * stations take meterStart from another register: only trust a finite, non-negative start
+   * energy that is not above the first energy reading. A rejected meterStart drops the start
+   * and end period energy and ENERGY_IMPORT, so it is logged.
+   */
+  private getTrustedStartKwh(
+    readings: MeterValueDto[],
+    sessionStart?: SessionStart,
+  ): number | undefined {
+    const startKwh = sessionStart?.energyKwh;
+    if (startKwh === undefined) {
+      return undefined;
+    }
+    if (!Number.isFinite(startKwh) || startKwh < 0) {
+      this.logger.warn(
+        `Ignoring meterStart ${startKwh} kWh of transaction ${sessionStart?.transactionId}: not a finite non-negative energy`,
+      );
+      return undefined;
+    }
+    const firstKwh = readings
+      .map((reading) => this.getEnergyKwh(reading))
+      .find((kwh) => kwh !== undefined);
+    if (firstKwh !== undefined && startKwh > firstKwh + ENERGY_TOLERANCE_KWH) {
+      this.logger.warn(
+        `Ignoring meterStart ${startKwh} kWh of transaction ${sessionStart?.transactionId}: above first energy reading ${firstKwh} kWh`,
+      );
+      return undefined;
+    }
+    return startKwh;
+  }
+
   private getSessionStart(
     transaction: Partial<TransactionDto>,
   ): SessionStart | undefined {
@@ -573,6 +602,7 @@ export class SessionMapper extends BaseTransactionMapper {
         transaction.meterStart === null || transaction.meterStart === undefined
           ? undefined
           : Number(transaction.meterStart),
+      transactionId: transaction.transactionId,
     };
   }
 
@@ -592,9 +622,33 @@ export class SessionMapper extends BaseTransactionMapper {
     };
   }
 
-  private getEnergyKwh(meterValue: MeterValueDto): number | undefined {
-    const energyImport = this.getEnergyImportForMeterValue(meterValue);
-    return energyImport ? this.toKwh(energyImport) : undefined;
+  /**
+   * Energy register in kWh, picked like core MeterValueUtils: a missing measurand is
+   * Energy.Active.Import.Register (OCPP default), and without a usable non-phased register
+   * the L1/L2/L3 (else L1-N/L2-N/L3-N) registers are summed.
+   */
+  private getEnergyKwh(meterValue?: MeterValueDto): number | undefined {
+    const registers = (meterValue?.sampledValue ?? []).filter(
+      (sampledValue) =>
+        !sampledValue.measurand ||
+        sampledValue.measurand ===
+          OCPP2_0_1.MeasurandEnumType.Energy_Active_Import_Register,
+    );
+    const total = registers.find((sampledValue) => !sampledValue.phase);
+    const totalKwh = total ? this.toKwh(total) : undefined;
+    if (totalKwh !== undefined) {
+      return totalKwh;
+    }
+    for (const phases of PHASE_GROUPS) {
+      const phaseKwh = registers
+        .filter((sampledValue) => phases.includes(sampledValue.phase ?? ''))
+        .map((sampledValue) => this.toKwh(sampledValue))
+        .filter((kwh): kwh is number => kwh !== undefined);
+      if (phaseKwh.length > 0) {
+        return phaseKwh.reduce((sum, kwh) => sum + kwh, 0);
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -666,6 +720,26 @@ export class SessionMapper extends BaseTransactionMapper {
     sessionStartKwh?: number,
   ): CdrDimension[] {
     const cdrDimensions: CdrDimension[] = [];
+    // OCPI ENERGY / ENERGY_IMPORT are in kWh, registers come in the station's unit
+    const energyKwh = this.getEnergyKwh(meterValue);
+    if (energyKwh !== undefined) {
+      if (sessionStartKwh !== undefined) {
+        cdrDimensions.push({
+          type: CdrDimensionType.ENERGY_IMPORT,
+          volume: roundOcpiNumber(energyKwh - sessionStartKwh),
+        });
+      }
+      const previousEnergyKwh = this.getEnergyKwh(previousMeterValue);
+      if (previousEnergyKwh !== undefined) {
+        // Difference of rounded registers: the 4-decimal periods still add up to the total
+        cdrDimensions.push({
+          type: CdrDimensionType.ENERGY,
+          volume: roundOcpiNumber(
+            roundOcpiNumber(energyKwh) - roundOcpiNumber(previousEnergyKwh),
+          ),
+        });
+      }
+    }
     for (const sampledValue of meterValue.sampledValue) {
       switch (sampledValue.measurand) {
         case OCPP2_0_1.MeasurandEnumType.Current_Import:
@@ -674,36 +748,6 @@ export class SessionMapper extends BaseTransactionMapper {
               type: CdrDimensionType.CURRENT,
               volume: roundOcpiNumber(Number(sampledValue.value)),
             });
-          }
-          break;
-        case OCPP2_0_1.MeasurandEnumType.Energy_Active_Import_Register:
-          if (!sampledValue.phase) {
-            // OCPI ENERGY / ENERGY_IMPORT are in kWh, registers come in the station's unit
-            const energyKwh = this.toKwh(sampledValue);
-            if (energyKwh === undefined) {
-              break;
-            }
-            if (sessionStartKwh !== undefined) {
-              cdrDimensions.push({
-                type: CdrDimensionType.ENERGY_IMPORT,
-                volume: roundOcpiNumber(energyKwh - sessionStartKwh),
-              });
-            }
-            const previousEnergyImport =
-              this.getEnergyImportForMeterValue(previousMeterValue);
-            const previousEnergyKwh = previousEnergyImport
-              ? this.toKwh(previousEnergyImport)
-              : undefined;
-            if (previousEnergyKwh !== undefined) {
-              // Difference of rounded registers: the 4-decimal periods still add up to the total
-              cdrDimensions.push({
-                type: CdrDimensionType.ENERGY,
-                volume: roundOcpiNumber(
-                  roundOcpiNumber(energyKwh) -
-                    roundOcpiNumber(previousEnergyKwh),
-                ),
-              });
-            }
           }
           break;
         case OCPP2_0_1.MeasurandEnumType.SoC:
@@ -719,15 +763,6 @@ export class SessionMapper extends BaseTransactionMapper {
       volume: this.getTimeElapsedForMeterValue(meterValue, previousMeterValue),
     });
     return cdrDimensions;
-  }
-
-  private getEnergyImportForMeterValue(meterValue?: MeterValueDto) {
-    return meterValue?.sampledValue.find(
-      (sampledValue) =>
-        sampledValue.measurand ===
-          OCPP2_0_1.MeasurandEnumType.Energy_Active_Import_Register &&
-        !sampledValue.phase,
-    );
   }
 
   /**

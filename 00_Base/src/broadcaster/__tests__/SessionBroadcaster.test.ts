@@ -25,6 +25,7 @@ import { SessionBroadcaster } from '../SessionBroadcaster.js';
 import { ModuleId } from '../../model/ModuleId.js';
 import { InterfaceRole } from '../../model/InterfaceRole.js';
 import { HttpMethod } from '@zetra/citrineos-base';
+import { isGirevePartner } from '../../util/helpers.js';
 
 jest.mock('../../util/helpers.js', () => ({
   getOcpiToFromAuthorization: jest.fn().mockReturnValue({
@@ -129,15 +130,39 @@ describe('SessionBroadcaster', () => {
   });
 
   describe('broadcastPatchSession', () => {
-    it('sends both a PATCH (non-Gireve) and a PUT (Gireve) call', async () => {
-      await broadcaster.broadcastPatchSession(tenant, transactionDto, 42);
-
-      const calls = mockSessionsClientApi.broadcastToClients.mock.calls.map(
+    const sentMethods = () =>
+      mockSessionsClientApi.broadcastToClients.mock.calls.map(
         (c) => c[0].httpMethod,
       );
-      expect(calls).toEqual(
-        expect.arrayContaining([HttpMethod.Patch, HttpMethod.Put]),
-      );
+
+    it('only builds and sends the incremental PATCH to a standard partner', async () => {
+      await broadcaster.broadcastPatchSession(tenant, transactionDto, 42);
+
+      expect(sentMethods()).toEqual([HttpMethod.Patch]);
+      expect(mockSessionMapper.mapIncrementalSessionPatch).toHaveBeenCalled();
+      expect(mockSessionMapper.mapTransactionToSession).not.toHaveBeenCalled();
+    });
+
+    it('only builds and sends the full PUT to Gireve', async () => {
+      (isGirevePartner as jest.Mock).mockReturnValueOnce(true);
+
+      await broadcaster.broadcastPatchSession(tenant, transactionDto, 42);
+
+      expect(sentMethods()).toEqual([HttpMethod.Put]);
+      expect(mockSessionMapper.mapTransactionToSession).toHaveBeenCalled();
+      expect(
+        mockSessionMapper.mapIncrementalSessionPatch,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('skips entirely when there is no token-owner partner', async () => {
+      await broadcaster.broadcastPatchSession(tenant, transactionDto, null);
+
+      expect(mockSessionsClientApi.broadcastToClients).not.toHaveBeenCalled();
+      expect(
+        mockSessionMapper.mapIncrementalSessionPatch,
+      ).not.toHaveBeenCalled();
+      expect(mockSessionMapper.mapTransactionToSession).not.toHaveBeenCalled();
     });
   });
 });

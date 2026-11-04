@@ -20,6 +20,7 @@ jest.mock('../../services/LocationsService', () => ({
 jest.mock('../../graphql/index', () => ({ OcpiGraphqlClient: class {} }));
 
 import type { MeterValueDto } from '@zetra/citrineos-base';
+import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { SessionMapper } from '../SessionMapper';
 import { roundOcpiNumber, toRoundedHours } from '../../util/Util';
@@ -202,6 +203,100 @@ describe('SessionMapper.getChargingPeriods', () => {
     }
   });
 
+  describe('meterStart guard', () => {
+    const logger = new Logger<ILogObj>({ type: 'hidden' });
+    const warn = jest.spyOn(logger, 'warn');
+    const guardedMapper = new SessionMapper(
+      logger,
+      {} as LocationsService,
+      {} as OcpiGraphqlClient,
+    );
+    const socReading = (timestamp: string): MeterValueDto =>
+      ({
+        timestamp,
+        sampledValue: [
+          {
+            value: 40,
+            measurand: 'SoC',
+            location: 'EV',
+            unitOfMeasure: { unit: 'Percent', multiplier: 0 },
+          },
+        ],
+      }) as unknown as MeterValueDto;
+    // SoC-only first reading, as in a 2.0.1 TransactionEvent Started
+    const readings = [
+      socReading('2026-10-29T10:00:10.000Z'),
+      energyReading('2026-10-29T10:00:20.000Z', 27000),
+      energyReading('2026-10-29T10:15:00.000Z', 30000),
+    ];
+    const end = {
+      timestamp: new Date('2026-10-29T10:20:00.000Z'),
+      totalKwh: 3,
+    };
+    const start = (energyKwh: number) => ({
+      timestamp: new Date('2026-10-29T10:00:00.000Z'),
+      energyKwh,
+      transactionId: 'TX-1',
+    });
+    type Periods = { dimensions: { type: string; volume: number }[] }[];
+    const energyImports = (periods: Periods) =>
+      periods.flatMap((period) =>
+        period.dimensions.filter(
+          (d) => d.type === CdrDimensionType.ENERGY_IMPORT,
+        ),
+      );
+    const totalEnergy = (periods: Periods) =>
+      periods.reduce(
+        (sum, period) => sum + (energyOf(period.dimensions) ?? 0),
+        0,
+      );
+
+    beforeEach(() => warn.mockClear());
+
+    it('checks meterStart against the first energy reading, not a SoC-only one', () => {
+      // meterStart left in Wh (27000) for a 27 kWh register
+      const periods = guardedMapper.getChargingPeriods(
+        readings,
+        'FRZETT003927',
+        start(27000),
+        end,
+      );
+
+      expect(energyImports(periods)).toEqual([]);
+      expect(totalEnergy(periods)).toBeCloseTo(3, 5);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/TX-1: above first energy reading 27 kWh/),
+      );
+    });
+
+    it('keeps a valid meterStart behind a SoC-only first reading', () => {
+      const periods = guardedMapper.getChargingPeriods(
+        readings,
+        'FRZETT003927',
+        start(26.9),
+        { ...end, totalKwh: 3.1 },
+      );
+
+      expect(energyImports(periods).pop()?.volume).toBeCloseTo(3.1, 5);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it.each([-5, NaN, Infinity])('rejects meterStart %p', (energyKwh) => {
+      const periods = guardedMapper.getChargingPeriods(
+        readings,
+        'FRZETT003927',
+        start(energyKwh),
+        end,
+      );
+
+      expect(energyImports(periods)).toEqual([]);
+      expect(totalEnergy(periods)).toBeCloseTo(3, 5);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/TX-1: not a finite non-negative energy/),
+      );
+    });
+  });
+
   it('does not add a start period when the session starts at the first reading', () => {
     const periods = mapper.getChargingPeriods(
       [
@@ -270,6 +365,83 @@ describe('SessionMapper.getChargingPeriods', () => {
         CdrDimensionType.STATE_OF_CHARGE,
       ]),
     );
+  });
+
+  it('reads a register without measurand as Energy.Active.Import.Register (OCPP default)', () => {
+    const withoutMeasurand = (timestamp: string, energyWh: number) =>
+      ({
+        timestamp,
+        sampledValue: [
+          { value: energyWh, unitOfMeasure: { unit: 'Wh', multiplier: 0 } },
+        ],
+      }) as unknown as MeterValueDto;
+
+    const periods = mapper.getChargingPeriods(
+      [
+        withoutMeasurand('2026-10-29T10:00:00.000Z', 10000),
+        withoutMeasurand('2026-10-29T10:15:00.000Z', 12500),
+      ],
+      'FRZETT003927',
+    );
+
+    expect(periods).toHaveLength(1);
+    expect(energyOf(periods[0].dimensions)).toBeCloseTo(2.5, 5);
+  });
+
+  it.each([
+    ['L1', 'L2', 'L3'],
+    ['L1-N', 'L2-N', 'L3-N'],
+  ])(
+    'sums phase registers when the station sends no total (%s/%s/%s)',
+    (...phases) => {
+      const phased = (timestamp: string, energyWhPerPhase: number) =>
+        ({
+          timestamp,
+          sampledValue: phases.map((phase) => ({
+            value: energyWhPerPhase,
+            measurand: 'Energy.Active.Import.Register',
+            phase,
+            unitOfMeasure: { unit: 'Wh', multiplier: 0 },
+          })),
+        }) as unknown as MeterValueDto;
+
+      const periods = mapper.getChargingPeriods(
+        [
+          phased('2026-10-29T10:00:00.000Z', 1000),
+          phased('2026-10-29T10:15:00.000Z', 2000),
+        ],
+        'FRZETT003927',
+      );
+
+      expect(periods).toHaveLength(1);
+      expect(energyOf(periods[0].dimensions)).toBeCloseTo(3, 5);
+    },
+  );
+
+  it('prefers the total register over the phase registers', () => {
+    const withPhases = (timestamp: string, totalWh: number) =>
+      ({
+        timestamp,
+        sampledValue: [
+          ...energyReading(timestamp, totalWh).sampledValue,
+          ...['L1', 'L2', 'L3'].map((phase) => ({
+            value: 999999,
+            measurand: 'Energy.Active.Import.Register',
+            phase,
+            unitOfMeasure: { unit: 'Wh', multiplier: 0 },
+          })),
+        ],
+      }) as unknown as MeterValueDto;
+
+    const periods = mapper.getChargingPeriods(
+      [
+        withPhases('2026-10-29T10:00:00.000Z', 10000),
+        withPhases('2026-10-29T10:15:00.000Z', 12500),
+      ],
+      'FRZETT003927',
+    );
+
+    expect(energyOf(periods[0].dimensions)).toBeCloseTo(2.5, 5);
   });
 
   it('does not reorder the caller array', () => {
