@@ -19,7 +19,7 @@ jest.mock('../../services/LocationsService', () => ({
 }));
 jest.mock('../../graphql/index', () => ({ OcpiGraphqlClient: class {} }));
 
-import type { MeterValueDto } from '@zetra/citrineos-base';
+import type { MeterValueDto, TransactionDto } from '@zetra/citrineos-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { SessionMapper } from '../SessionMapper';
@@ -311,6 +311,55 @@ describe('SessionMapper.getChargingPeriods', () => {
     expect(energyOf(periods[0].dimensions)).toBeCloseTo(5, 5);
   });
 
+  describe('finished session without meter values', () => {
+    // OCPP 1.6 station without periodic sampling: only meterStart and meterStop
+    const start = new Date('2026-10-29T10:00:00.000Z');
+    const end = new Date('2026-10-29T10:40:00.000Z');
+
+    it('gives a single start -> end period carrying the whole session (CDR needs at least one)', () => {
+      const periods = mapper.getChargingPeriods(
+        [],
+        'FRZETT003927',
+        { timestamp: start, energyKwh: 100 },
+        { timestamp: end, totalKwh: 6 },
+      );
+
+      expect(periods).toHaveLength(1);
+      expect(periods[0].start_date_time).toEqual(start);
+      expect(energyOf(periods[0].dimensions)).toBeCloseTo(6, 5);
+      expect(
+        periods[0].dimensions.find(
+          (d) => d.type === CdrDimensionType.ENERGY_IMPORT,
+        )?.volume,
+      ).toBeCloseTo(6, 5);
+      expect(timeOf(periods[0].dimensions)).toBe(
+        roundOcpiNumber(toRoundedHours(end) - toRoundedHours(start)),
+      );
+    });
+
+    it('still gives a TIME-only period when meterStart is rejected', () => {
+      const periods = mapper.getChargingPeriods(
+        [],
+        'FRZETT003927',
+        { timestamp: start, energyKwh: NaN },
+        { timestamp: end, totalKwh: 6 },
+      );
+
+      expect(periods).toHaveLength(1);
+      expect(energyOf(periods[0].dimensions)).toBeUndefined();
+      expect(timeOf(periods[0].dimensions)).toBeGreaterThan(0);
+    });
+
+    it('gives no period while the session is still running', () => {
+      const periods = mapper.getChargingPeriods([], 'FRZETT003927', {
+        timestamp: start,
+        energyKwh: 100,
+      });
+
+      expect(periods).toEqual([]);
+    });
+  });
+
   it('normalizes kWh registers and unit multipliers', () => {
     const kwhReading = (timestamp: string, value: number, multiplier = 0) =>
       ({
@@ -451,5 +500,101 @@ describe('SessionMapper.getChargingPeriods', () => {
     ];
     mapper.getChargingPeriods(input, 'FRZETT003927');
     expect(input[0].timestamp).toBe('2026-10-29T10:00:14.688Z');
+  });
+});
+
+describe('SessionMapper.mapIncrementalSessionPatch', () => {
+  const mapper = new SessionMapper(
+    new Logger({ type: 'hidden' }),
+    {} as LocationsService,
+    {} as OcpiGraphqlClient,
+  );
+  const transaction = (overrides: Record<string, unknown> = {}) =>
+    ({
+      transactionId: 'TX-1',
+      isActive: true,
+      startTime: '2026-10-29T10:00:00+00:00',
+      updatedAt: '2026-10-29T10:30:00+00:00',
+      totalKwh: 5,
+      meterValues: [
+        energyReading('2026-10-29T10:00:00.000Z', 100000),
+        energyReading('2026-10-29T10:15:00.000Z', 102000),
+        energyReading('2026-10-29T10:30:00.000Z', 105000),
+      ],
+      ...overrides,
+    }) as unknown as TransactionDto;
+
+  beforeEach(() => {
+    jest
+      .spyOn(mapper, 'getLocationsTokensAndTariffsMapsForTransactions')
+      .mockResolvedValue([
+        new Map(),
+        new Map(),
+        new Map([['TX-1', { ocpiTariffId: 'FRZETT003927' } as any]]),
+      ]);
+  });
+
+  it('only sends the period closed by the latest reading (PATCH appends)', async () => {
+    const patch = await mapper.mapIncrementalSessionPatch(transaction());
+
+    expect(patch.charging_periods).toHaveLength(1);
+    expect(patch.charging_periods![0].start_date_time).toEqual(
+      new Date('2026-10-29T10:15:00.000Z'),
+    );
+    expect(energyOf(patch.charging_periods![0].dimensions)).toBeCloseTo(3, 5);
+  });
+
+  it('leaves charging_periods out while no period is closed yet', async () => {
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction({
+        meterValues: [energyReading('2026-10-29T10:00:00.000Z', 100000)],
+      }),
+    );
+
+    expect(patch).not.toHaveProperty('charging_periods');
+  });
+
+  it('rounds kwh to 4 decimals', async () => {
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction({ totalKwh: 6.123456 }),
+    );
+
+    expect(patch.kwh).toBe(6.1235);
+  });
+
+  it('computes total_cost from the rounded kwh it sends', async () => {
+    jest
+      .spyOn(mapper, 'getLocationsTokensAndTariffsMapsForTransactions')
+      .mockResolvedValue([
+        new Map(),
+        new Map(),
+        new Map([
+          [
+            'TX-1',
+            {
+              ocpiTariffId: 'FRZETT003927',
+              TariffElements: [
+                { priceComponents: [{ type: 'ENERGY', price: 0.5 }] },
+              ],
+            } as any,
+          ],
+        ]),
+      ]);
+
+    // 10.00996 kWh x 0.50 = 5.00498 -> 5.00, but the kwh sent is 10.01 -> 5.01
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction({ totalKwh: 10.00996 }),
+    );
+
+    expect(patch.kwh).toBe(10.01);
+    expect(patch.total_cost).toEqual({ excl_vat: 5.01 });
+  });
+
+  it('serializes last_updated in UTC with "Z" (Hasura returns "+00:00")', async () => {
+    const patch = await mapper.mapIncrementalSessionPatch(transaction());
+
+    expect(JSON.parse(JSON.stringify(patch)).last_updated).toBe(
+      '2026-10-29T10:30:00.000Z',
+    );
   });
 });

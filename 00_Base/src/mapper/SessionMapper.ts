@@ -212,18 +212,19 @@ export class SessionMapper extends BaseTransactionMapper {
       this.getSessionStart(transaction),
       this.getSessionEnd(transaction),
     ).slice(-1);
+    // total_cost from the kwh sent, so it matches kwh x price and the CDR total_cost
+    const kwh = roundOcpiNumber(transaction.totalKwh || 0);
 
     return {
       id: transaction.transactionId,
       end_date_time: transaction.endTime ? new Date(transaction.endTime) : null,
-      kwh: roundOcpiNumber(transaction.totalKwh || 0),
+      kwh,
       status: this.getTransactionStatus(transaction),
       // OCPI DateTime must be UTC with "Z" (§16.2); Hasura returns "+00:00"
       last_updated: transaction.updatedAt
         ? new Date(transaction.updatedAt)
         : undefined,
-      total_cost:
-        this.calculateTotalCost(transaction.totalKwh || 0, tariff) ?? null,
+      total_cost: this.calculateTotalCost(kwh, tariff) ?? null,
       ...(periods.length > 0 ? { charging_periods: periods } : {}),
     };
   }
@@ -389,6 +390,8 @@ export class SessionMapper extends BaseTransactionMapper {
     token: TokenDTO,
     tariff: TariffDto,
   ): Session {
+    // total_cost from the kwh sent, so it matches kwh x price and the CDR total_cost
+    const kwh = roundOcpiNumber(transaction.totalKwh || 0);
     return {
       country_code: location.country_code,
       party_id: location.party_id,
@@ -402,7 +405,7 @@ export class SessionMapper extends BaseTransactionMapper {
             return transaction.createdAt!;
           })(),
       end_date_time: transaction.endTime ? new Date(transaction.endTime) : null,
-      kwh: roundOcpiNumber(transaction.totalKwh || 0),
+      kwh,
       cdr_token: this.createCdrToken(token),
       // TODO: Implement other auth methods
       auth_method: this.resolveAuthMethod(transaction),
@@ -422,7 +425,7 @@ export class SessionMapper extends BaseTransactionMapper {
       authorization_reference:
         transaction.authorization?.ocpiAuthReference ?? null,
       total_cost: transaction.endTime
-        ? this.calculateTotalCost(transaction.totalKwh || 0, tariff)
+        ? this.calculateTotalCost(kwh, tariff)
         : null,
       meter_id: null,
     };
@@ -506,6 +509,8 @@ export class SessionMapper extends BaseTransactionMapper {
    * When the session start is given, it is used as the first reading so the energy charged
    * before the first meter value (meterStart -> first sample) is not lost. Likewise the session
    * end of a finished transaction closes the last period (last sample -> meterStop).
+   * A finished session without meter values gets a single start -> end period, since a CDR
+   * needs at least one.
    */
   public getChargingPeriods(
     meterValues: MeterValueDto[] = [],
@@ -514,21 +519,21 @@ export class SessionMapper extends BaseTransactionMapper {
     sessionEnd?: SessionEnd,
   ): ChargingPeriod[] {
     const readings = this.mergeMeterValuesByTimestamp(meterValues);
-    if (readings.length === 0) {
-      return [];
-    }
-    const firstReading = readings[0];
-    const lastReading = readings[readings.length - 1];
     const startKwh = this.getTrustedStartKwh(readings, sessionStart);
     if (
       sessionStart &&
-      sessionStart.timestamp.getTime() <
-        new Date(firstReading.timestamp).getTime()
+      (readings.length === 0 ||
+        sessionStart.timestamp.getTime() <
+          new Date(readings[0].timestamp).getTime())
     ) {
       readings.unshift(
         this.toBoundaryReading(sessionStart.timestamp, startKwh),
       );
     }
+    if (readings.length === 0) {
+      return [];
+    }
+    const lastReading = readings[readings.length - 1];
 
     if (
       sessionEnd &&

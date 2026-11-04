@@ -117,7 +117,8 @@ export class CdrMapper extends BaseTransactionMapper {
       // TODO: Map based on OCPI Tariff
       total_cost: this.calculateTotalCost(session.kwh, tariff),
       total_fixed_cost: await this.calculateTotalFixedCost(tariff),
-      total_energy: roundOcpiNumber(session.kwh),
+      // session.kwh is already rounded by SessionMapper
+      total_energy: session.kwh,
       total_energy_cost: await this.calculateTotalEnergyCost(session, tariff),
       total_time: this.calculateTotalTime(session),
       total_time_cost: await this.calculateTotalTimeCost(session, tariff),
@@ -131,7 +132,7 @@ export class CdrMapper extends BaseTransactionMapper {
       invoice_reference_id: await this.generateInvoiceReferenceId(session),
       credit: this.isCredit(session, tariff),
       credit_reference_id: this.generateCreditReferenceId(session, tariff),
-      last_updated: new Date(session.last_updated),
+      last_updated: session.last_updated,
     };
   }
 
