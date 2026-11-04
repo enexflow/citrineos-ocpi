@@ -6,12 +6,12 @@ SPDX-License-Identifier: Apache-2.0
 
 <template>
   <div>
-    <div class="mb-6 d-flex flex-wrap align-center justify-space-between ga-3">
+    <div class="mb-8 d-flex flex-wrap align-center justify-space-between ga-4">
       <div>
-        <h1 class="text-h5 font-weight-bold mb-1" style="color: #153651">
+        <h1 class="text-headline-medium font-weight-bold mb-1" style="color: #153651">
           Hub
         </h1>
-        <p class="text-body-2 mb-0" style="color: #587474">
+        <p class="text-body-medium mb-0" style="color: #587474">
           Roaming partners relayed through a hub. Open one to see its own
           tokens, transactions and CDRs.
         </p>
@@ -30,7 +30,7 @@ SPDX-License-Identifier: Apache-2.0
       />
     </div>
 
-    <v-card class="export-card mb-6">
+    <v-card class="export-card mb-8">
       <v-card-title style="color: #153651">Export CDRs</v-card-title>
       <v-card-subtitle class="text-wrap" style="color: #587474">
         Every CDR sent through this hub, across all roaming partners, whose
@@ -129,12 +129,16 @@ SPDX-License-Identifier: Apache-2.0
           <div class="font-weight-medium" style="color: #153651">
             {{ item.name ?? `${item.countryCode}/${item.partyId}` }}
           </div>
-          <div class="text-caption" style="color: #587474">
+          <div class="text-body-small" style="color: #587474">
             {{ item.countryCode }}/{{ item.partyId }}
             <span class="mx-1">·</span>
             id {{ item.roamingPartnerId }}
           </div>
         </div>
+      </template>
+
+      <template #item.totalEnergyKwh="{ item }">
+        {{ formatNumber(item.totalEnergyKwh) }}
       </template>
 
       <template #item.actions="{ item }">
@@ -223,6 +227,15 @@ SPDX-License-Identifier: Apache-2.0
     fromDate.value && toDate.value ? `${fromDate.value} → ${toDate.value}` : '',
   )
 
+  // Display/export at most 4 decimals
+  function formatNumber (value: number) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  }
+
+  function round4 (value: number): number {
+    return Math.round(value * 10_000) / 10_000
+  }
+
   function onDateRangeSelected (value: Date[]) {
     if (value.length < 2) {
       return
@@ -256,8 +269,8 @@ SPDX-License-Identifier: Apache-2.0
         countryCode: g.countryCode,
         partyId: g.partyId,
         cdrCount: g.cdrCount,
-        totalEnergyKwh: g.totalEnergyKwh,
-        ...Object.fromEntries(g.totalCost.map(c => [`total_${c.currency}`, c.amount])),
+        totalEnergyKwh: round4(g.totalEnergyKwh),
+        ...Object.fromEntries(g.totalCost.map(c => [`total_${c.currency}`, round4(c.amount)])),
       }))
 
       const sheets = [
@@ -269,9 +282,9 @@ SPDX-License-Identifier: Apache-2.0
             sessionId: cdr.sessionId ?? '',
             startDateTime: cdr.startDateTime ?? '',
             endDateTime: cdr.endDateTime ?? '',
-            totalEnergyKwh: cdr.totalEnergy ?? 0,
+            totalEnergyKwh: round4(cdr.totalEnergy ?? 0),
             currency: cdr.currency,
-            totalCost: amountOf(cdr.totalCost),
+            totalCost: round4(amountOf(cdr.totalCost)),
           })),
         })),
       ]

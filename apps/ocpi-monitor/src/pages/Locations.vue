@@ -6,12 +6,12 @@ SPDX-License-Identifier: Apache-2.0
 
 <template>
   <div>
-    <div class="mb-6 d-flex flex-wrap align-center justify-space-between ga-3">
+    <div class="mb-8 d-flex flex-wrap align-center justify-space-between ga-4">
       <div>
-        <h1 class="text-h5 font-weight-bold mb-1" style="color: #153651">
+        <h1 class="text-headline-medium font-weight-bold mb-1" style="color: #153651">
           Locations
         </h1>
-        <p class="text-body-2 mb-0" style="color: #587474">
+        <p class="text-body-medium mb-0" style="color: #587474">
           All locations in the database — our own network and everything
           received from CPO partners (peer-to-peer or via a hub).
         </p>

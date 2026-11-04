@@ -33,6 +33,10 @@ export type TariffMapInput = {
     countryCode?: string | null;
     partyId?: string | null;
   } | null;
+  roamingPartner?: {
+    countryCode?: string | null;
+    partyId?: string | null;
+  } | null;
   TariffElements?: Array<{
     id?: number;
     priceComponents?: unknown;
@@ -95,9 +99,14 @@ export class TariffMapper {
     }));
 
     const countryCode =
-      coreTariff.tenantPartner?.countryCode ?? coreTariff.tenant?.countryCode;
+      coreTariff.roamingPartner?.countryCode ??
+      coreTariff.tenantPartner?.countryCode ??
+      coreTariff.tenant?.countryCode;
+
     const partyId =
-      coreTariff.tenantPartner?.partyId ?? coreTariff.tenant?.partyId;
+      coreTariff.roamingPartner?.partyId ??
+      coreTariff.tenantPartner?.partyId ??
+      coreTariff.tenant?.partyId;
 
     if (!countryCode || !partyId) {
       throw new Error(
@@ -160,9 +169,7 @@ export class TariffMapper {
       ocpiTariffId: tariff.id,
       currency: tariff.currency,
       tariffType: tariff.type ?? null,
-      tariffAltText: tariff.tariff_alt_text
-        ? JSON.stringify(tariff.tariff_alt_text)
-        : undefined,
+      tariffAltText: tariff.tariff_alt_text ?? undefined,
       tariffAltUrl: tariff.tariff_alt_url ?? null,
       minPrice: tariff.min_price ?? null,
       maxPrice: tariff.max_price ?? null,

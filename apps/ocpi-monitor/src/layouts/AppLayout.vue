@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
   <v-app>
     <AppNavigation />
     <v-main>
-      <v-container class="py-6" fluid>
+      <v-container class="app-page" fluid>
         <router-view />
       </v-container>
     </v-main>
@@ -18,3 +18,18 @@ SPDX-License-Identifier: Apache-2.0
 <script lang="ts" setup>
   import AppNavigation from '@/components/AppNavigation.vue'
 </script>
+
+<style scoped>
+/* Comfortable page gutters, and cap the line length on very wide screens */
+.app-page {
+  max-width: 1480px;
+  margin-inline: auto;
+  padding: 2rem 2.5rem 4rem;
+}
+
+@media (max-width: 840px) {
+  .app-page {
+    padding: 1.25rem 1rem 3rem;
+  }
+}
+</style>

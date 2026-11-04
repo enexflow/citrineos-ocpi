@@ -32,13 +32,13 @@ SPDX-License-Identifier: Apache-2.0
     </div>
 
     <template v-else-if="detail">
-      <div class="mb-6 d-flex flex-wrap align-end justify-space-between ga-3">
+      <div class="mb-8 d-flex flex-wrap align-end justify-space-between ga-4">
         <div>
           <div class="overview-kicker mb-2">Roaming partner · via hub</div>
-          <h1 class="text-h4 font-weight-bold mb-1" style="color: #153651">
+          <h1 class="text-headline-medium font-weight-bold mb-1" style="color: #153651">
             {{ detail.partner.name ?? `${detail.partner.countryCode}/${detail.partner.partyId}` }}
           </h1>
-          <p class="text-body-1 mb-0" style="color: #587474">
+          <p class="text-body-large mb-0" style="color: #587474">
             {{ detail.partner.countryCode }}/{{ detail.partner.partyId }} ·
             roaming id {{ detail.partner.id }}
           </p>
@@ -55,7 +55,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-btn>
       </div>
 
-      <v-row class="mb-6" dense>
+      <v-row class="mb-8">
         <v-col
           v-for="stat in stats"
           :key="stat.label"
@@ -83,7 +83,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-col>
       </v-row>
 
-      <v-tabs v-model="tab" class="mb-4" color="#3687c9">
+      <v-tabs v-model="tab" class="mb-6" color="#3687c9">
         <v-tab value="locations">
           Locations ({{ detail.locations.length }})
         </v-tab>
@@ -96,7 +96,7 @@ SPDX-License-Identifier: Apache-2.0
 
       <v-tabs-window v-model="tab">
         <v-tabs-window-item value="locations">
-          <p class="text-body-2 mb-3" style="color: #587474">
+          <p class="text-body-medium mb-3" style="color: #587474">
             Locations pushed to us by this roaming partner (Locations.roamingPartnerId).
           </p>
           <LocationsMap class="mb-4" :locations="detail.locations" />
@@ -125,7 +125,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-tabs-window-item>
 
         <v-tabs-window-item value="tariffs">
-          <p class="text-body-2 mb-3" style="color: #587474">
+          <p class="text-body-medium mb-3" style="color: #587474">
             Tariffs pushed to us by this roaming partner (Tariffs.roamingPartnerId).
           </p>
           <v-data-table
@@ -156,7 +156,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-tabs-window-item>
 
         <v-tabs-window-item value="sessions">
-          <p class="text-body-2 mb-3" style="color: #587474">
+          <p class="text-body-medium mb-3" style="color: #587474">
             Sessions received and stored for this roaming partner (Sessions.roamingPartnerId).
           </p>
           <v-data-table
@@ -193,7 +193,7 @@ SPDX-License-Identifier: Apache-2.0
         </v-tabs-window-item>
 
         <v-tabs-window-item value="cdrs">
-          <p class="text-body-2 mb-3" style="color: #587474">
+          <p class="text-body-medium mb-3" style="color: #587474">
             CDRs received from this roaming partner (Cdrs.roamingPartnerId) —
             money we owe them.
           </p>
@@ -213,8 +213,11 @@ SPDX-License-Identifier: Apache-2.0
             <template #item.totalEnergy="{ item }">
               {{ formatNumber(item.totalEnergy) }}
             </template>
-            <template #item.totalCost="{ item }">
-              {{ formatCost(item.totalCost, item.currency) }}
+            <template #item.costExclVat="{ item }">
+              {{ formatVatPart(item.totalCost, 'excl_vat', item.currency) }}
+            </template>
+            <template #item.costInclVat="{ item }">
+              {{ formatVatPart(item.totalCost, 'incl_vat', item.currency) }}
             </template>
             <template #item.startDateTime="{ item }">
               {{ formatDate(item.startDateTime) }}
@@ -279,7 +282,8 @@ SPDX-License-Identifier: Apache-2.0
     { title: 'Start', key: 'startDateTime' },
     { title: 'End', key: 'endDateTime' },
     { title: 'Energy', key: 'totalEnergy' },
-    { title: 'Cost', key: 'totalCost' },
+    { title: 'Cost excl. VAT', key: 'costExclVat', sortable: false },
+    { title: 'Cost incl. VAT', key: 'costInclVat', sortable: false },
   ]
 
   const stats = computed(() => {
@@ -339,24 +343,25 @@ SPDX-License-Identifier: Apache-2.0
 
   function formatNumber (value: number | null) {
     if (value == null || Number.isNaN(value)) return '—'
-    return value.toLocaleString(undefined, { maximumFractionDigits: 3 })
+    return value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  }
+
+  // OCPI Price { excl_vat, incl_vat? }; a bare number is OCPI 2.1.1's total_cost (excl. VAT)
+  function vatPart (value: unknown, part: 'excl_vat' | 'incl_vat'): number | null {
+    if (typeof value === 'number') return part === 'excl_vat' ? value : null
+    if (value == null || typeof value !== 'object') return null
+    const amount = Number((value as Record<string, unknown>)[part] ?? Number.NaN)
+    return Number.isFinite(amount) ? amount : null
+  }
+
+  function formatVatPart (value: unknown, part: 'excl_vat' | 'incl_vat', currency: string) {
+    const amount = vatPart(value, part)
+    return amount == null ? '—' : `${formatNumber(amount)} ${currency}`
   }
 
   function formatCost (value: unknown, currency: string) {
-    if (value == null) return '—'
-    if (typeof value === 'number') return `${formatNumber(value)} ${currency}`
-    if (typeof value === 'object' && value !== null && 'incl_vat' in value) {
-      const incl = (value as { incl_vat?: number }).incl_vat
-      return incl == null
-        ? JSON.stringify(value)
-        : `${formatNumber(incl)} ${currency}`
-    }
-    if (typeof value === 'string') return value
-    try {
-      return JSON.stringify(value)
-    } catch {
-      return String(value)
-    }
+    const amount = vatPart(value, 'incl_vat') ?? vatPart(value, 'excl_vat')
+    return amount == null ? '—' : `${formatNumber(amount)} ${currency}`
   }
 
   async function load () {
@@ -397,37 +402,6 @@ SPDX-License-Identifier: Apache-2.0
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.stat-tile {
-  background: #ffffff;
-  border: 1px solid #c5d3d3;
-  border-left: 4px solid #3687c9;
-  border-radius: 0.75rem;
-  padding: 1rem 1.1rem;
-}
-
-.stat-tile__label {
-  color: #587474;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.stat-tile__hint {
-  cursor: help;
-  opacity: 0.7;
-}
-
-.stat-tile__value {
-  color: #153651;
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 0.15rem;
 }
 
 .partners-table {

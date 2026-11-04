@@ -15,7 +15,6 @@ import { Logger } from 'tslog';
 import { CacheWrapper } from './util/CacheWrapper.js';
 // import { SessionBroadcaster } from './broadcaster/SessionBroadcaster';
 // import { CdrBroadcaster } from './broadcaster/CdrBroadcaster';
-import * as packageJson from '../../package.json' with { type: 'json' };
 import type { OcpiConfig } from './config/ocpi.types.js';
 import { AjvToken, OcpiConfigToken } from './config/ocpi.types.js';
 import type { IDtoModule } from './events/index.js';
@@ -23,6 +22,7 @@ import { OcpiGraphqlClient } from './graphql/index.js';
 import { HealthController } from './util/KoaServerHealthController.js';
 import { Ajv } from 'ajv';
 import addFormats from 'ajv-formats';
+import { packageVersion } from './packageVersion.js';
 
 export * from './broadcaster/index.js';
 export * from './mapper/index.js';
@@ -238,10 +238,19 @@ export {
   PushPartnerSessionInfoBodySchema,
   PushPartnerSessionInfoBodySchemaName,
 } from './model/DTO/PushPartnerSessionInfo.js';
-export type { OnboardRoamingPartnerBody } from './model/DTO/OnboardRoamingPartnerBody.js';
+export type {
+  OnboardRoamingPartnerBody,
+  OnboardRoamingPartnerEmspBody,
+  OnboardTenantPartnerEmspBody,
+  PennylaneBilling,
+} from './model/DTO/OnboardRoamingPartnerBody.js';
 export {
   OnboardRoamingPartnerBodySchema,
   OnboardRoamingPartnerBodySchemaName,
+  OnboardRoamingPartnerEmspBodySchema,
+  OnboardRoamingPartnerEmspBodySchemaName,
+  OnboardTenantPartnerEmspBodySchema,
+  OnboardTenantPartnerEmspBodySchemaName,
 } from './model/DTO/OnboardRoamingPartnerBody.js';
 export {
   DeleteLocationBodySchema,
@@ -324,7 +333,7 @@ export {
   UPDATE,
 } from './util/Consts.js';
 
-export { ResponseSchema } from './openapi-spec-helper/decorators.js';
+export { OpenAPI, ResponseSchema } from './openapi-spec-helper/decorators.js';
 export { BaseClientApi } from './trigger/BaseClientApi.js';
 export { LocationsClientApi } from './trigger/LocationsClientApi.js';
 export { PartnerMtlsCertificateService } from './util/PartnerMtlsCertificateService.js';
@@ -348,6 +357,19 @@ export { LocationsPullService } from './services/LocationsPullService.js';
 export { VersionService } from './services/VersionService.js';
 export { SessionsService } from './services/SessionsService.js';
 export { RoamingPartnerService } from './services/RoamingPartnerService.js';
+export type {
+  RoamingPartnerRole,
+  UpsertRoamingPartnerResult,
+} from './services/RoamingPartnerService.js';
+export {
+  PennylaneService,
+  PENNYLANE_PARTNER_ALREADY_LINKED,
+} from './services/PennylaneService.js';
+export type {
+  PennylaneCompanyCustomerRequest,
+  PennylaneCompanyCustomerResponse,
+  PennylaneCompanyCustomerResult,
+} from './services/PennylaneService.js';
 // export { AdminLocationsService } from './services/AdminLocationsService.js';
 
 // Export AsyncJob types
@@ -537,7 +559,7 @@ export class OcpiServer extends KoaServer {
       this.initKoaSwagger(
         {
           title: 'CitrineOS OCPI 2.2.1',
-          version: packageJson.default.version,
+          version: packageVersion,
         },
         [
           {

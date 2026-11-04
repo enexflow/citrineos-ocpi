@@ -19,12 +19,12 @@ SPDX-License-Identifier: Apache-2.0
         <v-icon color="#0edaf1" icon="mdi-lightning-bolt" size="28" />
       </div>
       <div
-        class="text-caption text-uppercase"
+        class="text-body-small text-uppercase"
         style="color: #86b7df; letter-spacing: 0.12em"
       >
         OCPI Monitor
       </div>
-      <div class="text-h5 font-weight-bold text-white mt-1">CitrineOS</div>
+      <div class="text-headline-small font-weight-bold text-white mt-1">CitrineOS</div>
     </div>
 
     <v-list
