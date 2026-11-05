@@ -12,9 +12,9 @@ import { OcpiResponseSchema } from './OcpiResponse.js';
 export const AuthorizationInfoSchema = z.object({
   allowed: z.nativeEnum(AuthorizationInfoAllowed),
   token: TokenDTOSchema,
-  authorization_reference: z.string(),
-  info: DisplayTextSchema.optional(),
-  location: LocationReferencesSchema.optional(),
+  authorization_reference: z.string().max(36).nullable().optional(),
+  info: DisplayTextSchema.nullable().optional(),
+  location: LocationReferencesSchema.nullable().optional(),
 });
 
 export type AuthorizationInfo = z.infer<typeof AuthorizationInfoSchema>;
