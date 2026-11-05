@@ -309,8 +309,8 @@ describe('Gireve broadcast retry mechanism', () => {
         expect(result.succeeded).toBe(1);
       });
 
-      // HTTP 200 + OCPI 2001: Gireve received the CDR but rejected it.
-      it('reschedules (and does not mark sent) when the partner rejects the CDR at OCPI level', async () => {
+      // HTTP 200 + OCPI 2001: Gireve answered (so no retry), but rejected the CDR.
+      it('stops retrying but does not mark the CDR sent when the partner rejects it at OCPI level', async () => {
         const cdrsService = {
           findSentCdrId: jest.fn(),
           markCdrAsSent: jest.fn(),
@@ -322,19 +322,11 @@ describe('Gireve broadcast retry mechanism', () => {
           status_message: 'cdr_location.evse_id missing',
         });
 
-        const result = await worker.runOnce();
+        await worker.runOnce();
 
         expect(cdrsService.markCdrAsSent).not.toHaveBeenCalled();
-        expect(mockOutbox.markSent).not.toHaveBeenCalled();
-        expect(mockOutbox.reschedule).toHaveBeenCalledWith(
-          'uuid-cdr',
-          2,
-          expect.any(Date),
-          expect.stringContaining(
-            'status_code 2001: cdr_location.evse_id missing',
-          ),
-        );
-        expect(result.failed).toBe(1);
+        expect(mockOutbox.markSent).toHaveBeenCalledWith('uuid-cdr');
+        expect(mockOutbox.reschedule).not.toHaveBeenCalled();
       });
 
       it('does not call markCdrAsSent when the CDR push fails', async () => {

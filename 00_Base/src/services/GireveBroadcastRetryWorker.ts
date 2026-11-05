@@ -8,10 +8,7 @@ import { Logger } from 'tslog';
 import { OcpiConfigToken, type OcpiConfig } from '../config/ocpi.types.js';
 import { ModuleId } from '../model/ModuleId.js';
 import { HttpMethod } from '@zetra/citrineos-base';
-import {
-  OcpiEmptyResponseSchema,
-  type OcpiEmptyResponse,
-} from '../model/OcpiEmptyResponse.js';
+import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
 import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
 import { GET_TENANT_PARTNER_BY_ID } from '../graphql/queries/tenantPartner.queries.js';
 
@@ -111,19 +108,6 @@ export class GireveBroadcastRetryWorker {
   }
 
   /**
-   * HTTP 2xx only means the partner received the request: an OCPI-level
-   * rejection (e.g. 2001 invalid parameters) comes back in status_code. Throwing
-   * here makes retryOne reschedule the item instead of marking it sent.
-   */
-  private assertOcpiSuccess(response: OcpiEmptyResponse): void {
-    if (response?.status_code !== OcpiResponseStatusCode.GenericSuccessCode) {
-      throw new Error(
-        `Gireve retry: partner answered OCPI status_code ${response?.status_code}: ${response?.status_message ?? 'no status_message'}`,
-      );
-    }
-  }
-
-  /**
    * Best-effort: the CDR was delivered, so a failure here must not reschedule
    * the item (that would POST the CDR again).
    */
@@ -190,7 +174,7 @@ export class GireveBroadcastRetryWorker {
 
       switch (item.moduleId as ModuleId) {
         case ModuleId.Sessions: {
-          const response = await this.sessionsClientApi.request(
+          await this.sessionsClientApi.request(
             item.cpoCountryCode,
             item.cpoPartyId,
             toCountryCode,
@@ -206,7 +190,6 @@ export class GireveBroadcastRetryWorker {
             item.ocpiPath ?? undefined,
             partner.awsSecretCertificateArn ?? undefined,
           );
-          this.assertOcpiSuccess(response);
           break;
         }
         case ModuleId.Cdrs: {
@@ -226,12 +209,27 @@ export class GireveBroadcastRetryWorker {
             item.ocpiPath ?? undefined,
             partner.awsSecretCertificateArn ?? undefined,
           );
-          this.assertOcpiSuccess(response);
-          await this.markCdrRowAsSent(item);
+          // Gireve answered, so the retry is done; but HTTP 2xx only means it received
+          // the CDR: an OCPI rejection (e.g. 2001) must not count as delivered.
+          if (
+            response?.status_code === OcpiResponseStatusCode.GenericSuccessCode
+          ) {
+            await this.markCdrRowAsSent(item);
+          } else {
+            this.logger.error(
+              'Gireve retry: CDR rejected, not marked as sent',
+              {
+                id: item.id,
+                resourceId: item.resourceId,
+                statusCode: response?.status_code,
+                statusMessage: response?.status_message,
+              },
+            );
+          }
           break;
         }
         case ModuleId.Tariffs: {
-          const response = await this.tariffsClientApi.request(
+          await this.tariffsClientApi.request(
             item.cpoCountryCode,
             item.cpoPartyId,
             toCountryCode,
@@ -247,7 +245,6 @@ export class GireveBroadcastRetryWorker {
             item.ocpiPath ?? undefined,
             partner.awsSecretCertificateArn ?? undefined,
           );
-          this.assertOcpiSuccess(response);
           break;
         }
         default:
