@@ -24,6 +24,8 @@ import type {
   GetCdrsPaginatedQueryVariables,
   FindSentCdrQueryResult,
   FindSentCdrQueryVariables,
+  FindSentCdrByTransactionQueryResult,
+  FindSentCdrByTransactionQueryVariables,
 } from '../graphql/index.js';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { GET_TENANT_PARTNER_BY_OUR_AND_PARTNER_IDENTITY } from '../graphql/index.js';
@@ -44,6 +46,7 @@ import {
   FIND_CDR_P2P_QUERY,
   GET_CDR_BY_OUR_ID_AND_ROAMING_PARTNER,
   FIND_SENT_CDR_QUERY,
+  FIND_SENT_CDR_BY_TRANSACTION_QUERY,
   UPDATE_CDR_SENT_STATUS_MUTATION,
   GET_CDRS_PAGINATED,
 } from '../graphql/queries/cdr.queries.js';
@@ -61,6 +64,12 @@ import type { CdrDTO } from '../model/DTO/CdrDTO.js';
 import { z } from 'zod';
 import { CdrsClientApi } from '../trigger/CdrsClientApi.js';
 import { getRoamingPartner } from '../util/helpers.js';
+
+export interface SentCdr {
+  id: number;
+  ocpiCdrId: string;
+  successfullySentAt?: string | null;
+}
 
 function extractConstraintField(message: string): string {
   const match = message.match(/null value in column "(\w+)"/);
@@ -264,19 +273,30 @@ export class CdrsService {
       roamingPartnerId?: number | null;
       transactionId?: number | null;
     },
-  ): Promise<any | undefined> {
+  ): Promise<SentCdr> {
     if (!toTenantPartner.id) {
       throw new Error('Tenant partner not found');
     }
-    const existing = await this.ocpiGraphqlClient.request<
-      FindSentCdrQueryResult,
-      FindSentCdrQueryVariables
-    >(FIND_SENT_CDR_QUERY, {
-      ocpiCdrId: cdr.id,
-      toTenantPartnerId: toTenantPartner.id,
-    });
+    // Look up by transaction first: the CDR id is recomputed on every send, so a
+    // CDR stored under an earlier id format would not be found by ocpiCdrId.
+    const existing =
+      ctx.transactionId != null
+        ? await this.ocpiGraphqlClient.request<
+            FindSentCdrByTransactionQueryResult,
+            FindSentCdrByTransactionQueryVariables
+          >(FIND_SENT_CDR_BY_TRANSACTION_QUERY, {
+            transactionId: ctx.transactionId,
+            toTenantPartnerId: toTenantPartner.id,
+          })
+        : await this.ocpiGraphqlClient.request<
+            FindSentCdrQueryResult,
+            FindSentCdrQueryVariables
+          >(FIND_SENT_CDR_QUERY, {
+            ocpiCdrId: cdr.id,
+            toTenantPartnerId: toTenantPartner.id,
+          });
     if (existing.Cdrs[0]) {
-      return existing.Cdrs[0].id;
+      return existing.Cdrs[0];
     }
     const objectToInsert = {
       ocpiCdrId: cdr.id,
@@ -318,7 +338,7 @@ export class CdrsService {
       InsertCdrMutationResult,
       InsertCdrMutationVariables
     >(INSERT_CDR_MUTATION, { object: objectToInsert });
-    return result.insert_Cdrs_one!.id;
+    return { id: result.insert_Cdrs_one!.id, ocpiCdrId: cdr.id };
   }
 
   async findSentCdrId(

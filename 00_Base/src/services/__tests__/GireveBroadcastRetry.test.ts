@@ -25,6 +25,9 @@ jest.mock('@zetra/citrineos-base', () => ({
 // The worker only needs CdrsService as an injected dependency; don't load its import graph.
 jest.mock('../CdrsService', () => ({ CdrsService: class {} }));
 
+// The real schema defaults a missing status_code to 1000; mocks bypass Zod, so set it.
+const OCPI_SUCCESS = { status_code: 1000 };
+
 jest.mock('../../util/helpers', () => ({
   shouldBroadcastToPartner: jest.fn().mockReturnValue(true),
   handleHttpMethodForPartner: jest.fn((httpMethod: unknown) => httpMethod),
@@ -159,7 +162,7 @@ describe('Gireve broadcast retry mechanism', () => {
       };
 
       const mockSessionsClientApi = {
-        request: jest.fn().mockResolvedValue({}),
+        request: jest.fn().mockResolvedValue(OCPI_SUCCESS),
       };
 
       const mockCdrsClientApi = {
@@ -240,7 +243,7 @@ describe('Gireve broadcast retry mechanism', () => {
         };
 
         const mockCdrsClientApi = {
-          request: jest.fn().mockResolvedValue({}),
+          request: jest.fn().mockResolvedValue(OCPI_SUCCESS),
         };
 
         const mockOcpiGraphqlClient = {
@@ -304,6 +307,34 @@ describe('Gireve broadcast retry mechanism', () => {
         expect(mockOutbox.markSent).toHaveBeenCalledWith('uuid-cdr');
         expect(mockOutbox.reschedule).not.toHaveBeenCalled();
         expect(result.succeeded).toBe(1);
+      });
+
+      // HTTP 200 + OCPI 2001: Gireve received the CDR but rejected it.
+      it('reschedules (and does not mark sent) when the partner rejects the CDR at OCPI level', async () => {
+        const cdrsService = {
+          findSentCdrId: jest.fn(),
+          markCdrAsSent: jest.fn(),
+        };
+        const { worker, mockOutbox, mockCdrsClientApi } =
+          buildCdrWorker(cdrsService);
+        mockCdrsClientApi.request.mockResolvedValue({
+          status_code: 2001,
+          status_message: 'cdr_location.evse_id missing',
+        });
+
+        const result = await worker.runOnce();
+
+        expect(cdrsService.markCdrAsSent).not.toHaveBeenCalled();
+        expect(mockOutbox.markSent).not.toHaveBeenCalled();
+        expect(mockOutbox.reschedule).toHaveBeenCalledWith(
+          'uuid-cdr',
+          2,
+          expect.any(Date),
+          expect.stringContaining(
+            'status_code 2001: cdr_location.evse_id missing',
+          ),
+        );
+        expect(result.failed).toBe(1);
       });
 
       it('does not call markCdrAsSent when the CDR push fails', async () => {

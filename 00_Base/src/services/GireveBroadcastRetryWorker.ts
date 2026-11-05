@@ -8,7 +8,11 @@ import { Logger } from 'tslog';
 import { OcpiConfigToken, type OcpiConfig } from '../config/ocpi.types.js';
 import { ModuleId } from '../model/ModuleId.js';
 import { HttpMethod } from '@zetra/citrineos-base';
-import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
+import {
+  OcpiEmptyResponseSchema,
+  type OcpiEmptyResponse,
+} from '../model/OcpiEmptyResponse.js';
+import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
 import { GET_TENANT_PARTNER_BY_ID } from '../graphql/queries/tenantPartner.queries.js';
 
 import { SessionsClientApi } from '../trigger/SessionsClientApi.js';
@@ -107,6 +111,19 @@ export class GireveBroadcastRetryWorker {
   }
 
   /**
+   * HTTP 2xx only means the partner received the request: an OCPI-level
+   * rejection (e.g. 2001 invalid parameters) comes back in status_code. Throwing
+   * here makes retryOne reschedule the item instead of marking it sent.
+   */
+  private assertOcpiSuccess(response: OcpiEmptyResponse): void {
+    if (response?.status_code !== OcpiResponseStatusCode.GenericSuccessCode) {
+      throw new Error(
+        `Gireve retry: partner answered OCPI status_code ${response?.status_code}: ${response?.status_message ?? 'no status_message'}`,
+      );
+    }
+  }
+
+  /**
    * Best-effort: the CDR was delivered, so a failure here must not reschedule
    * the item (that would POST the CDR again).
    */
@@ -173,7 +190,7 @@ export class GireveBroadcastRetryWorker {
 
       switch (item.moduleId as ModuleId) {
         case ModuleId.Sessions: {
-          await this.sessionsClientApi.request(
+          const response = await this.sessionsClientApi.request(
             item.cpoCountryCode,
             item.cpoPartyId,
             toCountryCode,
@@ -189,10 +206,11 @@ export class GireveBroadcastRetryWorker {
             item.ocpiPath ?? undefined,
             partner.awsSecretCertificateArn ?? undefined,
           );
+          this.assertOcpiSuccess(response);
           break;
         }
         case ModuleId.Cdrs: {
-          await this.cdrsClientApi.request(
+          const response = await this.cdrsClientApi.request(
             item.cpoCountryCode,
             item.cpoPartyId,
             toCountryCode,
@@ -208,11 +226,12 @@ export class GireveBroadcastRetryWorker {
             item.ocpiPath ?? undefined,
             partner.awsSecretCertificateArn ?? undefined,
           );
+          this.assertOcpiSuccess(response);
           await this.markCdrRowAsSent(item);
           break;
         }
         case ModuleId.Tariffs: {
-          await this.tariffsClientApi.request(
+          const response = await this.tariffsClientApi.request(
             item.cpoCountryCode,
             item.cpoPartyId,
             toCountryCode,
@@ -228,6 +247,7 @@ export class GireveBroadcastRetryWorker {
             item.ocpiPath ?? undefined,
             partner.awsSecretCertificateArn ?? undefined,
           );
+          this.assertOcpiSuccess(response);
           break;
         }
         default:

@@ -23,7 +23,7 @@ import {
   tokenOwnerPartnerFilter,
   type AuthWithPartners,
 } from '../util/helpers.js';
-import { CdrsService } from '../services/CdrsService.js';
+import { CdrsService, type SentCdr } from '../services/CdrsService.js';
 
 @Service()
 export class CdrBroadcaster extends BaseBroadcaster {
@@ -46,7 +46,7 @@ export class CdrBroadcaster extends BaseBroadcaster {
       );
       return;
     }
-    const cdrDto = cdrs[0];
+    const mappedCdr = cdrs[0];
     const tokenOwnerTenantPartnerId =
       transactionDto.authorization?.tenantPartner?.id;
     if (tokenOwnerTenantPartnerId == null) {
@@ -61,11 +61,11 @@ export class CdrBroadcaster extends BaseBroadcaster {
       roamingPartnerId?: number | null;
     };
     const tenantId = transactionDto.authorization?.tenantPartner?.tenant?.id;
-    let sentCdrId: number;
+    let sentCdr: SentCdr;
     try {
-      sentCdrId = await this.cdrsService.insertSentCdr(
+      sentCdr = await this.cdrsService.insertSentCdr(
         transactionDto.authorization!.tenantPartner!,
-        cdrDto,
+        mappedCdr,
         {
           tenantId: tenantId!,
           roamingPartnerId:
@@ -75,11 +75,21 @@ export class CdrBroadcaster extends BaseBroadcaster {
       );
     } catch (e) {
       this.logger.error(
-        `broadcastPostCdr failed to insert CDR ${cdrDto.id}`,
+        `broadcastPostCdr failed to insert CDR ${mappedCdr.id}`,
         e,
       );
       throw e;
     }
+
+    if (sentCdr.successfullySentAt) {
+      this.logger.debug(
+        `CDR ${sentCdr.ocpiCdrId} already delivered to partner ${tokenOwnerTenantPartnerId}, not re-sending`,
+      );
+      return;
+    }
+    // Re-send under the id the CDR was stored with (it may predate the current
+    // id format), so the partner never receives two CDRs for one transaction.
+    const cdrDto: CdrDTO = { ...mappedCdr, id: sentCdr.ocpiCdrId };
 
     try {
       const response = (await this.cdrsClientApi.broadcastToClients({
@@ -101,7 +111,7 @@ export class CdrBroadcaster extends BaseBroadcaster {
         response[0]?.status_code === OcpiResponseStatusCode.GenericSuccessCode;
       if (delivered) {
         await this.cdrsService.markCdrAsSent(
-          sentCdrId,
+          sentCdr.id,
           new Date().toISOString(),
         );
       } else {

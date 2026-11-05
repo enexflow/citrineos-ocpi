@@ -396,7 +396,23 @@ export type FindSentCdrQueryVariables = Exact<{
 
 export type FindSentCdrQueryResult = {
   Cdrs: Array<{
-    id: number
+    id: number,
+    ocpiCdrId: string,
+    successfullySentAt?: any | null
+  }>
+};
+
+export type FindSentCdrByTransactionQueryVariables = Exact<{
+  transactionId: Scalars['Int']['input'];
+  toTenantPartnerId: Scalars['Int']['input'];
+}>;
+
+
+export type FindSentCdrByTransactionQueryResult = {
+  Cdrs: Array<{
+    id: number,
+    ocpiCdrId: string,
+    successfullySentAt?: any | null
   }>
 };
 
