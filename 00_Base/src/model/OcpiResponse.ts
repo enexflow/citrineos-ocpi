@@ -24,9 +24,9 @@ export enum OcpiResponseStatusCode {
 export const OcpiResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
   z.object({
     status_code: z.nativeEnum(OcpiResponseStatusCode),
-    status_message: z.string().optional(),
+    status_message: z.string().nullable().optional(),
     timestamp: z.coerce.date(),
-    data: dataSchema.optional(),
+    data: dataSchema.nullable().optional(),
   });
 
 /**
