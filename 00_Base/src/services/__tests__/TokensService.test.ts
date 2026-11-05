@@ -8,13 +8,14 @@ jest.mock('../../mapper/index', () => ({
 }));
 
 import { TokensService } from '../TokensService';
-import type { TenantDto } from '@zetra/citrineos-base';
+import type { TenantDto, TenantPartnerDto } from '@zetra/citrineos-base';
 import { OcpiGraphqlClient } from '../../graphql/OcpiGraphqlClient';
 import { OcpiLogger } from '../../util/OcpiLogger';
 import { TokensClientApi } from '../../trigger/TokensClientApi';
 import { OcpiHeaders } from '../../model/OcpiHeaders';
 import { PaginatedParams } from '../../controllers/param/PaginatedParams';
 import { TokenType } from '../../model/TokenType';
+import { WhitelistType } from '../../model/WhitelistType';
 import { AuthorizationInfoAllowed } from '../../model/AuthorizationInfoAllowed';
 import { UnknownTokenException } from '../../exception/UnknownTokenException';
 import { MissingParamException } from '../../exception/MissingParamException';
@@ -27,6 +28,38 @@ import {
 } from '../../graphql/queries/token.queries';
 
 jest.mock('../../graphql/OcpiGraphqlClient');
+
+const tenantPartner = {
+  id: 5,
+  countryCode: 'FR',
+  partyId: 'GIR',
+  roamingPartners: [],
+} as unknown as TenantPartnerDto;
+
+const knownPartyPartner = {
+  ...tenantPartner,
+  roamingPartners: [
+    { id: 42, countryCode: 'FR', partyId: 'TMS' },
+    { id: 43, countryCode: 'DE', partyId: 'ABC' },
+  ],
+} as unknown as TenantPartnerDto;
+
+const unknownPartyPartner = {
+  ...tenantPartner,
+  roamingPartners: [{ id: 43, countryCode: 'DE', partyId: 'ABC' }],
+} as unknown as TenantPartnerDto;
+
+const frTmsToken = {
+  country_code: 'FR',
+  party_id: 'TMS',
+  uid: 'TOKEN001',
+  type: TokenType.RFID,
+  contract_id: 'CONTRACT001',
+  issuer: 'IssuerCo',
+  valid: true,
+  whitelist: WhitelistType.ALWAYS,
+  last_updated: new Date('2024-06-01T00:00:00Z'),
+};
 
 const mockAuthorization = {
   id: 1,
@@ -181,6 +214,7 @@ describe('TokensService', () => {
         },
         10,
         5,
+        tenantPartner,
       );
 
       expect(mockGraphqlClient.request).toHaveBeenCalledWith(
@@ -192,6 +226,39 @@ describe('TokensService', () => {
         expect.any(Object),
       );
       expect(result.uid).toBe('TOKEN001');
+    });
+    it('should set roamingPartnerId on create when the token party is a known roaming partner', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ Authorizations: [] })
+        .mockResolvedValueOnce({
+          insert_Authorizations_one: mockAuthorization,
+        });
+
+      await service.upsertToken(frTmsToken, 10, 5, knownPartyPartner);
+
+      const [query, variables] = mockGraphqlClient.request.mock.calls[1] as [
+        unknown,
+        { roamingPartnerId?: number },
+      ];
+      expect(query).toBe(CREATE_AUTHORIZATION_MUTATION);
+      expect(variables.roamingPartnerId).toBe(42);
+    });
+
+    it('should leave roamingPartnerId undefined on create when the token party is unknown', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ Authorizations: [] })
+        .mockResolvedValueOnce({
+          insert_Authorizations_one: mockAuthorization,
+        });
+
+      await service.upsertToken(frTmsToken, 10, 5, unknownPartyPartner);
+
+      const [query, variables] = mockGraphqlClient.request.mock.calls[1] as [
+        unknown,
+        { roamingPartnerId?: number },
+      ];
+      expect(query).toBe(CREATE_AUTHORIZATION_MUTATION);
+      expect(variables.roamingPartnerId).toBeUndefined();
     });
   });
 
@@ -221,6 +288,7 @@ describe('TokensService', () => {
         },
         10,
         5,
+        tenantPartner,
       );
 
       expect(mockGraphqlClient.request).toHaveBeenCalledWith(
@@ -228,6 +296,39 @@ describe('TokensService', () => {
         expect.any(Object),
       );
       expect(result.uid).toBe('TOKEN001');
+    });
+    it('should set roamingPartnerId on update when the token party is a known roaming partner', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ Authorizations: [mockAuthorization] })
+        .mockResolvedValueOnce({
+          update_Authorizations: { returning: [mockAuthorization] },
+        });
+
+      await service.upsertToken(frTmsToken, 10, 5, knownPartyPartner);
+
+      const [query, variables] = mockGraphqlClient.request.mock.calls[1] as [
+        unknown,
+        { set: { roamingPartnerId?: number } },
+      ];
+      expect(query).toBe(UPDATE_TOKEN_MUTATION);
+      expect(variables.set.roamingPartnerId).toBe(42);
+    });
+
+    it('should not touch roamingPartnerId on update when the token party is unknown', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ Authorizations: [mockAuthorization] })
+        .mockResolvedValueOnce({
+          update_Authorizations: { returning: [mockAuthorization] },
+        });
+
+      await service.upsertToken(frTmsToken, 10, 5, unknownPartyPartner);
+
+      const [query, variables] = mockGraphqlClient.request.mock.calls[1] as [
+        unknown,
+        { set: object },
+      ];
+      expect(query).toBe(UPDATE_TOKEN_MUTATION);
+      expect(variables.set).not.toHaveProperty('roamingPartnerId');
     });
   });
 
