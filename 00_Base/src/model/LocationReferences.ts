@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 export const LocationReferencesSchema = z.object({
   location_id: z.string().max(36),
-  evse_uids: z.array(z.string()),
+  evse_uids: z.array(z.string()).optional(),
 });
 export const LocationReferencesSchemaName = 'LocationReferencesSchema';
 

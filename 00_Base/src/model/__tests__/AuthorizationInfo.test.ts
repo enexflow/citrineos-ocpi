@@ -51,6 +51,25 @@ describe('AuthorizationInfoResponseSchema', () => {
     expect(result.data?.authorization_reference).toBeNull();
   });
 
+  it('accepts null info and location', () => {
+    const result = AuthorizationInfoResponseSchema.parse({
+      ...alphyaAnswer,
+      data: { ...alphyaAnswer.data, info: null, location: null },
+    });
+
+    expect(result.data?.info).toBeNull();
+    expect(result.data?.location).toBeNull();
+  });
+
+  it('accepts a location without evse_uids', () => {
+    const result = AuthorizationInfoResponseSchema.parse({
+      ...alphyaAnswer,
+      data: { ...alphyaAnswer.data, location: { location_id: '1786' } },
+    });
+
+    expect(result.data?.location).toEqual({ location_id: '1786' });
+  });
+
   it('still rejects an authorization_reference over 36 characters', () => {
     expect(() =>
       AuthorizationInfoResponseSchema.parse({
