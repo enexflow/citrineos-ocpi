@@ -419,6 +419,34 @@ describe('TariffMapper', () => {
       expect(result.party_id).toBe('HYX');
     });
 
+    it('should keep the tariff start date and omit it when unset', () => {
+      const base: TariffMapInput = {
+        id: 42,
+        currency: 'EUR',
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
+        tenant: { countryCode: 'FR', partyId: 'HYX' },
+        TariffElements: [
+          {
+            priceComponents: [
+              { type: TariffDimensionType.ENERGY, price: 0.25, step_size: 1 },
+            ],
+          },
+        ],
+      };
+
+      expect(
+        TariffMapper.mapForSender({
+          ...base,
+          startDateTime: '2026-09-01T00:00:00+00:00',
+        }).start_date_time,
+      ).toEqual(new Date('2026-09-01T00:00:00Z'));
+      // No start date in core: OCPI start_date_time is optional, never "now"
+      expect(
+        TariffMapper.mapForSender({ ...base, startDateTime: null })
+          .start_date_time,
+      ).toBeUndefined();
+    });
+
     it('should use formatOwnTariffId when ocpiTariffId is absent (own tariff)', () => {
       const coreTariff: TariffMapInput = {
         id: 7,

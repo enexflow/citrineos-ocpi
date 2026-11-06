@@ -18,6 +18,7 @@ import { LocationsService } from '../services/LocationsService.js';
 import type { TariffDto, TransactionDto } from '@zetra/citrineos-base';
 import type { CdrDTO, CdrEntity } from '../model/DTO/CdrDTO.js';
 import type { ChargingPeriod } from '../model/ChargingPeriod.js';
+import { roundOcpiNumber, toRoundedHours } from '../util/Util.js';
 
 @Service()
 export class CdrMapper extends BaseTransactionMapper {
@@ -116,6 +117,7 @@ export class CdrMapper extends BaseTransactionMapper {
       // TODO: Map based on OCPI Tariff
       total_cost: this.calculateTotalCost(session.kwh, tariff),
       total_fixed_cost: await this.calculateTotalFixedCost(tariff),
+      // session.kwh is already rounded by SessionMapper
       total_energy: session.kwh,
       total_energy_cost: await this.calculateTotalEnergyCost(session, tariff),
       total_time: this.calculateTotalTime(session),
@@ -164,7 +166,7 @@ export class CdrMapper extends BaseTransactionMapper {
     location: LocationDTO,
     session: Session,
   ): Promise<CdrLocation> {
-    return {
+    const cdrLocation: CdrLocation = {
       id: location.id,
       name: location.name,
       address: location.address,
@@ -179,6 +181,22 @@ export class CdrMapper extends BaseTransactionMapper {
       connector_format: this.getConnectorFormat(location, session),
       connector_power_type: this.getConnectorPowerType(location, session),
     };
+    // These are required by OCPI (§10.4.4) and have no valid placeholder: an empty value means
+    // the EVSE/connector is missing data (evseId, type, format, powerType) on the CPO side.
+    const missing = (
+      [
+        'evse_id',
+        'connector_standard',
+        'connector_format',
+        'connector_power_type',
+      ] as const
+    ).filter((field) => !cdrLocation[field]);
+    if (missing.length > 0) {
+      this.logger.warn(
+        `CDR ${session.id}: cdr_location is missing ${missing.join(', ')} for EVSE ${session.evse_uid} connector ${session.connector_id}; complete the station's EVSE/connector data`,
+      );
+    }
+    return cdrLocation;
   }
 
   private getEvseId(evseUid: string, location: LocationDTO): string {
@@ -245,10 +263,11 @@ export class CdrMapper extends BaseTransactionMapper {
 
   private calculateTotalTime(session: Session): number {
     if (session.end_date_time) {
-      return (
-        (session.end_date_time.getTime() - session.start_date_time.getTime()) /
-        3600000
-      ); // Convert ms to hours
+      // Same rounding as the charging period TIME volumes, so they add up to this total
+      return roundOcpiNumber(
+        toRoundedHours(session.end_date_time) -
+          toRoundedHours(session.start_date_time),
+      );
     }
     return 0;
   }
@@ -396,7 +415,7 @@ export class CdrMapper extends BaseTransactionMapper {
         entity.homeChargingCompensation,
       ),
 
-      last_updated: entity.lastUpdated,
+      last_updated: new Date(entity.lastUpdated),
     };
   }
 }
