@@ -2138,6 +2138,13 @@ export type GetTariffByKeyQueryResult = {
     tariffAltText?: any | null,
     tenantPartnerId?: number | null,
     updatedAt: any,
+    startDateTime?: any | null,
+    endDateTime?: any | null,
+    tariffType?: string | null,
+    tariffAltUrl?: string | null,
+    minPrice?: any | null,
+    maxPrice?: any | null,
+    energyMix?: any | null,
     tenant: {
       countryCode?: string | null,
       partyId?: string | null

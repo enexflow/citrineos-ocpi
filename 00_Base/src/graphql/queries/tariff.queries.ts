@@ -25,6 +25,13 @@ export const GET_TARIFF_BY_KEY_QUERY = gql`
       tariffAltText
       tenantPartnerId
       updatedAt
+      startDateTime
+      endDateTime
+      tariffType
+      tariffAltUrl
+      minPrice
+      maxPrice
+      energyMix
       tenant: Tenant {
         countryCode
         partyId
