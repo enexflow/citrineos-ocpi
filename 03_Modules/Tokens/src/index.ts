@@ -176,9 +176,10 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
       );
       return;
     }
+    const action = justDisabled ? 'Delete' : justEnabled ? 'Put' : 'Patch';
     for (const tenant of tenants) {
       if (!tenant) {
-        return;
+        continue;
       }
       try {
         if (justDisabled) {
@@ -199,7 +200,7 @@ export class TokensModule extends AbstractDtoModule implements OcpiModule {
         }
       } catch (e) {
         this._logger.error(
-          `broadcastPatchToken failed for ${tenant.countryCode}/${tenant.partyId}/${authorizationDto.idToken}`,
+          `broadcast${action}Token failed for ${tenant.countryCode}/${tenant.partyId}/${authorizationDto.idToken}`,
           e,
         );
       }

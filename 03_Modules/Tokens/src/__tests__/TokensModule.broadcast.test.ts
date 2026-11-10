@@ -30,6 +30,7 @@ import {
   type AuthorizationDto,
   type TenantDto,
 } from '@zetra/citrineos-base';
+import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { Token } from 'typedi';
 import { TokensModule } from '../index.js';
@@ -174,6 +175,7 @@ describe('TokensModule Authorization broadcast', () => {
   };
 
   let mod: TokensModule;
+  let logger: Logger<ILogObj>;
   let broadcastPut: jest.Mock;
   let broadcastPatch: jest.Mock;
   let broadcastDelete: jest.Mock;
@@ -187,11 +189,12 @@ describe('TokensModule Authorization broadcast', () => {
       broadcastPatchToken: broadcastPatch,
       broadcastDeleteToken: broadcastDelete,
     };
+    logger = new Logger({ type: 'hidden' });
     mod = new TokensModule(
       {} as OcpiConfig,
       broadcaster as never,
       {} as never,
-      new Logger({ type: 'hidden' }),
+      logger,
     );
   });
 
@@ -357,17 +360,62 @@ describe('TokensModule Authorization broadcast', () => {
       expectNoBroadcast();
     });
 
-    it('keeps going on the next tenant when one broadcast fails', async () => {
-      broadcastDelete.mockRejectedValueOnce(new Error('partner down'));
+    // TokenBroadcaster propagates its errors (e.g. partner lookup failure), so
+    // this catch is the one isolating tenants from each other
+    it.each([
+      [
+        'Delete',
+        { disableOCPI: true, previousDisableOCPI: false },
+        () => broadcastDelete,
+      ],
+      [
+        'Put',
+        { disableOCPI: false, previousDisableOCPI: true },
+        () => broadcastPut,
+      ],
+      [
+        'Patch',
+        { disableOCPI: false, previousDisableOCPI: false },
+        () => broadcastPatch,
+      ],
+    ])(
+      'logs a failed broadcast%sToken and keeps going on the next tenant',
+      async (action, flags, getBroadcast) => {
+        const errorSpy = jest.spyOn(logger, 'error');
+        const broadcast = getBroadcast();
+        broadcast.mockRejectedValueOnce(new Error('partner lookup failed'));
+        await mod.handleAuthorizationUpdate(
+          makeEvent(DtoEventType.UPDATE, {
+            ...ownRfid,
+            ...flags,
+            tenants: [tenantA, tenantB] as never,
+          }),
+        );
+        expect(broadcast).toHaveBeenCalledTimes(2);
+        expect(broadcast).toHaveBeenNthCalledWith(
+          2,
+          tenantB,
+          expect.anything(),
+        );
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        expect(errorSpy).toHaveBeenCalledWith(
+          `broadcast${action}Token failed for FR/ZTA/TOKEN001`,
+          expect.any(Error),
+        );
+      },
+    );
+
+    it('skips a null tenant and still broadcasts to the next one', async () => {
       await mod.handleAuthorizationUpdate(
         makeEvent(DtoEventType.UPDATE, {
           ...ownRfid,
-          disableOCPI: true,
+          disableOCPI: false,
           previousDisableOCPI: false,
-          tenants: [tenantA, tenantB] as never,
+          tenants: [null, tenantB] as never,
         }),
       );
-      expect(broadcastDelete).toHaveBeenCalledTimes(2);
+      expect(broadcastPatch).toHaveBeenCalledTimes(1);
+      expect(broadcastPatch).toHaveBeenCalledWith(tenantB, expect.anything());
     });
   });
 
