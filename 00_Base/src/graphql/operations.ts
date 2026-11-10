@@ -3211,6 +3211,7 @@ export type GetAuthorizationsPaginatedQueryResult = {
     realTimeAuth: string,
     language1?: string | null,
     groupAuthorizationId?: number | null,
+    disableOCPI?: boolean | null,
     tenantPartner?: {
       id: number,
       countryCode: string,

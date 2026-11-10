@@ -487,6 +487,90 @@ describe('TokensService', () => {
         },
       );
     });
+
+    it('with includeOcpiDisabled, also PUTs OCPI-disabled tokens as valid=false', async () => {
+      const enabledAuth = {
+        ...mockOwnAuthorization,
+        id: 3,
+        idToken: 'TOKEN_ON',
+        disableOCPI: false,
+        tenants: [],
+      };
+      const disabledAuth = {
+        ...mockOwnAuthorization,
+        id: 4,
+        idToken: 'TOKEN_OFF',
+        disableOCPI: true,
+        tenants: [],
+      };
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({
+          TenantPartners: [
+            {
+              id: 5,
+              partnerProfileOCPI: {
+                endpoints: [
+                  {
+                    identifier: 'tokens_RECEIVER',
+                    url: 'https://emsp.example/tokens',
+                  },
+                ],
+              },
+              tenant: { countryCode: 'FR', partyId: 'ZTA' },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ Authorizations: [enabledAuth, disabledAuth] });
+      (mockTokensClientApi as any).request = jest
+        .fn()
+        .mockResolvedValue({ status_code: 1000 });
+
+      const summary = await service.pushTokensToPartner({
+        ourCountryCode: 'FR',
+        ourPartyId: 'ZTA',
+        partnerCountryCode: 'DE',
+        partnerPartyId: 'ABC',
+        offset: 0,
+        limit: 50,
+        includeOcpiDisabled: true,
+      } as any);
+
+      // no disableOCPI filter on the query
+      expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
+        2,
+        GET_AUTHORIZATIONS_PAGINATED,
+        {
+          limit: 50,
+          offset: 0,
+          where: {
+            tenantPartnerId: { _is_null: true },
+            tenants: {
+              tenant: {
+                countryCode: { _eq: 'FR' },
+                partyId: { _eq: 'ZTA' },
+              },
+            },
+            idTokenType: { _eq: 'ISO14443' },
+          },
+        },
+      );
+      expect(summary.processed).toBe(2);
+      expect(summary.pushSucceeded).toBe(2);
+
+      const pushed = (mockTokensClientApi as any).request.mock.calls.map(
+        (call: any[]) => ({ method: call[4], body: call[9] }),
+      );
+      expect(pushed).toEqual([
+        {
+          method: 'PUT',
+          body: expect.objectContaining({ uid: 'TOKEN_ON', valid: true }),
+        },
+        {
+          method: 'PUT',
+          body: expect.objectContaining({ uid: 'TOKEN_OFF', valid: false }),
+        },
+      ]);
+    });
   });
 
   describe('authorizeToken', () => {

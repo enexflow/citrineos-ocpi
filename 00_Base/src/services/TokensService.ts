@@ -80,7 +80,7 @@ import { Role } from '../model/Role.js';
 import type { Tenant, TenantPartner } from '@zetra/citrineos-data';
 import type {
   PushFailure,
-  PushPartnerModulesBody,
+  PushPartnerTokensBody,
   PushSummary,
 } from '../model/DTO/PushPartnerModulesBody.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
@@ -805,9 +805,7 @@ export class TokensService {
     ];
   }
 
-  async pushTokensToPartner(
-    body: PushPartnerModulesBody,
-  ): Promise<PushSummary> {
+  async pushTokensToPartner(body: PushPartnerTokensBody): Promise<PushSummary> {
     const {
       ourCountryCode,
       ourPartyId,
@@ -818,6 +816,7 @@ export class TokensService {
       date_from,
       date_to,
     } = body;
+    const includeOcpiDisabled = body.includeOcpiDisabled === true;
 
     this.logger.info(
       'PushTokensToPartner',
@@ -861,11 +860,13 @@ export class TokensService {
         },
       },
       idTokenType: { _eq: IdTokenEnum.ISO14443 },
-      _or: [
+    };
+    if (!includeOcpiDisabled) {
+      where._or = [
         { disableOCPI: { _is_null: true } },
         { disableOCPI: { _eq: false } },
-      ],
-    };
+      ];
+    }
     if (date_from || date_to) {
       where.updatedAt = {};
       if (date_from) where.updatedAt._gte = new Date(date_from).toISOString();
@@ -898,6 +899,10 @@ export class TokensService {
             auth as AuthorizationDto,
             tenantOwner,
           );
+          // only reachable with includeOcpiDisabled: re-send the invalidation
+          if (auth.disableOCPI === true) {
+            tokenDto.valid = false;
+          }
           const path = `/${tokenDto.country_code}/${tokenDto.party_id}/${encodeURIComponent(tokenDto.uid)}`;
           const pushResult = await this.tokensClientApi.request(
             ourCountryCode,
