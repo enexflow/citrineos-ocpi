@@ -107,8 +107,9 @@ describe('CdrMapper.mapSessionToCDR', () => {
       ),
       ...overrides,
     }) as unknown as Session;
+  // transactionDbId is required since the CDR id is built from it
   const toCdr = (s: Session, l: LocationDTO = location()) =>
-    cdrMapper['mapSessionToCDR'](s, l, {} as any, {} as any);
+    cdrMapper['mapSessionToCDR'](s, l, {} as any, {} as any, 1);
 
   beforeEach(() => warn.mockClear());
 
