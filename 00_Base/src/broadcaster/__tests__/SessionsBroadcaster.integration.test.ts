@@ -303,34 +303,4 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     // broadcastPatchConnectorTariffsGireve-equivalent split); our seeded partner isn't Gireve.
     expect(putScope.isDone()).toBe(false);
   });
-
-  it('broadcasts a charging-period PATCH containing a TIME dimension for the given tariff', async () => {
-    let seenBody: any;
-    const scope = nock(PARTNER_ORIGIN)
-      .patch(/\/sessions\/FR\/CPO\/TX-1/)
-      .reply(200, function (_uri, body) {
-        seenBody = body;
-        return { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' };
-      });
-
-    const meterValueDto = {
-      transactionId: 'TX-1',
-      tariffId: 20,
-      timestamp: '2026-01-01T10:15:00Z',
-      sampledValue: [],
-    } as any;
-
-    await broadcaster.broadcastPatchSessionChargingPeriod(
-      tenant,
-      meterValueDto,
-      partnerId,
-    );
-
-    expect(scope.isDone()).toBe(true);
-    expect(seenBody.charging_periods).toHaveLength(1);
-    expect(seenBody.charging_periods[0]).toMatchObject({ tariff_id: '20' });
-    expect(seenBody.charging_periods[0].dimensions).toEqual(
-      expect.arrayContaining([expect.objectContaining({ type: 'TIME' })]),
-    );
-  });
 });

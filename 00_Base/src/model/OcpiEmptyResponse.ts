@@ -11,7 +11,8 @@ export const OcpiEmptyResponseSchema = z.object({
     .default(OcpiResponseStatusCode.GenericSuccessCode),
   status_message: z.string().optional(),
   timestamp: z.coerce.date(),
-  data: z.undefined().optional(),
+  // Some partners (e.g. Gireve) answer with `data: {}` instead of omitting it
+  data: z.unknown().optional(),
 });
 export const OcpiEmptyResponseSchemaName = 'OcpiEmptyResponse';
 

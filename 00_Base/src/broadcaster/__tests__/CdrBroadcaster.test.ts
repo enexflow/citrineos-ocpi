@@ -75,7 +75,9 @@ describe('CdrBroadcaster.broadcastPostCdr', () => {
       broadcastToClients: jest.fn().mockResolvedValue([SUCCESS]),
     };
     mockCdrsService = {
-      insertSentCdr: jest.fn().mockResolvedValue(500),
+      insertSentCdr: jest
+        .fn()
+        .mockResolvedValue({ id: 500, ocpiCdrId: 'CDR-001' }),
       markCdrAsSent: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -128,7 +130,7 @@ describe('CdrBroadcaster.broadcastPostCdr', () => {
       const order: string[] = [];
       mockCdrsService.insertSentCdr.mockImplementation(async () => {
         order.push('store');
-        return 500;
+        return { id: 500, ocpiCdrId: 'CDR-001' };
       });
       mockCdrsClientApi.broadcastToClients.mockImplementation(async () => {
         order.push('broadcast');
@@ -158,6 +160,41 @@ describe('CdrBroadcaster.broadcastPostCdr', () => {
         expect.anything(),
         cdrDto,
         expect.objectContaining({ roamingPartnerId: 8 }),
+      );
+    });
+  });
+
+  describe('CDR already stored for this transaction', () => {
+    it('does not re-send a CDR the partner already acknowledged', async () => {
+      mockCdrsService.insertSentCdr.mockResolvedValueOnce({
+        id: 321,
+        ocpiCdrId: 'CDR-001',
+        successfullySentAt: '2026-01-01T11:00:02Z',
+      });
+
+      await broadcaster.broadcastPostCdr(transactionDto);
+
+      expect(mockCdrsClientApi.broadcastToClients).not.toHaveBeenCalled();
+      expect(mockCdrsService.markCdrAsSent).not.toHaveBeenCalled();
+    });
+
+    // A CDR stored before the id format changed must keep its id, or the
+    // partner would receive two CDRs for the same transaction.
+    it('re-sends an undelivered CDR under the id it was stored with', async () => {
+      mockCdrsService.insertSentCdr.mockResolvedValueOnce({
+        id: 321,
+        ocpiCdrId: 'tx-1',
+        successfullySentAt: null,
+      });
+
+      await broadcaster.broadcastPostCdr(transactionDto);
+
+      expect(mockCdrsClientApi.broadcastToClients).toHaveBeenCalledWith(
+        expect.objectContaining({ body: { ...cdrDto, id: 'tx-1' } }),
+      );
+      expect(mockCdrsService.markCdrAsSent).toHaveBeenCalledWith(
+        321,
+        expect.any(String),
       );
     });
   });

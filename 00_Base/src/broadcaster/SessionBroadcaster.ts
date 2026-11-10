@@ -10,11 +10,7 @@ import { Logger } from 'tslog';
 import type { Session } from '../model/Session.js';
 import { ModuleId } from '../model/ModuleId.js';
 import { InterfaceRole } from '../model/InterfaceRole.js';
-import type {
-  MeterValueDto,
-  TenantDto,
-  TransactionDto,
-} from '@zetra/citrineos-base';
+import type { TenantDto, TransactionDto } from '@zetra/citrineos-base';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { SessionMapper } from '../mapper/index.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
@@ -91,19 +87,35 @@ export class SessionBroadcaster extends BaseBroadcaster {
     //   path,
     //   tokenOwnerTenantPartnerId,
     // );
-    const patchBody = await this.sessionMapper.mapIncrementalSessionPatch(
-      transactionDto as TransactionDto,
-    );
-    const putBody = await this.sessionMapper.mapTransactionToSession(
-      transactionDto as TransactionDto,
-    );
     const txId = transactionDto.transactionId!;
 
     const path = `/${tenant.countryCode}/${tenant.partyId}/${transactionDto.transactionId}`;
-    // Standard partners: PATCH incremental
 
     const ownerId = tokenOwnerTenantPartnerId;
 
+    // Only the token owner receives the session: build just the body it gets
+    // (Gireve: full PUT, standard partners: incremental PATCH)
+    const owner = transactionDto.authorization?.tenantPartner;
+    if (owner && isGirevePartner(owner)) {
+      const putBody = await this.sessionMapper.mapTransactionToSession(
+        transactionDto as TransactionDto,
+      );
+      await this.broadcastSessionDeduped(
+        txId,
+        ownerId,
+        tenant,
+        putBody,
+        HttpMethod.Put,
+        path,
+        (p) => p.id === ownerId && isGirevePartner(p),
+        ocpiToCountryCode,
+        ocpiToPartyId,
+      );
+      return;
+    }
+    const patchBody = await this.sessionMapper.mapIncrementalSessionPatch(
+      transactionDto as TransactionDto,
+    );
     await this.broadcastSessionDeduped(
       txId,
       ownerId,
@@ -114,36 +126,6 @@ export class SessionBroadcaster extends BaseBroadcaster {
       (p) => p.id === ownerId && !isGirevePartner(p),
       ocpiToCountryCode,
       ocpiToPartyId,
-    );
-    await this.broadcastSessionDeduped(
-      txId,
-      ownerId,
-      tenant,
-      putBody,
-      HttpMethod.Put,
-      path,
-      (p) => p.id === ownerId && isGirevePartner(p),
-      ocpiToCountryCode,
-      ocpiToPartyId,
-    );
-  }
-
-  async broadcastPatchSessionChargingPeriod(
-    tenant: TenantDto,
-    meterValueDto: MeterValueDto,
-    tokenOwnerTenantPartnerId?: number | null,
-  ): Promise<void> {
-    const charging_periods = await this.sessionMapper.getChargingPeriods(
-      [meterValueDto],
-      meterValueDto.tariffId!.toString(),
-    );
-    const path = `/${tenant.countryCode}/${tenant.partyId}/${meterValueDto.transactionId}`;
-    await this.broadcastSession(
-      tenant,
-      { charging_periods },
-      HttpMethod.Patch,
-      path,
-      tokenOwnerPartnerFilter(tokenOwnerTenantPartnerId!),
     );
   }
 

@@ -83,7 +83,11 @@ export type Authorizations_Paginated_Bool_Exp = {
   Tenant?: InputMaybe<Tenants_Bool_Exp>;
   tenantPartnerId?: InputMaybe<Int_Comparison_Exp>;
   tenants?: InputMaybe<AuthorizationTenants_Bool_Exp>;
+  idTokenType?: InputMaybe<String_Comparison_Exp>;
+  disableOCPI?: InputMaybe<Boolean_Comparison_Exp>;
+  _or?: InputMaybe<Array<Authorizations_Paginated_Bool_Exp>>;
 };
+
 export type Timestamptz_Comparison_Exp = {
   _gte?: InputMaybe<Scalars['timestamptz']['input']>;
   _lte?: InputMaybe<Scalars['timestamptz']['input']>;
@@ -396,7 +400,23 @@ export type FindSentCdrQueryVariables = Exact<{
 
 export type FindSentCdrQueryResult = {
   Cdrs: Array<{
-    id: number
+    id: number,
+    ocpiCdrId: string,
+    successfullySentAt?: any | null
+  }>
+};
+
+export type FindSentCdrByTransactionQueryVariables = Exact<{
+  transactionId: Scalars['Int']['input'];
+  toTenantPartnerId: Scalars['Int']['input'];
+}>;
+
+
+export type FindSentCdrByTransactionQueryResult = {
+  Cdrs: Array<{
+    id: number,
+    ocpiCdrId: string,
+    successfullySentAt?: any | null
   }>
 };
 
@@ -2138,6 +2158,13 @@ export type GetTariffByKeyQueryResult = {
     tariffAltText?: any | null,
     tenantPartnerId?: number | null,
     updatedAt: any,
+    startDateTime?: any | null,
+    endDateTime?: any | null,
+    tariffType?: string | null,
+    tariffAltUrl?: string | null,
+    minPrice?: any | null,
+    maxPrice?: any | null,
+    energyMix?: any | null,
     tenant: {
       countryCode?: string | null,
       partyId?: string | null
@@ -3184,6 +3211,7 @@ export type GetAuthorizationsPaginatedQueryResult = {
     realTimeAuth: string,
     language1?: string | null,
     groupAuthorizationId?: number | null,
+    disableOCPI?: boolean | null,
     tenantPartner?: {
       id: number,
       countryCode: string,
@@ -3232,6 +3260,7 @@ export type GetTransactionsQueryResult = {
     chargingState?: string | null,
     timeSpentCharging?: any | null,
     totalKwh?: any | null,
+    meterStart?: any | null,
     stoppedReason?: string | null,
     remoteStartId?: number | null,
     totalCost?: any | null,
@@ -3283,6 +3312,7 @@ export type GetTransactionByTransactionIdQueryResult = {
     chargingState?: string | null,
     timeSpentCharging?: any | null,
     totalKwh?: any | null,
+    meterStart?: any | null,
     stoppedReason?: string | null,
     remoteStartId?: number | null,
     totalCost?: any | null,

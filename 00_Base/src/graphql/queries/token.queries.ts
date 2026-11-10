@@ -299,6 +299,7 @@ export const GET_AUTHORIZATIONS_PAGINATED = gql`
       realTimeAuth
       language1
       groupAuthorizationId
+      disableOCPI
     }
   }
 `;

@@ -262,10 +262,15 @@ export type {
   DeleteLocationSummary,
 } from './model/DTO/DeleteLocationBody.js';
 export { DeleteLocationSummarySchema } from './model/DTO/DeleteLocationBody.js';
-export type { PushPartnerModulesBody } from './model/DTO/PushPartnerModulesBody.js';
+export type {
+  PushPartnerModulesBody,
+  PushPartnerTokensBody,
+} from './model/DTO/PushPartnerModulesBody.js';
 export {
   PushPartnerModulesBodySchema,
   PushPartnerModulesBodySchemaName,
+  PushPartnerTokensBodySchema,
+  PushPartnerTokensBodySchemaName,
 } from './model/DTO/PushPartnerModulesBody.js';
 export {
   UID_FORMAT,

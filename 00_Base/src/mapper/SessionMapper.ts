@@ -26,6 +26,27 @@ import type { LocationDTO } from '../model/DTO/LocationDTO.js';
 import { UID_FORMAT } from '../model/DTO/EvseDTO.js';
 import { OcpiGraphqlClient } from '../graphql/index.js';
 import { ChargingStateEnum } from '@zetra/citrineos-base';
+import { roundOcpiNumber, toRoundedHours } from '../util/Util.js';
+
+interface SessionStart {
+  timestamp: Date;
+  energyKwh?: number;
+  // Only used to identify the transaction when meterStart is rejected
+  transactionId?: string;
+}
+
+interface SessionEnd {
+  timestamp: Date;
+  totalKwh?: number;
+}
+
+// Rounding slack when comparing session boundaries with register readings (kWh)
+const ENERGY_TOLERANCE_KWH = 1e-6;
+// Per-phase energy registers, summed when a station sends no total (core MeterValueUtils order)
+const PHASE_GROUPS: string[][] = [
+  ['L1', 'L2', 'L3'],
+  ['L1-N', 'L2-N', 'L3-N'],
+];
 
 @Service()
 export class SessionMapper extends BaseTransactionMapper {
@@ -184,27 +205,27 @@ export class SessionMapper extends BaseTransactionMapper {
         `Tariff not found for transaction ${transaction.transactionId}`,
       );
     }
-    const sorted = [...(transaction.meterValues ?? [])].sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    );
-    const periods =
-      sorted.length > 1
-        ? this.getChargingPeriods(
-            sorted.slice(-2),
-            String(tariff.ocpiTariffId),
-          ).slice(-1)
-        : undefined;
+    // PATCH appends charging_periods: send only the period closed by the latest reading
+    const periods = this.getChargingPeriods(
+      transaction.meterValues ?? [],
+      String(tariff.ocpiTariffId),
+      this.getSessionStart(transaction),
+      this.getSessionEnd(transaction),
+    ).slice(-1);
+    // total_cost from the kwh sent, so it matches kwh x price and the CDR total_cost
+    const kwh = roundOcpiNumber(transaction.totalKwh || 0);
 
     return {
       id: transaction.transactionId,
       end_date_time: transaction.endTime ? new Date(transaction.endTime) : null,
-      kwh: transaction.totalKwh || 0,
+      kwh,
       status: this.getTransactionStatus(transaction),
-      last_updated: transaction.updatedAt,
-      total_cost:
-        this.calculateTotalCost(transaction.totalKwh || 0, tariff) ?? null,
-      ...(periods ? { charging_periods: periods } : {}),
+      // OCPI DateTime must be UTC with "Z" (§16.2); Hasura returns "+00:00"
+      last_updated: transaction.updatedAt
+        ? new Date(transaction.updatedAt)
+        : undefined,
+      total_cost: this.calculateTotalCost(kwh, tariff) ?? null,
+      ...(periods.length > 0 ? { charging_periods: periods } : {}),
     };
   }
 
@@ -237,11 +258,11 @@ export class SessionMapper extends BaseTransactionMapper {
     }
 
     if (transaction.totalKwh !== undefined) {
-      session.kwh = transaction.totalKwh || 0;
+      session.kwh = roundOcpiNumber(transaction.totalKwh || 0);
     }
 
     if (transaction.updatedAt !== undefined) {
-      session.last_updated = transaction.updatedAt!;
+      session.last_updated = new Date(transaction.updatedAt!);
     }
 
     // Map context-dependent fields if available
@@ -285,6 +306,8 @@ export class SessionMapper extends BaseTransactionMapper {
       session.charging_periods = this.getChargingPeriods(
         transaction.meterValues,
         String(tariff.ocpiTariffId),
+        this.getSessionStart(transaction),
+        this.getSessionEnd(transaction),
       );
     }
 
@@ -330,11 +353,11 @@ export class SessionMapper extends BaseTransactionMapper {
     }
 
     if (transaction.totalKwh !== undefined) {
-      session.kwh = transaction.totalKwh || 0;
+      session.kwh = roundOcpiNumber(transaction.totalKwh || 0);
     }
 
     if (transaction.updatedAt !== undefined) {
-      session.last_updated = transaction.updatedAt!;
+      session.last_updated = new Date(transaction.updatedAt!);
     }
 
     if (transaction.evseId && transaction.stationId) {
@@ -367,6 +390,8 @@ export class SessionMapper extends BaseTransactionMapper {
     token: TokenDTO,
     tariff: TariffDto,
   ): Session {
+    // total_cost from the kwh sent, so it matches kwh x price and the CDR total_cost
+    const kwh = roundOcpiNumber(transaction.totalKwh || 0);
     return {
       country_code: location.country_code,
       party_id: location.party_id,
@@ -380,7 +405,7 @@ export class SessionMapper extends BaseTransactionMapper {
             return transaction.createdAt!;
           })(),
       end_date_time: transaction.endTime ? new Date(transaction.endTime) : null,
-      kwh: transaction.totalKwh || 0,
+      kwh,
       cdr_token: this.createCdrToken(token),
       // TODO: Implement other auth methods
       auth_method: this.resolveAuthMethod(transaction),
@@ -391,14 +416,16 @@ export class SessionMapper extends BaseTransactionMapper {
       charging_periods: this.getChargingPeriods(
         transaction.meterValues,
         String(tariff?.ocpiTariffId),
+        this.getSessionStart(transaction),
+        this.getSessionEnd(transaction),
       ),
       status: this.getTransactionStatus(transaction),
-      last_updated: transaction.updatedAt!,
+      last_updated: new Date(transaction.updatedAt!),
       // TODO: Fill in optional values
       authorization_reference:
         transaction.authorization?.ocpiAuthReference ?? null,
       total_cost: transaction.endTime
-        ? this.calculateTotalCost(transaction.totalKwh || 0, tariff)
+        ? this.calculateTotalCost(kwh, tariff)
         : null,
       meter_id: null,
     };
@@ -476,78 +503,262 @@ export class SessionMapper extends BaseTransactionMapper {
     }
   }
 
+  /**
+   * OCPI ChargingPeriod: a period starts at start_date_time and ends when the next one starts,
+   * so each period runs from one reading to the next and carries what was charged in between.
+   * When the session start is given, it is used as the first reading so the energy charged
+   * before the first meter value (meterStart -> first sample) is not lost. Likewise the session
+   * end of a finished transaction closes the last period (last sample -> meterStop).
+   * A finished session without meter values gets a single start -> end period, since a CDR
+   * needs at least one.
+   */
   public getChargingPeriods(
     meterValues: MeterValueDto[] = [],
     tariffId: string,
+    sessionStart?: SessionStart,
+    sessionEnd?: SessionEnd,
   ): ChargingPeriod[] {
-    return meterValues
-      .sort(
-        (a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-      )
-      .map((meterValue, index, sortedMeterValues) => {
-        const previousMeterValue =
-          index > 0 ? sortedMeterValues[index - 1] : undefined;
-        return this.mapMeterValueToChargingPeriod(
-          meterValue,
-          tariffId,
-          previousMeterValue,
-        );
-      });
+    const readings = this.mergeMeterValuesByTimestamp(meterValues);
+    const startKwh = this.getTrustedStartKwh(readings, sessionStart);
+    if (
+      sessionStart &&
+      (readings.length === 0 ||
+        sessionStart.timestamp.getTime() <
+          new Date(readings[0].timestamp).getTime())
+    ) {
+      readings.unshift(
+        this.toBoundaryReading(sessionStart.timestamp, startKwh),
+      );
+    }
+    if (readings.length === 0) {
+      return [];
+    }
+    const lastReading = readings[readings.length - 1];
+
+    if (
+      sessionEnd &&
+      sessionEnd.timestamp.getTime() > new Date(lastReading.timestamp).getTime()
+    ) {
+      const lastKwh = this.getEnergyKwh(lastReading);
+      const endKwh =
+        startKwh !== undefined && sessionEnd.totalKwh !== undefined
+          ? startKwh + sessionEnd.totalKwh
+          : undefined;
+      readings.push(
+        this.toBoundaryReading(
+          sessionEnd.timestamp,
+          endKwh !== undefined &&
+            (lastKwh === undefined || endKwh >= lastKwh - ENERGY_TOLERANCE_KWH)
+            ? Math.max(endKwh, lastKwh ?? endKwh)
+            : undefined,
+        ),
+      );
+    }
+
+    return readings.slice(0, -1).map((from, index) => ({
+      start_date_time: new Date(from.timestamp),
+      dimensions: this.getCdrDimensions(readings[index + 1], from, startKwh),
+      tariff_id: tariffId,
+    }));
   }
 
-  private mapMeterValueToChargingPeriod(
-    meterValue: MeterValueDto,
-    tariffId: string,
-    previousMeterValue?: MeterValueDto,
-  ): ChargingPeriod {
+  /**
+   * Transactions started before core stored meterStart in kWh still hold Wh, and some
+   * stations take meterStart from another register: only trust a finite, non-negative start
+   * energy that is not above the first energy reading. A rejected meterStart drops the start
+   * and end period energy and ENERGY_IMPORT, so it is logged.
+   */
+  private getTrustedStartKwh(
+    readings: MeterValueDto[],
+    sessionStart?: SessionStart,
+  ): number | undefined {
+    const startKwh = sessionStart?.energyKwh;
+    if (startKwh === undefined) {
+      return undefined;
+    }
+    if (!Number.isFinite(startKwh) || startKwh < 0) {
+      this.logger.warn(
+        `Ignoring meterStart ${startKwh} kWh of transaction ${sessionStart?.transactionId}: not a finite non-negative energy`,
+      );
+      return undefined;
+    }
+    const firstKwh = readings
+      .map((reading) => this.getEnergyKwh(reading))
+      .find((kwh) => kwh !== undefined);
+    if (firstKwh !== undefined && startKwh > firstKwh + ENERGY_TOLERANCE_KWH) {
+      this.logger.warn(
+        `Ignoring meterStart ${startKwh} kWh of transaction ${sessionStart?.transactionId}: above first energy reading ${firstKwh} kWh`,
+      );
+      return undefined;
+    }
+    return startKwh;
+  }
+
+  private getSessionStart(
+    transaction: Partial<TransactionDto>,
+  ): SessionStart | undefined {
+    if (!transaction.startTime) {
+      return undefined;
+    }
     return {
-      start_date_time: new Date(meterValue.timestamp),
-      dimensions: this.getCdrDimensions(meterValue, previousMeterValue),
-      tariff_id: tariffId,
+      timestamp: new Date(transaction.startTime),
+      // Transaction.meterStart is stored in kWh (core normalizes 1.6 Wh meterStart)
+      energyKwh:
+        transaction.meterStart === null || transaction.meterStart === undefined
+          ? undefined
+          : Number(transaction.meterStart),
+      transactionId: transaction.transactionId,
     };
+  }
+
+  private getSessionEnd(
+    transaction: Partial<TransactionDto>,
+  ): SessionEnd | undefined {
+    if (transaction.isActive !== false || !transaction.endTime) {
+      return undefined;
+    }
+    return {
+      timestamp: new Date(transaction.endTime),
+      // Final totalKwh = (meterStop - meterStart) on 1.6, last register - meterStart on 2.0.1
+      totalKwh:
+        transaction.totalKwh === null || transaction.totalKwh === undefined
+          ? undefined
+          : Number(transaction.totalKwh),
+    };
+  }
+
+  /**
+   * Energy register in kWh, picked like core MeterValueUtils: a missing measurand is
+   * Energy.Active.Import.Register (OCPP default), and without a usable non-phased register
+   * the L1/L2/L3 (else L1-N/L2-N/L3-N) registers are summed.
+   */
+  private getEnergyKwh(meterValue?: MeterValueDto): number | undefined {
+    const registers = (meterValue?.sampledValue ?? []).filter(
+      (sampledValue) =>
+        !sampledValue.measurand ||
+        sampledValue.measurand ===
+          OCPP2_0_1.MeasurandEnumType.Energy_Active_Import_Register,
+    );
+    const total = registers.find((sampledValue) => !sampledValue.phase);
+    const totalKwh = total ? this.toKwh(total) : undefined;
+    if (totalKwh !== undefined) {
+      return totalKwh;
+    }
+    for (const phases of PHASE_GROUPS) {
+      const phaseKwh = registers
+        .filter((sampledValue) => phases.includes(sampledValue.phase ?? ''))
+        .map((sampledValue) => this.toKwh(sampledValue))
+        .filter((kwh): kwh is number => kwh !== undefined);
+      if (phaseKwh.length > 0) {
+        return phaseKwh.reduce((sum, kwh) => sum + kwh, 0);
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Synthetic reading at a session boundary (start or end), carrying the register in kWh when
+   * it is known; without energy it only contributes TIME to its period.
+   */
+  private toBoundaryReading(
+    timestamp: Date,
+    energyKwh: number | undefined,
+  ): MeterValueDto {
+    return {
+      timestamp: timestamp.toISOString(),
+      sampledValue:
+        energyKwh === undefined
+          ? []
+          : [
+              {
+                value: energyKwh,
+                measurand:
+                  OCPP2_0_1.MeasurandEnumType.Energy_Active_Import_Register,
+                unitOfMeasure: { unit: 'kWh', multiplier: 0 },
+              },
+            ],
+    } as unknown as MeterValueDto;
+  }
+
+  /**
+   * Stations can send the same reading twice (OCPP 1.6 StopTransaction transactionData,
+   * OCPP 2.0.1 TransactionEvent Ended): merge readings sharing a timestamp so each
+   * timestamp gives one charging period, keeping one sampled value per measurand/phase/location.
+   * Returns the readings sorted by timestamp, without mutating the input.
+   */
+  private mergeMeterValuesByTimestamp(
+    meterValues: MeterValueDto[],
+  ): MeterValueDto[] {
+    const byTimestamp = new Map<number, MeterValueDto>();
+    for (const meterValue of meterValues) {
+      const time = new Date(meterValue.timestamp).getTime();
+      const merged = byTimestamp.get(time);
+      if (!merged) {
+        byTimestamp.set(time, {
+          ...meterValue,
+          sampledValue: [
+            ...meterValue.sampledValue,
+          ] as MeterValueDto['sampledValue'],
+        });
+        continue;
+      }
+      for (const sampledValue of meterValue.sampledValue) {
+        const alreadyMerged = merged.sampledValue.some(
+          (existing) =>
+            existing.measurand === sampledValue.measurand &&
+            existing.phase === sampledValue.phase &&
+            existing.location === sampledValue.location,
+        );
+        if (!alreadyMerged) {
+          merged.sampledValue.push(sampledValue);
+        }
+      }
+    }
+    return [...byTimestamp.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, meterValue]) => meterValue);
   }
 
   private getCdrDimensions(
     meterValue: MeterValueDto,
     previousMeterValue?: MeterValueDto,
+    sessionStartKwh?: number,
   ): CdrDimension[] {
     const cdrDimensions: CdrDimension[] = [];
+    // OCPI ENERGY / ENERGY_IMPORT are in kWh, registers come in the station's unit
+    const energyKwh = this.getEnergyKwh(meterValue);
+    if (energyKwh !== undefined) {
+      if (sessionStartKwh !== undefined) {
+        cdrDimensions.push({
+          type: CdrDimensionType.ENERGY_IMPORT,
+          volume: roundOcpiNumber(energyKwh - sessionStartKwh),
+        });
+      }
+      const previousEnergyKwh = this.getEnergyKwh(previousMeterValue);
+      if (previousEnergyKwh !== undefined) {
+        // Difference of rounded registers: the 4-decimal periods still add up to the total
+        cdrDimensions.push({
+          type: CdrDimensionType.ENERGY,
+          volume: roundOcpiNumber(
+            roundOcpiNumber(energyKwh) - roundOcpiNumber(previousEnergyKwh),
+          ),
+        });
+      }
+    }
     for (const sampledValue of meterValue.sampledValue) {
       switch (sampledValue.measurand) {
         case OCPP2_0_1.MeasurandEnumType.Current_Import:
           if (sampledValue.phase === 'N') {
             cdrDimensions.push({
               type: CdrDimensionType.CURRENT,
-              volume: Number(sampledValue.value),
+              volume: roundOcpiNumber(Number(sampledValue.value)),
             });
-          }
-          break;
-        case OCPP2_0_1.MeasurandEnumType.Energy_Active_Import_Register:
-          if (!sampledValue.phase) {
-            cdrDimensions.push({
-              type: CdrDimensionType.ENERGY_IMPORT,
-              volume: Number(sampledValue.value),
-            });
-            const previousEnergyImport =
-              this.getEnergyImportForMeterValue(previousMeterValue);
-            if (
-              previousEnergyImport !== undefined &&
-              !isNaN(Number(previousEnergyImport)) &&
-              !isNaN(Number(sampledValue.value))
-            ) {
-              cdrDimensions.push({
-                type: CdrDimensionType.ENERGY,
-                volume:
-                  Number(sampledValue.value) - Number(previousEnergyImport),
-              });
-            }
           }
           break;
         case OCPP2_0_1.MeasurandEnumType.SoC:
           cdrDimensions.push({
             type: CdrDimensionType.STATE_OF_CHARGE,
-            volume: Number(sampledValue.value),
+            volume: roundOcpiNumber(Number(sampledValue.value)),
           });
           break;
       }
@@ -559,28 +770,41 @@ export class SessionMapper extends BaseTransactionMapper {
     return cdrDimensions;
   }
 
-  private getEnergyImportForMeterValue(meterValue?: MeterValueDto) {
-    return (
-      meterValue?.sampledValue.find(
-        (sampledValue) =>
-          sampledValue.measurand ===
-            OCPP2_0_1.MeasurandEnumType.Energy_Active_Import_Register &&
-          !sampledValue.phase,
-      )?.value ?? undefined
-    );
+  /**
+   * Same normalization as core MeterValueUtils: no unit means Wh (OCPP default),
+   * multiplier is a power of ten. Returns undefined for a non-energy unit or a non-numeric value.
+   */
+  private toKwh(
+    sampledValue: MeterValueDto['sampledValue'][number],
+  ): number | undefined {
+    const value = Number(sampledValue.value);
+    if (isNaN(value)) {
+      return undefined;
+    }
+    const multiplier = sampledValue.unitOfMeasure?.multiplier ?? 0;
+    switch (sampledValue.unitOfMeasure?.unit?.toUpperCase()) {
+      case 'KWH':
+        return value * 10 ** multiplier;
+      case 'WH':
+      case undefined:
+        return value * 10 ** (multiplier - 3);
+      default:
+        return undefined;
+    }
   }
 
   private getTimeElapsedForMeterValue(
     meterValue: MeterValueDto,
     previousMeterValue?: MeterValueDto,
   ): number {
-    const timeDiffMs = previousMeterValue
-      ? new Date(meterValue.timestamp).getTime() -
-        new Date(previousMeterValue.timestamp).getTime()
-      : 0;
-
-    // Convert milliseconds to hours
-    return timeDiffMs / (1000 * 60 * 60); // 1000 ms/sec * 60 sec/min * 60 min/hour
+    if (!previousMeterValue) {
+      return 0;
+    }
+    // Difference of rounded instants (in hours): the 4-decimal periods still add up to total_time
+    return roundOcpiNumber(
+      toRoundedHours(new Date(meterValue.timestamp)) -
+        toRoundedHours(new Date(previousMeterValue.timestamp)),
+    );
   }
 
   private getTransactionStatus(transaction: TransactionDto): SessionStatus {
