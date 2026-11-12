@@ -278,6 +278,16 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
   });
 
   it('PATCH sends the incremental patch to the partner and does not PUT it (partner is not Gireve)', async () => {
+    const openingPutScope = nock(PARTNER_ORIGIN)
+      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .reply(200, { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' });
+
+    // The session opening PUT sets the charging period cursor the PATCHes append from
+    const openingDto = buildTransactionDto();
+    broadcaster.clearSessionBroadcastDedupe(openingDto.transactionId);
+    await broadcaster.broadcastPutSession(tenant, openingDto, partnerId);
+    expect(openingPutScope.isDone()).toBe(true);
+
     let seenPatchBody: any;
     const patchScope = nock(PARTNER_ORIGIN)
       .patch(/\/sessions\/FR\/CPO\/TX-1/)
@@ -287,8 +297,36 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
       });
     const putScope = nock(PARTNER_ORIGIN)
       .put(/\/sessions\/FR\/CPO\/TX-1/)
-      .reply(200, {});
+      .reply(200, { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' });
 
+    const transactionDto = buildTransactionDto({
+      totalKwh: 8.2,
+      updatedAt: '2026-01-01T10:10:00Z',
+    });
+
+    await broadcaster.broadcastPatchSession(tenant, transactionDto, partnerId);
+
+    expect(patchScope.isDone()).toBe(true);
+    expect(seenPatchBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
+    // A standard partner only gets the full PUT at session start or to resync an unknown
+    // cursor; this update must be a PATCH.
+    expect(putScope.isDone()).toBe(false);
+  });
+
+  it('resyncs with a full PUT instead of a PATCH when the charging period cursor is unknown', async () => {
+    let seenPutBody: any;
+    const putScope = nock(PARTNER_ORIGIN)
+      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .reply(200, function (_uri, body) {
+        seenPutBody = body;
+        return { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' };
+      });
+    const patchScope = nock(PARTNER_ORIGIN)
+      .patch(/\/sessions\/FR\/CPO\/TX-1/)
+      .reply(200, { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' });
+
+    // No opening PUT went through this process (e.g. it restarted): the partner's periods
+    // are unknown, so a PATCH could only guess which ones to append
     const transactionDto = buildTransactionDto({
       totalKwh: 8.2,
       updatedAt: '2026-01-01T10:10:00Z',
@@ -297,10 +335,8 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
 
     await broadcaster.broadcastPatchSession(tenant, transactionDto, partnerId);
 
-    expect(patchScope.isDone()).toBe(true);
-    expect(seenPatchBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
-    // broadcastPatchSession's PUT branch is filtered to Gireve partners only (see
-    // broadcastPatchConnectorTariffsGireve-equivalent split); our seeded partner isn't Gireve.
-    expect(putScope.isDone()).toBe(false);
+    expect(putScope.isDone()).toBe(true);
+    expect(seenPutBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
+    expect(patchScope.isDone()).toBe(false);
   });
 });
