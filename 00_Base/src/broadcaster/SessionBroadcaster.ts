@@ -78,6 +78,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
           txId,
           partnerId,
           this.sessionMapper.getChargingPeriodsEnd(transactionDto),
+          snapshotTime(transactionDto),
         );
       }
     });
@@ -118,7 +119,15 @@ export class SessionBroadcaster extends BaseBroadcaster {
     // (Gireve: full PUT, standard partners: incremental PATCH)
     const owner = transactionDto.authorization?.tenantPartner;
     const tx = transactionDto as TransactionDto;
+    const snapshotAt = snapshotTime(tx);
     await this.dedupeService.runExclusive(txId, ownerId, async () => {
+      // Out-of-order update: a newer snapshot was already sent (possibly the Ended one)
+      if (this.dedupeService.isOlderThanSent(txId, ownerId, snapshotAt)) {
+        this.logger.debug(
+          `Skipping session ${txId} update for partner ${ownerId}: a newer snapshot was already sent`,
+        );
+        return;
+      }
       if (owner && isGirevePartner(owner)) {
         const putBody = await this.sessionMapper.mapTransactionToSession(tx);
         if (
@@ -139,6 +148,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
             txId,
             ownerId,
             this.sessionMapper.getChargingPeriodsEnd(tx),
+            snapshotAt,
           );
         }
         return;
@@ -171,6 +181,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
             txId,
             ownerId,
             this.sessionMapper.getChargingPeriodsEnd(tx),
+            snapshotAt,
           );
         }
         return;
@@ -198,6 +209,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
           txId,
           ownerId,
           this.sessionMapper.getChargingPeriodsEnd(tx),
+          snapshotAt,
         );
       }
     });
@@ -293,4 +305,9 @@ export class SessionBroadcaster extends BaseBroadcaster {
   clearSessionBroadcastDedupe(transactionId: string): void {
     this.dedupeService.clear(transactionId);
   }
+}
+
+/** updatedAt of the transaction snapshot a broadcast is built from, used to order broadcasts. */
+function snapshotTime(transaction: TransactionDto): Date | undefined {
+  return transaction.updatedAt ? new Date(transaction.updatedAt) : undefined;
 }

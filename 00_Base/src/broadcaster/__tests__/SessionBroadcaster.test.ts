@@ -56,6 +56,7 @@ describe('SessionBroadcaster', () => {
     runExclusive: jest.Mock;
     getSentUntil: jest.Mock;
     advanceSentUntil: jest.Mock;
+    isOlderThanSent: jest.Mock;
   };
   const SENT_UNTIL = new Date('2026-10-29T10:15:00.000Z');
   const PERIODS_END = new Date('2026-10-29T10:30:00.000Z');
@@ -97,6 +98,7 @@ describe('SessionBroadcaster', () => {
       ),
       getSentUntil: jest.fn().mockReturnValue(SENT_UNTIL),
       advanceSentUntil: jest.fn(),
+      isOlderThanSent: jest.fn().mockReturnValue(false),
     };
 
     broadcaster = new SessionBroadcaster(
@@ -153,6 +155,7 @@ describe('SessionBroadcaster', () => {
         'tx-1',
         42,
         PERIODS_END,
+        undefined,
       );
     });
 
@@ -193,6 +196,7 @@ describe('SessionBroadcaster', () => {
         'tx-1',
         42,
         PERIODS_END,
+        undefined,
       );
     });
 
@@ -209,6 +213,7 @@ describe('SessionBroadcaster', () => {
         'tx-1',
         42,
         PERIODS_END,
+        undefined,
       );
     });
 
@@ -252,6 +257,38 @@ describe('SessionBroadcaster', () => {
       expect(mockDedupeService.advanceSentUntil).not.toHaveBeenCalled();
     });
 
+    it('skips an update built from a snapshot older than one already sent', async () => {
+      // e.g. an update handled after the Ended one
+      mockDedupeService.isOlderThanSent.mockReturnValue(true);
+
+      await broadcaster.broadcastPatchSession(tenant, transactionDto, 42);
+
+      expect(mockSessionsClientApi.broadcastToClients).not.toHaveBeenCalled();
+      expect(mockDedupeService.advanceSentUntil).not.toHaveBeenCalled();
+    });
+
+    it('records the updatedAt of the snapshot it sent', async () => {
+      const updatedAt = '2026-10-29T10:30:00+00:00';
+
+      await broadcaster.broadcastPatchSession(
+        tenant,
+        { ...transactionDto, updatedAt },
+        42,
+      );
+
+      expect(mockDedupeService.isOlderThanSent).toHaveBeenCalledWith(
+        'tx-1',
+        42,
+        new Date(updatedAt),
+      );
+      expect(mockDedupeService.advanceSentUntil).toHaveBeenCalledWith(
+        'tx-1',
+        42,
+        PERIODS_END,
+        new Date(updatedAt),
+      );
+    });
+
     it('runs the broadcast inside the per-session queue', async () => {
       await broadcaster.broadcastPatchSession(tenant, transactionDto, 42);
 
@@ -277,6 +314,7 @@ describe('SessionBroadcaster', () => {
         'tx-1',
         42,
         PERIODS_END,
+        undefined,
       );
     });
 

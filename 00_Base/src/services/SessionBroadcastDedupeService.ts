@@ -14,8 +14,19 @@ export class SessionBroadcastDedupeService {
   private readonly inFlight = new Set<DedupeKey>();
   // End of the last charging period each partner has, keyed by transactionId:partnerId
   private readonly sentUntil = new Map<string, Date>();
+  // updatedAt of the newest transaction snapshot sent to each partner, keyed like sentUntil
+  private readonly sentSnapshotAt = new Map<string, number>();
   // Tail of the broadcasts queued per transactionId:partnerId
   private readonly queues = new Map<string, Promise<unknown>>();
+
+  /**
+   * Longest wait for the previous broadcast of the same session. The HTTP client has no
+   * timeout, so a partner that never answers would otherwise hold the queue, and with it the
+   * Ended update, the CDR sent after it and clear().
+   */
+  queueMaxWaitMs = 30_000;
+  /** How long clear() keeps the cursor of an ended session, so late updates are recognized. */
+  endedStateTtlMs = 10 * 60_000;
 
   constructor(private readonly logger: Logger<ILogObj>) {}
 
@@ -108,9 +119,23 @@ export class SessionBroadcastDedupeService {
     task: () => Promise<T>,
   ): Promise<T> {
     const k = `${transactionId}:${partnerId}`;
-    const run = (this.queues.get(k) ?? Promise.resolve())
-      .catch(() => undefined)
-      .then(task);
+    const previous = this.queues.get(k);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const waitForPrevious = previous
+      ? Promise.race([
+          previous.catch(() => undefined),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(() => {
+              this.logger.warn(
+                `Previous session broadcast for ${k} still pending after ${this.queueMaxWaitMs} ms, sending anyway`,
+              );
+              resolve();
+            }, this.queueMaxWaitMs);
+            timer.unref?.();
+          }),
+        ]).finally(() => clearTimeout(timer))
+      : Promise.resolve();
+    const run = waitForPrevious.then(task);
     const tail = run.catch(() => undefined);
     this.queues.set(k, tail);
     try {
@@ -130,22 +155,67 @@ export class SessionBroadcastDedupeService {
     return this.sentUntil.get(`${transactionId}:${partnerId}`);
   }
 
-  /** Moves the cursor forward only, so a late, older update cannot make periods resend. */
+  /**
+   * Moves the cursor forward only, so a late, older update cannot make periods resend. Also
+   * records the updatedAt of the transaction snapshot that was sent.
+   */
   advanceSentUntil(
     transactionId: string,
     partnerId: number,
     until: Date,
+    snapshotAt?: Date,
   ): void {
     const k = `${transactionId}:${partnerId}`;
     const current = this.sentUntil.get(k);
     if (!current || until.getTime() > current.getTime()) {
       this.sentUntil.set(k, until);
     }
+    const time = snapshotAt?.getTime();
+    if (time !== undefined && !Number.isNaN(time)) {
+      this.sentSnapshotAt.set(
+        k,
+        Math.max(time, this.sentSnapshotAt.get(k) ?? time),
+      );
+    }
   }
 
+  /**
+   * Events are handled concurrently, so a broadcast can reach the queue after a newer one:
+   * true when a newer transaction snapshot was already sent, and this one would roll back
+   * status, kwh or end_date_time on the partner side.
+   */
+  isOlderThanSent(
+    transactionId: string,
+    partnerId: number,
+    snapshotAt?: Date,
+  ): boolean {
+    const time = snapshotAt?.getTime();
+    const sent = this.sentSnapshotAt.get(`${transactionId}:${partnerId}`);
+    return (
+      time !== undefined &&
+      !Number.isNaN(time) &&
+      sent !== undefined &&
+      time < sent
+    );
+  }
+
+  /**
+   * Drops the dedupe state of an ended session. Only the snapshot time is kept, for
+   * endedStateTtlMs: an update handled after the Ended one is then skipped as older, instead
+   * of finding no cursor and PUTting a stale ACTIVE session.
+   */
   clear(transactionId: string): void {
+    const ofTransaction = (k: string) => k.startsWith(`${transactionId}:`);
+    const purge = setTimeout(() => {
+      for (const k of this.sentSnapshotAt.keys()) {
+        if (ofTransaction(k)) {
+          this.sentSnapshotAt.delete(k);
+        }
+      }
+    }, this.endedStateTtlMs);
+    purge.unref?.();
     for (const k of this.sentUntil.keys()) {
-      if (k.startsWith(`${transactionId}:`)) {
+      if (ofTransaction(k)) {
         this.sentUntil.delete(k);
       }
     }

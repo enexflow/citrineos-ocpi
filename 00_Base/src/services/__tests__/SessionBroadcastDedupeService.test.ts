@@ -215,6 +215,49 @@ describe('SessionBroadcastDedupeService charging period cursor', () => {
     expect(service.getSentUntil(TX_ID, PARTNER_ID)).toBeUndefined();
     expect(service.getSentUntil('other-tx', PARTNER_ID)).toBeDefined();
   });
+
+  it('still recognizes a late older snapshot for endedStateTtlMs after clear', () => {
+    jest.useFakeTimers();
+    try {
+      const sentAt = new Date('2026-07-13T10:05:00Z');
+      const olderAt = new Date('2026-07-13T10:04:00Z');
+      service.advanceSentUntil(TX_ID, PARTNER_ID, sentAt, sentAt);
+
+      // The Ended update was sent and cleared: an update handled after it is still older
+      service.clear(TX_ID);
+      expect(service.isOlderThanSent(TX_ID, PARTNER_ID, olderAt)).toBe(true);
+
+      jest.advanceTimersByTime(service.endedStateTtlMs);
+      expect(service.isOlderThanSent(TX_ID, PARTNER_ID, olderAt)).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('tells when a snapshot is older than the newest one sent', () => {
+    const until = new Date('2026-07-13T10:00:00Z');
+    const at = (time: string) => new Date(`2026-07-13T${time}Z`);
+    expect(service.isOlderThanSent(TX_ID, PARTNER_ID, at('10:05:00'))).toBe(
+      false,
+    );
+
+    service.advanceSentUntil(TX_ID, PARTNER_ID, until, at('10:05:00'));
+
+    expect(service.isOlderThanSent(TX_ID, PARTNER_ID, at('10:04:00'))).toBe(
+      true,
+    );
+    // The same snapshot again (duplicate event) is not older
+    expect(service.isOlderThanSent(TX_ID, PARTNER_ID, at('10:05:00'))).toBe(
+      false,
+    );
+    // An older snapshot recorded later does not move it back
+    service.advanceSentUntil(TX_ID, PARTNER_ID, until, at('10:01:00'));
+    expect(service.isOlderThanSent(TX_ID, PARTNER_ID, at('10:04:00'))).toBe(
+      true,
+    );
+    // Without updatedAt there is nothing to compare
+    expect(service.isOlderThanSent(TX_ID, PARTNER_ID, undefined)).toBe(false);
+  });
 });
 
 describe('SessionBroadcastDedupeService.runExclusive', () => {
@@ -223,7 +266,23 @@ describe('SessionBroadcastDedupeService.runExclusive', () => {
   beforeEach(() => {
     service = new SessionBroadcastDedupeService({
       debug: jest.fn(),
+      warn: jest.fn(),
     } as never);
+  });
+
+  it('stops waiting for a previous broadcast that never ends after queueMaxWaitMs', async () => {
+    service.queueMaxWaitMs = 20;
+    // A partner that never answers: the first broadcast never settles
+    void service.runExclusive(
+      TX_ID,
+      PARTNER_ID,
+      () => new Promise<void>(() => undefined),
+    );
+
+    // The Ended update, and the CDR sent after it, still go out
+    await expect(
+      service.runExclusive(TX_ID, PARTNER_ID, async () => 'sent'),
+    ).resolves.toBe('sent');
   });
 
   it('runs the broadcasts of one session to one partner one after the other', async () => {
