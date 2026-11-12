@@ -40,6 +40,12 @@ interface SessionEnd {
   totalKwh?: number;
 }
 
+// A charging period with its end (the next reading), implicit in OCPI
+interface TimedChargingPeriod {
+  period: ChargingPeriod;
+  end: Date;
+}
+
 // Rounding slack when comparing session boundaries with register readings (kWh)
 const ENERGY_TOLERANCE_KWH = 1e-6;
 // Per-phase energy registers, summed when a station sends no total (core MeterValueUtils order)
@@ -194,8 +200,15 @@ export class SessionMapper extends BaseTransactionMapper {
     return result;
   }
 
+  /**
+   * PATCH appends charging_periods (OCPI 2.2.1 §9.2.2.3), so it carries every period starting
+   * at or after `sentUntil` (the end of the last period the partner already has). Several meter
+   * values can land between two PATCHes (a Sample.Clock reading does not trigger one, the
+   * Ended event brings all its readings at once): sending only the latest period lost the rest.
+   */
   public async mapIncrementalSessionPatch(
     transaction: TransactionDto,
+    sentUntil: Date,
   ): Promise<Partial<Session>> {
     const [, , tariffMap] =
       await this.getLocationsTokensAndTariffsMapsForTransactions([transaction]);
@@ -205,13 +218,16 @@ export class SessionMapper extends BaseTransactionMapper {
         `Tariff not found for transaction ${transaction.transactionId}`,
       );
     }
-    // PATCH appends charging_periods: send only the period closed by the latest reading
-    const periods = this.getChargingPeriods(
+    const periods = this.getTimedChargingPeriods(
       transaction.meterValues ?? [],
       String(tariff.ocpiTariffId),
       this.getSessionStart(transaction),
       this.getSessionEnd(transaction),
-    ).slice(-1);
+    )
+      .filter(
+        ({ period }) => period.start_date_time.getTime() >= sentUntil.getTime(),
+      )
+      .map(({ period }) => period);
     // total_cost from the kwh sent, so it matches kwh x price and the CDR total_cost
     const kwh = roundOcpiNumber(transaction.totalKwh || 0);
 
@@ -518,6 +534,39 @@ export class SessionMapper extends BaseTransactionMapper {
     sessionStart?: SessionStart,
     sessionEnd?: SessionEnd,
   ): ChargingPeriod[] {
+    return this.getTimedChargingPeriods(
+      meterValues,
+      tariffId,
+      sessionStart,
+      sessionEnd,
+    ).map(({ period }) => period);
+  }
+
+  /**
+   * End of the last charging period of the transaction, i.e. how far a session carrying all
+   * its periods goes. The epoch when there is no period yet, so every later period is unsent.
+   */
+  public getChargingPeriodsEnd(transaction: Partial<TransactionDto>): Date {
+    return (
+      this.getTimedChargingPeriods(
+        transaction.meterValues ?? [],
+        '',
+        this.getSessionStart(transaction),
+        this.getSessionEnd(transaction),
+      ).at(-1)?.end ?? new Date(0)
+    );
+  }
+
+  /**
+   * getChargingPeriods with the end of each period (the next reading), which OCPI leaves
+   * implicit but the PATCH path needs to know how far the partner's periods go.
+   */
+  private getTimedChargingPeriods(
+    meterValues: MeterValueDto[] = [],
+    tariffId: string,
+    sessionStart?: SessionStart,
+    sessionEnd?: SessionEnd,
+  ): TimedChargingPeriod[] {
     const readings = this.mergeMeterValuesByTimestamp(meterValues);
     const startKwh = this.getTrustedStartKwh(readings, sessionStart);
     if (
@@ -556,9 +605,12 @@ export class SessionMapper extends BaseTransactionMapper {
     }
 
     return readings.slice(0, -1).map((from, index) => ({
-      start_date_time: new Date(from.timestamp),
-      dimensions: this.getCdrDimensions(readings[index + 1], from, startKwh),
-      tariff_id: tariffId,
+      period: {
+        start_date_time: new Date(from.timestamp),
+        dimensions: this.getCdrDimensions(readings[index + 1], from, startKwh),
+        tariff_id: tariffId,
+      },
+      end: new Date(readings[index + 1].timestamp),
     }));
   }
 
