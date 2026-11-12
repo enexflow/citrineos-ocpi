@@ -11,7 +11,6 @@ type DedupeKey = string;
 @Service()
 export class SessionBroadcastDedupeService {
   private readonly lastFingerprint = new Map<DedupeKey, string>();
-  private readonly inFlight = new Set<DedupeKey>();
   // End of the last charging period each partner has, keyed by transactionId:partnerId
   private readonly sentUntil = new Map<string, Date>();
   // updatedAt of the newest transaction snapshot sent to each partner, keyed like sentUntil
@@ -66,10 +65,6 @@ export class SessionBroadcastDedupeService {
     const k = this.key(transactionId, partnerId, method);
     const fp = this.fingerprint(body);
 
-    if (this.inFlight.has(k)) {
-      this.logger.debug('Session broadcast skipped (in flight)', { k });
-      return false;
-    }
     if (this.lastFingerprint.get(k) === fp) {
       this.logger.debug('Session broadcast skipped (duplicate fingerprint)', {
         k,
@@ -80,14 +75,6 @@ export class SessionBroadcastDedupeService {
     return true;
   }
 
-  markInFlight(
-    transactionId: string,
-    partnerId: number,
-    method: HttpMethod,
-  ): void {
-    this.inFlight.add(this.key(transactionId, partnerId, method));
-  }
-
   markSent(
     transactionId: string,
     partnerId: number,
@@ -96,15 +83,6 @@ export class SessionBroadcastDedupeService {
   ): void {
     const k = this.key(transactionId, partnerId, method);
     this.lastFingerprint.set(k, this.fingerprint(body));
-    this.inFlight.delete(k);
-  }
-
-  markFailed(
-    transactionId: string,
-    partnerId: number,
-    method: HttpMethod,
-  ): void {
-    this.inFlight.delete(this.key(transactionId, partnerId, method));
   }
 
   /**
@@ -153,6 +131,11 @@ export class SessionBroadcastDedupeService {
    */
   getSentUntil(transactionId: string, partnerId: number): Date | undefined {
     return this.sentUntil.get(`${transactionId}:${partnerId}`);
+  }
+
+  /** Forgets the cursor, so the next update resyncs the partner with a full PUT. */
+  forgetSentUntil(transactionId: string, partnerId: number): void {
+    this.sentUntil.delete(`${transactionId}:${partnerId}`);
   }
 
   /**
@@ -222,11 +205,6 @@ export class SessionBroadcastDedupeService {
     for (const k of this.lastFingerprint.keys()) {
       if (k.startsWith(`${transactionId}:`)) {
         this.lastFingerprint.delete(k);
-      }
-    }
-    for (const k of this.inFlight) {
-      if (k.startsWith(`${transactionId}:`)) {
-        this.inFlight.delete(k);
       }
     }
   }

@@ -44,6 +44,7 @@ import type { OcpiTestStack } from '../../../../Tests/helpers/setupOcpiTestStack
 import { OcpiGraphqlClient } from '../../graphql/OcpiGraphqlClient';
 import { OcpiConfigToken } from '../../config/ocpi.types';
 import { SessionBroadcaster } from '../SessionBroadcaster';
+import { SessionBroadcastDedupeService } from '../../services/SessionBroadcastDedupeService';
 
 const PARTNER_ORIGIN = 'http://partner.test';
 const PARTNER_SESSIONS_URL = `${PARTNER_ORIGIN}/ocpi/emsp/2.2.1/sessions`;
@@ -93,6 +94,15 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
 
   beforeEach(async () => {
     await stack.cleanup(['TenantPartners', 'Tenants']);
+    // Every test reuses TX-1: start from a fresh dedupe state (clear() keeps the time of the
+    // last snapshot sent for a while, so a reused transaction id would look like a late update)
+    const base = Container.get(SessionBroadcaster);
+    broadcaster = new SessionBroadcaster(
+      base.logger,
+      base.sessionsClientApi,
+      base.sessionMapper,
+      new SessionBroadcastDedupeService(base.logger),
+    );
 
     // Sessions are owned by the CPO (spec 9), so the CPO is Sender and the receiving partner
     // is an eMSP.
@@ -336,6 +346,52 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     await broadcaster.broadcastPatchSession(tenant, transactionDto, partnerId);
 
     expect(putScope.isDone()).toBe(true);
+    expect(seenPutBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
+    expect(patchScope.isDone()).toBe(false);
+  });
+
+  it('resyncs with a PUT after the partner answers a PATCH with an OCPI error status_code', async () => {
+    const ok = { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' };
+    nock(PARTNER_ORIGIN)
+      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .reply(200, ok);
+    const opening = buildTransactionDto();
+    broadcaster.clearSessionBroadcastDedupe(opening.transactionId);
+    await broadcaster.broadcastPutSession(tenant, opening, partnerId);
+
+    // HTTP 200 but OCPI 2003: the partner does not have the session
+    const rejectedPatch = nock(PARTNER_ORIGIN)
+      .patch(/\/sessions\/FR\/CPO\/TX-1/)
+      .reply(200, {
+        status_code: 2003,
+        status_message: 'Unknown session',
+        timestamp: '2026-01-01T10:10:01Z',
+      });
+    await broadcaster.broadcastPatchSession(
+      tenant,
+      buildTransactionDto({ totalKwh: 7, updatedAt: '2026-01-01T10:10:00Z' }),
+      partnerId,
+    );
+    expect(rejectedPatch.isDone()).toBe(true);
+
+    // A PATCH cannot fix a session the partner lacks: the next update is a full PUT
+    let seenPutBody: any;
+    const resyncPut = nock(PARTNER_ORIGIN)
+      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .reply(200, function (_uri, body) {
+        seenPutBody = body;
+        return ok;
+      });
+    const patchScope = nock(PARTNER_ORIGIN)
+      .patch(/\/sessions\/FR\/CPO\/TX-1/)
+      .reply(200, ok);
+    await broadcaster.broadcastPatchSession(
+      tenant,
+      buildTransactionDto({ totalKwh: 8.2, updatedAt: '2026-01-01T10:12:00Z' }),
+      partnerId,
+    );
+
+    expect(resyncPut.isDone()).toBe(true);
     expect(seenPutBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
     expect(patchScope.isDone()).toBe(false);
   });

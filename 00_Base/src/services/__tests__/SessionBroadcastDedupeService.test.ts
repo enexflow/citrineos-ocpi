@@ -98,31 +98,6 @@ describe('SessionBroadcastDedupeService', () => {
     ).toBe(true);
   });
 
-  it('blocks second call while in flight', () => {
-    const body = pendingBody();
-
-    service.markInFlight(TX_ID, PARTNER_ID, HttpMethod.Put);
-
-    expect(
-      service.shouldBroadcast(TX_ID, PARTNER_ID, HttpMethod.Put, body),
-    ).toBe(false);
-    expect(logger.debug).toHaveBeenCalledWith(
-      'Session broadcast skipped (in flight)',
-      expect.any(Object),
-    );
-  });
-
-  it('allows retry after markFailed', () => {
-    const body = pendingBody();
-
-    service.markInFlight(TX_ID, PARTNER_ID, HttpMethod.Put);
-    service.markFailed(TX_ID, PARTNER_ID, HttpMethod.Put);
-
-    expect(
-      service.shouldBroadcast(TX_ID, PARTNER_ID, HttpMethod.Put, body),
-    ).toBe(true);
-  });
-
   it('clear removes stored fingerprints for transaction', () => {
     const body = pendingBody();
     service.markSent(TX_ID, PARTNER_ID, HttpMethod.Put, body);
@@ -214,6 +189,18 @@ describe('SessionBroadcastDedupeService charging period cursor', () => {
     service.clear(TX_ID);
     expect(service.getSentUntil(TX_ID, PARTNER_ID)).toBeUndefined();
     expect(service.getSentUntil('other-tx', PARTNER_ID)).toBeDefined();
+  });
+
+  it('forgets the cursor so the next update resyncs with a PUT', () => {
+    service.advanceSentUntil(
+      TX_ID,
+      PARTNER_ID,
+      new Date('2026-07-13T10:00:00Z'),
+    );
+
+    service.forgetSentUntil(TX_ID, PARTNER_ID);
+
+    expect(service.getSentUntil(TX_ID, PARTNER_ID)).toBeUndefined();
   });
 
   it('still recognizes a late older snapshot for endedStateTtlMs after clear', () => {

@@ -13,7 +13,11 @@ import { InterfaceRole } from '../model/InterfaceRole.js';
 import type { TenantDto, TransactionDto } from '@zetra/citrineos-base';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { SessionMapper } from '../mapper/index.js';
-import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
+import {
+  type OcpiEmptyResponse,
+  OcpiEmptyResponseSchema,
+} from '../model/OcpiEmptyResponse.js';
+import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
 import type { BroadcastParams } from '../trigger/BaseClientApi.js';
 import { SessionBroadcastDedupeService } from '../services/SessionBroadcastDedupeService.js';
 import {
@@ -53,7 +57,14 @@ export class SessionBroadcaster extends BaseBroadcaster {
       // An update handled before this insert already PUT the whole session (resync, or Gireve)
       // from a fresher snapshot. This insert snapshot would replace the partner's charging
       // periods with older ones while the cursor stays ahead, leaving a gap.
-      if (this.dedupeService.getSentUntil(txId, partnerId)) {
+      if (
+        this.dedupeService.getSentUntil(txId, partnerId) ||
+        this.dedupeService.isOlderThanSent(
+          txId,
+          partnerId,
+          snapshotTime(transactionDto),
+        )
+      ) {
         this.logger.debug(
           `Session ${txId} already sent to partner ${partnerId}, skipping the opening PUT`,
         );
@@ -61,7 +72,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
       }
       const session =
         await this.sessionMapper.mapTransactionToSession(transactionDto);
-      const sent = await this.broadcastSessionDeduped(
+      const result = await this.broadcastSessionDeduped(
         txId,
         partnerId,
         tenant,
@@ -72,7 +83,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
         ocpiToCountryCode,
         ocpiToPartyId,
       );
-      if (sent) {
+      if (result === 'sent') {
         // The PUT carries every period: later PATCHes append from where it ends
         this.dedupeService.advanceSentUntil(
           txId,
@@ -131,7 +142,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
       if (owner && isGirevePartner(owner)) {
         const putBody = await this.sessionMapper.mapTransactionToSession(tx);
         if (
-          await this.broadcastSessionDeduped(
+          (await this.broadcastSessionDeduped(
             txId,
             ownerId,
             tenant,
@@ -141,7 +152,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
             (p) => p.id === ownerId && isGirevePartner(p),
             ocpiToCountryCode,
             ocpiToPartyId,
-          )
+          )) === 'sent'
         ) {
           // Marks the session as sent, so a late opening PUT does not overwrite this fresher one
           this.dedupeService.advanceSentUntil(
@@ -165,7 +176,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
         );
         const putBody = await this.sessionMapper.mapTransactionToSession(tx);
         if (
-          await this.broadcastSessionDeduped(
+          (await this.broadcastSessionDeduped(
             txId,
             ownerId,
             tenant,
@@ -175,7 +186,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
             standardPartner,
             ocpiToCountryCode,
             ocpiToPartyId,
-          )
+          )) === 'sent'
         ) {
           this.dedupeService.advanceSentUntil(
             txId,
@@ -190,27 +201,29 @@ export class SessionBroadcaster extends BaseBroadcaster {
         tx,
         sentUntil,
       );
-      // The cursor only moves once the partner has the periods: after a failed PATCH the
-      // next one carries them again
-      if (
-        await this.broadcastSessionDeduped(
-          txId,
-          ownerId,
-          tenant,
-          patchBody,
-          HttpMethod.Patch,
-          path,
-          standardPartner,
-          ocpiToCountryCode,
-          ocpiToPartyId,
-        )
-      ) {
+      const result = await this.broadcastSessionDeduped(
+        txId,
+        ownerId,
+        tenant,
+        patchBody,
+        HttpMethod.Patch,
+        path,
+        standardPartner,
+        ocpiToCountryCode,
+        ocpiToPartyId,
+      );
+      if (result === 'sent') {
         this.dedupeService.advanceSentUntil(
           txId,
           ownerId,
           this.sessionMapper.getChargingPeriodsEnd(tx),
           snapshotAt,
         );
+      } else if (result === 'failed') {
+        // The partner may lack the session (OCPI error such as 2003) or may have applied the
+        // PATCH despite the error (timeout). A PATCH cannot fix either, so forget the cursor:
+        // the next update PUTs the whole session, which replaces its periods (OCPI 4.1.4.3).
+        this.dedupeService.forgetSentUntil(txId, ownerId);
       }
     });
   }
@@ -257,7 +270,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
     >['partnerFilter'],
     ocpiToCountryCode?: string | null,
     ocpiToPartyId?: string | null,
-  ): Promise<boolean> {
+  ): Promise<'sent' | 'skipped' | 'failed'> {
     if (
       !this.dedupeService.shouldBroadcast(
         transactionId,
@@ -266,11 +279,11 @@ export class SessionBroadcaster extends BaseBroadcaster {
         body,
       )
     ) {
-      return false;
+      return 'skipped';
     }
-    this.dedupeService.markInFlight(transactionId, partnerId, method);
     try {
-      const responses = await this.sessionsClientApi.broadcastToClients({
+      // broadcastToClients is typed with the Zod schema, not the parsed response
+      const responses = (await this.sessionsClientApi.broadcastToClients({
         cpoCountryCode: tenant.countryCode!,
         cpoPartyId: tenant.partyId!,
         moduleId: ModuleId.Sessions,
@@ -282,21 +295,28 @@ export class SessionBroadcaster extends BaseBroadcaster {
         partnerFilter,
         ocpiToCountryCode,
         ocpiToPartyId,
-      });
-      // broadcastToClients logs and swallows partner errors. The filter keeps only the token
-      // owner, so no response means it did not get the session: do not record it as sent,
-      // or the dedupe would skip the same body next time and the PATCH cursor would move on
-      if (responses.length === 0) {
-        this.dedupeService.markFailed(transactionId, partnerId, method);
+      })) as unknown as OcpiEmptyResponse[];
+      // broadcastToClients logs and swallows partner errors, and an HTTP 200 can still carry
+      // an OCPI error status_code (e.g. 2003 on an unknown session). The filter keeps only the
+      // token owner, so delivered means one 1000 answer. Otherwise do not record it as sent,
+      // or the dedupe would skip the same body next time and the PATCH cursor would move on.
+      if (
+        !responses.some(
+          (response) =>
+            response?.status_code === OcpiResponseStatusCode.GenericSuccessCode,
+        )
+      ) {
         this.logger.warn(
           `broadcast${method}Session not delivered to partner ${partnerId} for ${path}`,
+          {
+            statusCodes: responses.map((response) => response?.status_code),
+          },
         );
-        return false;
+        return 'failed';
       }
       this.dedupeService.markSent(transactionId, partnerId, method, body);
-      return true;
+      return 'sent';
     } catch (e) {
-      this.dedupeService.markFailed(transactionId, partnerId, method);
       this.logger.error(`broadcast${method}Session failed for ${path}`, e);
       throw e;
     }
