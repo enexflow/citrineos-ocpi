@@ -49,17 +49,28 @@ export class SessionBroadcaster extends BaseBroadcaster {
       transactionDto.authorization,
     );
 
-    await this.broadcastSessionDeduped(
-      session.id!,
-      tokenOwnerTenantPartnerId,
-      tenant,
-      session,
-      HttpMethod.Put,
-      path,
-      tokenOwnerPartnerFilter(tokenOwnerTenantPartnerId),
-      ocpiToCountryCode,
-      ocpiToPartyId,
-    );
+    const partnerId = tokenOwnerTenantPartnerId;
+    await this.dedupeService.runExclusive(session.id!, partnerId, async () => {
+      const sent = await this.broadcastSessionDeduped(
+        session.id!,
+        partnerId,
+        tenant,
+        session,
+        HttpMethod.Put,
+        path,
+        tokenOwnerPartnerFilter(partnerId),
+        ocpiToCountryCode,
+        ocpiToPartyId,
+      );
+      if (sent) {
+        // The PUT carries every period: later PATCHes append from where it ends
+        this.dedupeService.advanceSentUntil(
+          session.id!,
+          partnerId,
+          this.sessionMapper.getChargingPeriodsEnd(transactionDto),
+        );
+      }
+    });
   }
 
   async broadcastPatchSession(
@@ -96,37 +107,81 @@ export class SessionBroadcaster extends BaseBroadcaster {
     // Only the token owner receives the session: build just the body it gets
     // (Gireve: full PUT, standard partners: incremental PATCH)
     const owner = transactionDto.authorization?.tenantPartner;
-    if (owner && isGirevePartner(owner)) {
-      const putBody = await this.sessionMapper.mapTransactionToSession(
-        transactionDto as TransactionDto,
+    const tx = transactionDto as TransactionDto;
+    await this.dedupeService.runExclusive(txId, ownerId, async () => {
+      if (owner && isGirevePartner(owner)) {
+        const putBody = await this.sessionMapper.mapTransactionToSession(tx);
+        await this.broadcastSessionDeduped(
+          txId,
+          ownerId,
+          tenant,
+          putBody,
+          HttpMethod.Put,
+          path,
+          (p) => p.id === ownerId && isGirevePartner(p),
+          ocpiToCountryCode,
+          ocpiToPartyId,
+        );
+        return;
+      }
+      const standardPartner: BroadcastParams<
+        typeof OcpiEmptyResponseSchema
+      >['partnerFilter'] = (p) => p.id === ownerId && !isGirevePartner(p);
+      const sentUntil = this.dedupeService.getSentUntil(txId, ownerId);
+      if (!sentUntil) {
+        // Unknown cursor (restart, initial PUT failed): a PATCH could only guess which periods
+        // the partner has, so PUT the whole session, which replaces its charging_periods
+        this.logger.info(
+          `No charging period cursor for session ${txId} and partner ${ownerId}, resyncing with a PUT`,
+        );
+        const putBody = await this.sessionMapper.mapTransactionToSession(tx);
+        if (
+          await this.broadcastSessionDeduped(
+            txId,
+            ownerId,
+            tenant,
+            putBody,
+            HttpMethod.Put,
+            path,
+            standardPartner,
+            ocpiToCountryCode,
+            ocpiToPartyId,
+          )
+        ) {
+          this.dedupeService.advanceSentUntil(
+            txId,
+            ownerId,
+            this.sessionMapper.getChargingPeriodsEnd(tx),
+          );
+        }
+        return;
+      }
+      const patchBody = await this.sessionMapper.mapIncrementalSessionPatch(
+        tx,
+        sentUntil,
       );
-      await this.broadcastSessionDeduped(
-        txId,
-        ownerId,
-        tenant,
-        putBody,
-        HttpMethod.Put,
-        path,
-        (p) => p.id === ownerId && isGirevePartner(p),
-        ocpiToCountryCode,
-        ocpiToPartyId,
-      );
-      return;
-    }
-    const patchBody = await this.sessionMapper.mapIncrementalSessionPatch(
-      transactionDto as TransactionDto,
-    );
-    await this.broadcastSessionDeduped(
-      txId,
-      ownerId,
-      tenant,
-      patchBody,
-      HttpMethod.Patch,
-      path,
-      (p) => p.id === ownerId && !isGirevePartner(p),
-      ocpiToCountryCode,
-      ocpiToPartyId,
-    );
+      // The cursor only moves once the partner has the periods: after a failed PATCH the
+      // next one carries them again
+      if (
+        await this.broadcastSessionDeduped(
+          txId,
+          ownerId,
+          tenant,
+          patchBody,
+          HttpMethod.Patch,
+          path,
+          standardPartner,
+          ocpiToCountryCode,
+          ocpiToPartyId,
+        )
+      ) {
+        this.dedupeService.advanceSentUntil(
+          txId,
+          ownerId,
+          this.sessionMapper.getChargingPeriodsEnd(tx),
+        );
+      }
+    });
   }
 
   private async broadcastSession(
@@ -171,7 +226,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
     >['partnerFilter'],
     ocpiToCountryCode?: string | null,
     ocpiToPartyId?: string | null,
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (
       !this.dedupeService.shouldBroadcast(
         transactionId,
@@ -180,11 +235,11 @@ export class SessionBroadcaster extends BaseBroadcaster {
         body,
       )
     ) {
-      return;
+      return false;
     }
     this.dedupeService.markInFlight(transactionId, partnerId, method);
     try {
-      await this.sessionsClientApi.broadcastToClients({
+      const responses = await this.sessionsClientApi.broadcastToClients({
         cpoCountryCode: tenant.countryCode!,
         cpoPartyId: tenant.partyId!,
         moduleId: ModuleId.Sessions,
@@ -197,7 +252,18 @@ export class SessionBroadcaster extends BaseBroadcaster {
         ocpiToCountryCode,
         ocpiToPartyId,
       });
+      // broadcastToClients logs and swallows partner errors. The filter keeps only the token
+      // owner, so no response means it did not get the session: do not record it as sent,
+      // or the dedupe would skip the same body next time and the PATCH cursor would move on
+      if (responses.length === 0) {
+        this.dedupeService.markFailed(transactionId, partnerId, method);
+        this.logger.warn(
+          `broadcast${method}Session not delivered to partner ${partnerId} for ${path}`,
+        );
+        return false;
+      }
       this.dedupeService.markSent(transactionId, partnerId, method, body);
+      return true;
     } catch (e) {
       this.dedupeService.markFailed(transactionId, partnerId, method);
       this.logger.error(`broadcast${method}Session failed for ${path}`, e);

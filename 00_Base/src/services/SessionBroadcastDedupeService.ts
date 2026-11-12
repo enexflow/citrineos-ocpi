@@ -12,6 +12,10 @@ type DedupeKey = string;
 export class SessionBroadcastDedupeService {
   private readonly lastFingerprint = new Map<DedupeKey, string>();
   private readonly inFlight = new Set<DedupeKey>();
+  // End of the last charging period each partner has, keyed by transactionId:partnerId
+  private readonly sentUntil = new Map<string, Date>();
+  // Tail of the broadcasts queued per transactionId:partnerId
+  private readonly queues = new Map<string, Promise<unknown>>();
 
   constructor(private readonly logger: Logger<ILogObj>) {}
 
@@ -92,7 +96,59 @@ export class SessionBroadcastDedupeService {
     this.inFlight.delete(this.key(transactionId, partnerId, method));
   }
 
+  /**
+   * Runs the broadcasts of one session to one partner one after the other. Reading the
+   * sentUntil cursor, sending and moving it must not interleave, or two PATCHes built from the
+   * same cursor would both append the same periods. Queuing (instead of skipping while one is
+   * in flight) also keeps the last update of a session, such as the Ended one, from being dropped.
+   */
+  async runExclusive<T>(
+    transactionId: string,
+    partnerId: number,
+    task: () => Promise<T>,
+  ): Promise<T> {
+    const k = `${transactionId}:${partnerId}`;
+    const run = (this.queues.get(k) ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(task);
+    const tail = run.catch(() => undefined);
+    this.queues.set(k, tail);
+    try {
+      return await run;
+    } finally {
+      if (this.queues.get(k) === tail) {
+        this.queues.delete(k);
+      }
+    }
+  }
+
+  /**
+   * End of the last charging period sent to the partner, undefined when unknown (nothing sent
+   * yet, or the process restarted): the caller then resyncs with a full PUT.
+   */
+  getSentUntil(transactionId: string, partnerId: number): Date | undefined {
+    return this.sentUntil.get(`${transactionId}:${partnerId}`);
+  }
+
+  /** Moves the cursor forward only, so a late, older update cannot make periods resend. */
+  advanceSentUntil(
+    transactionId: string,
+    partnerId: number,
+    until: Date,
+  ): void {
+    const k = `${transactionId}:${partnerId}`;
+    const current = this.sentUntil.get(k);
+    if (!current || until.getTime() > current.getTime()) {
+      this.sentUntil.set(k, until);
+    }
+  }
+
   clear(transactionId: string): void {
+    for (const k of this.sentUntil.keys()) {
+      if (k.startsWith(`${transactionId}:`)) {
+        this.sentUntil.delete(k);
+      }
+    }
     for (const k of this.lastFingerprint.keys()) {
       if (k.startsWith(`${transactionId}:`)) {
         this.lastFingerprint.delete(k);

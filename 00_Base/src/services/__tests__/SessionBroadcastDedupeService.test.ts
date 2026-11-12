@@ -167,3 +167,106 @@ describe('SessionBroadcastDedupeService', () => {
     ).toBe(false);
   });
 });
+
+describe('SessionBroadcastDedupeService charging period cursor', () => {
+  let service: SessionBroadcastDedupeService;
+
+  beforeEach(() => {
+    service = new SessionBroadcastDedupeService({
+      debug: jest.fn(),
+    } as never);
+  });
+
+  it('is unknown until a broadcast sets it', () => {
+    expect(service.getSentUntil(TX_ID, PARTNER_ID)).toBeUndefined();
+  });
+
+  it('only moves forward', () => {
+    service.advanceSentUntil(
+      TX_ID,
+      PARTNER_ID,
+      new Date('2026-07-13T10:00:00Z'),
+    );
+    service.advanceSentUntil(
+      TX_ID,
+      PARTNER_ID,
+      new Date('2026-07-13T09:00:00Z'),
+    );
+
+    expect(service.getSentUntil(TX_ID, PARTNER_ID)).toEqual(
+      new Date('2026-07-13T10:00:00Z'),
+    );
+  });
+
+  it('is kept per partner and dropped by clear', () => {
+    service.advanceSentUntil(
+      TX_ID,
+      PARTNER_ID,
+      new Date('2026-07-13T10:00:00Z'),
+    );
+    service.advanceSentUntil(
+      'other-tx',
+      PARTNER_ID,
+      new Date('2026-07-13T10:00:00Z'),
+    );
+
+    expect(service.getSentUntil(TX_ID, PARTNER_ID + 1)).toBeUndefined();
+    service.clear(TX_ID);
+    expect(service.getSentUntil(TX_ID, PARTNER_ID)).toBeUndefined();
+    expect(service.getSentUntil('other-tx', PARTNER_ID)).toBeDefined();
+  });
+});
+
+describe('SessionBroadcastDedupeService.runExclusive', () => {
+  let service: SessionBroadcastDedupeService;
+
+  beforeEach(() => {
+    service = new SessionBroadcastDedupeService({
+      debug: jest.fn(),
+    } as never);
+  });
+
+  it('runs the broadcasts of one session to one partner one after the other', async () => {
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    const gate = new Promise<void>((resolve) => (releaseFirst = resolve));
+    const first = service.runExclusive(TX_ID, PARTNER_ID, async () => {
+      order.push('first:start');
+      await gate;
+      order.push('first:end');
+    });
+    // The Ended update arriving while the previous one is in flight is queued, not dropped
+    const second = service.runExclusive(TX_ID, PARTNER_ID, async () => {
+      order.push('second');
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(order).toEqual(['first:start']);
+    releaseFirst();
+    await Promise.all([first, second]);
+
+    expect(order).toEqual(['first:start', 'first:end', 'second']);
+  });
+
+  it('still runs the next broadcast when the previous one failed', async () => {
+    const failed = service.runExclusive(TX_ID, PARTNER_ID, async () => {
+      throw new Error('boom');
+    });
+    const next = service.runExclusive(TX_ID, PARTNER_ID, async () => 'sent');
+
+    await expect(failed).rejects.toThrow('boom');
+    await expect(next).resolves.toBe('sent');
+  });
+
+  it('does not make other sessions wait', async () => {
+    let releaseFirst!: () => void;
+    const gate = new Promise<void>((resolve) => (releaseFirst = resolve));
+    const first = service.runExclusive(TX_ID, PARTNER_ID, () => gate);
+
+    await expect(
+      service.runExclusive('other-tx', PARTNER_ID, async () => 'sent'),
+    ).resolves.toBe('sent');
+    releaseFirst();
+    await first;
+  });
+});

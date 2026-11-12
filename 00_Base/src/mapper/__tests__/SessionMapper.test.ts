@@ -534,8 +534,14 @@ describe('SessionMapper.mapIncrementalSessionPatch', () => {
       ]);
   });
 
-  it('only sends the period closed by the latest reading (PATCH appends)', async () => {
-    const patch = await mapper.mapIncrementalSessionPatch(transaction());
+  // The partner already has the periods up to the 10:15 reading
+  const SENT_UNTIL = new Date('2026-10-29T10:15:00.000Z');
+
+  it('only sends the periods the partner does not have yet (PATCH appends)', async () => {
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction(),
+      SENT_UNTIL,
+    );
 
     expect(patch.charging_periods).toHaveLength(1);
     expect(patch.charging_periods![0].start_date_time).toEqual(
@@ -544,11 +550,71 @@ describe('SessionMapper.mapIncrementalSessionPatch', () => {
     expect(energyOf(patch.charging_periods![0].dimensions)).toBeCloseTo(3, 5);
   });
 
+  it('sends every unsent period when several readings landed since the last PATCH', async () => {
+    // e.g. a Sample.Clock reading at 10:15 that did not trigger a PATCH
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction(),
+      new Date('2026-10-29T10:00:00.000Z'),
+    );
+
+    expect(
+      patch.charging_periods!.map((period) => period.start_date_time),
+    ).toEqual([
+      new Date('2026-10-29T10:00:00.000Z'),
+      new Date('2026-10-29T10:15:00.000Z'),
+    ]);
+    expect(
+      patch.charging_periods!.reduce(
+        (sum, period) => sum + energyOf(period.dimensions)!,
+        0,
+      ),
+    ).toBeCloseTo(5, 5);
+  });
+
+  it('sends all the readings of the Ended event, not only the period closed by endTime', async () => {
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction({
+        isActive: false,
+        meterStart: 100,
+        endTime: '2026-10-29T10:45:00.500+00:00',
+        totalKwh: 8,
+        meterValues: [
+          energyReading('2026-10-29T10:00:00.000Z', 100000),
+          energyReading('2026-10-29T10:15:00.000Z', 102000),
+          energyReading('2026-10-29T10:30:00.000Z', 105000),
+          energyReading('2026-10-29T10:35:00.000Z', 106000),
+          energyReading('2026-10-29T10:40:00.000Z', 107500),
+          energyReading('2026-10-29T10:45:00.000Z', 108000),
+        ],
+      }),
+      new Date('2026-10-29T10:30:00.000Z'),
+    );
+
+    expect(patch.charging_periods).toHaveLength(4);
+    // 105 -> 108 kWh between the last PATCH and the end, none of it lost
+    expect(
+      patch.charging_periods!.reduce(
+        (sum, period) => sum + energyOf(period.dimensions)!,
+        0,
+      ),
+    ).toBeCloseTo(3, 5);
+  });
+
+  it('leaves charging_periods out when every period was already sent', async () => {
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction(),
+      new Date('2026-10-29T10:30:00.000Z'),
+    );
+
+    expect(patch).not.toHaveProperty('charging_periods');
+  });
+
   it('leaves charging_periods out while no period is closed yet', async () => {
     const patch = await mapper.mapIncrementalSessionPatch(
       transaction({
         meterValues: [energyReading('2026-10-29T10:00:00.000Z', 100000)],
       }),
+      new Date(0),
     );
 
     expect(patch).not.toHaveProperty('charging_periods');
@@ -557,6 +623,7 @@ describe('SessionMapper.mapIncrementalSessionPatch', () => {
   it('rounds kwh to 4 decimals', async () => {
     const patch = await mapper.mapIncrementalSessionPatch(
       transaction({ totalKwh: 6.123456 }),
+      SENT_UNTIL,
     );
 
     expect(patch.kwh).toBe(6.1235);
@@ -584,6 +651,7 @@ describe('SessionMapper.mapIncrementalSessionPatch', () => {
     // 10.00996 kWh x 0.50 = 5.00498 -> 5.00, but the kwh sent is 10.01 -> 5.01
     const patch = await mapper.mapIncrementalSessionPatch(
       transaction({ totalKwh: 10.00996 }),
+      SENT_UNTIL,
     );
 
     expect(patch.kwh).toBe(10.01);
@@ -591,10 +659,55 @@ describe('SessionMapper.mapIncrementalSessionPatch', () => {
   });
 
   it('serializes last_updated in UTC with "Z" (Hasura returns "+00:00")', async () => {
-    const patch = await mapper.mapIncrementalSessionPatch(transaction());
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction(),
+      SENT_UNTIL,
+    );
 
     expect(JSON.parse(JSON.stringify(patch)).last_updated).toBe(
       '2026-10-29T10:30:00.000Z',
     );
+  });
+});
+
+describe('SessionMapper.getChargingPeriodsEnd', () => {
+  const mapper = new SessionMapper(
+    new Logger({ type: 'hidden' }),
+    {} as LocationsService,
+    {} as OcpiGraphqlClient,
+  );
+
+  it('is the last reading of an active session', () => {
+    expect(
+      mapper.getChargingPeriodsEnd({
+        isActive: true,
+        startTime: '2026-10-29T10:00:00+00:00',
+        meterValues: [
+          energyReading('2026-10-29T10:00:00.000Z', 100000),
+          energyReading('2026-10-29T10:15:00.000Z', 102000),
+        ],
+      } as unknown as TransactionDto),
+    ).toEqual(new Date('2026-10-29T10:15:00.000Z'));
+  });
+
+  it('is the end time of a finished session', () => {
+    expect(
+      mapper.getChargingPeriodsEnd({
+        isActive: false,
+        startTime: '2026-10-29T10:00:00+00:00',
+        endTime: '2026-10-29T10:20:00+00:00',
+        totalKwh: 2,
+        meterValues: [energyReading('2026-10-29T10:15:00.000Z', 102000)],
+      } as unknown as TransactionDto),
+    ).toEqual(new Date('2026-10-29T10:20:00.000Z'));
+  });
+
+  it('is the epoch while there is no period, so every later period is unsent', () => {
+    expect(
+      mapper.getChargingPeriodsEnd({
+        isActive: true,
+        meterValues: [],
+      } as unknown as TransactionDto),
+    ).toEqual(new Date(0));
   });
 });
