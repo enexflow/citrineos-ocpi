@@ -339,4 +339,33 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     expect(seenPutBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
     expect(patchScope.isDone()).toBe(false);
   });
+
+  it('does not send a late opening PUT over the resync PUT of an update handled first', async () => {
+    const putBodies: any[] = [];
+    nock(PARTNER_ORIGIN)
+      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .times(2)
+      .reply(200, function (_uri, body) {
+        putBodies.push(body);
+        return { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' };
+      });
+
+    // The UPDATE event wins the race: no cursor yet, so it PUTs the fresh session
+    const updateDto = buildTransactionDto({
+      totalKwh: 8.2,
+      updatedAt: '2026-01-01T10:10:00Z',
+    });
+    broadcaster.clearSessionBroadcastDedupe(updateDto.transactionId);
+    await broadcaster.broadcastPatchSession(tenant, updateDto, partnerId);
+
+    // The INSERT event comes second with its older snapshot
+    await broadcaster.broadcastPutSession(
+      tenant,
+      buildTransactionDto(),
+      partnerId,
+    );
+
+    expect(putBodies).toHaveLength(1);
+    expect(putBodies[0]).toMatchObject({ id: 'TX-1', kwh: 8.2 });
+  });
 });

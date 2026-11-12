@@ -108,6 +108,22 @@ describe('SessionBroadcaster', () => {
   });
 
   describe('broadcastPutSession', () => {
+    beforeEach(() => {
+      // Opening PUT: nothing sent for this session yet
+      mockDedupeService.getSentUntil.mockReturnValue(undefined);
+    });
+
+    it('skips the opening PUT when an update already sent the session', async () => {
+      // An update handled first already PUT a fresher snapshot (resync or Gireve)
+      mockDedupeService.getSentUntil.mockReturnValue(SENT_UNTIL);
+
+      await broadcaster.broadcastPutSession(tenant, transactionDto, 42);
+
+      expect(mockSessionsClientApi.broadcastToClients).not.toHaveBeenCalled();
+      expect(mockSessionMapper.mapTransactionToSession).not.toHaveBeenCalled();
+      expect(mockDedupeService.advanceSentUntil).not.toHaveBeenCalled();
+    });
+
     it('skips entirely when there is no token-owner partner', async () => {
       await broadcaster.broadcastPutSession(tenant, transactionDto, null);
       expect(mockSessionsClientApi.broadcastToClients).not.toHaveBeenCalled();
@@ -256,6 +272,12 @@ describe('SessionBroadcaster', () => {
       expect(
         mockSessionMapper.mapIncrementalSessionPatch,
       ).not.toHaveBeenCalled();
+      // So a late opening PUT is skipped instead of overwriting this one
+      expect(mockDedupeService.advanceSentUntil).toHaveBeenCalledWith(
+        'tx-1',
+        42,
+        PERIODS_END,
+      );
     });
 
     it('skips entirely when there is no token-owner partner', async () => {

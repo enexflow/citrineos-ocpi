@@ -42,17 +42,27 @@ export class SessionBroadcaster extends BaseBroadcaster {
       this.logger.debug('No token owner partner, skipping session broadcast');
       return;
     }
-    const session =
-      await this.sessionMapper.mapTransactionToSession(transactionDto);
-    const path = `/${tenant.countryCode}/${tenant.partyId}/${session.id}`;
+    const txId = transactionDto.transactionId!;
+    const path = `/${tenant.countryCode}/${tenant.partyId}/${txId}`;
     const { ocpiToCountryCode, ocpiToPartyId } = getOcpiToFromAuthorization(
       transactionDto.authorization,
     );
 
     const partnerId = tokenOwnerTenantPartnerId;
-    await this.dedupeService.runExclusive(session.id!, partnerId, async () => {
+    await this.dedupeService.runExclusive(txId, partnerId, async () => {
+      // An update handled before this insert already PUT the whole session (resync, or Gireve)
+      // from a fresher snapshot. This insert snapshot would replace the partner's charging
+      // periods with older ones while the cursor stays ahead, leaving a gap.
+      if (this.dedupeService.getSentUntil(txId, partnerId)) {
+        this.logger.debug(
+          `Session ${txId} already sent to partner ${partnerId}, skipping the opening PUT`,
+        );
+        return;
+      }
+      const session =
+        await this.sessionMapper.mapTransactionToSession(transactionDto);
       const sent = await this.broadcastSessionDeduped(
-        session.id!,
+        txId,
         partnerId,
         tenant,
         session,
@@ -65,7 +75,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
       if (sent) {
         // The PUT carries every period: later PATCHes append from where it ends
         this.dedupeService.advanceSentUntil(
-          session.id!,
+          txId,
           partnerId,
           this.sessionMapper.getChargingPeriodsEnd(transactionDto),
         );
@@ -111,17 +121,26 @@ export class SessionBroadcaster extends BaseBroadcaster {
     await this.dedupeService.runExclusive(txId, ownerId, async () => {
       if (owner && isGirevePartner(owner)) {
         const putBody = await this.sessionMapper.mapTransactionToSession(tx);
-        await this.broadcastSessionDeduped(
-          txId,
-          ownerId,
-          tenant,
-          putBody,
-          HttpMethod.Put,
-          path,
-          (p) => p.id === ownerId && isGirevePartner(p),
-          ocpiToCountryCode,
-          ocpiToPartyId,
-        );
+        if (
+          await this.broadcastSessionDeduped(
+            txId,
+            ownerId,
+            tenant,
+            putBody,
+            HttpMethod.Put,
+            path,
+            (p) => p.id === ownerId && isGirevePartner(p),
+            ocpiToCountryCode,
+            ocpiToPartyId,
+          )
+        ) {
+          // Marks the session as sent, so a late opening PUT does not overwrite this fresher one
+          this.dedupeService.advanceSentUntil(
+            txId,
+            ownerId,
+            this.sessionMapper.getChargingPeriodsEnd(tx),
+          );
+        }
         return;
       }
       const standardPartner: BroadcastParams<
