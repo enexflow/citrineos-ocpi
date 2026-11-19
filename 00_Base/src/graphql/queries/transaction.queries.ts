@@ -27,6 +27,7 @@ export const GET_TRANSACTIONS_QUERY = gql`
       chargingState
       timeSpentCharging
       totalKwh
+      meterStart
       stoppedReason
       remoteStartId
       totalCost
@@ -75,6 +76,7 @@ export const GET_TRANSACTION_BY_TRANSACTION_ID_QUERY = gql`
       chargingState
       timeSpentCharging
       totalKwh
+      meterStart
       stoppedReason
       remoteStartId
       totalCost

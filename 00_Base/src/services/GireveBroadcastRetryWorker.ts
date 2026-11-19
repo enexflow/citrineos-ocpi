@@ -9,12 +9,14 @@ import { OcpiConfigToken, type OcpiConfig } from '../config/ocpi.types.js';
 import { ModuleId } from '../model/ModuleId.js';
 import { HttpMethod } from '@zetra/citrineos-base';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
+import { OcpiResponseStatusCode } from '../model/OcpiResponse.js';
 import { GET_TENANT_PARTNER_BY_ID } from '../graphql/queries/tenantPartner.queries.js';
 
 import { SessionsClientApi } from '../trigger/SessionsClientApi.js';
 import { CdrsClientApi } from '../trigger/CdrsClientApi.js';
 import { TariffsClientApi } from '../trigger/TariffsClientApi.js';
 import { OcpiGraphqlClient } from '../graphql/index.js';
+import { CdrsService } from './CdrsService.js';
 
 import {
   GireveBroadcastRetryOutbox,
@@ -54,6 +56,7 @@ export class GireveBroadcastRetryWorker {
     @Inject() private readonly cdrsClientApi: CdrsClientApi,
     @Inject() private readonly tariffsClientApi: TariffsClientApi,
     @Inject() private readonly ocpiGraphqlClient: OcpiGraphqlClient,
+    @Inject() private readonly cdrsService: CdrsService,
   ) {}
 
   /**
@@ -101,6 +104,34 @@ export class GireveBroadcastRetryWorker {
       return JSON.stringify(e);
     } catch {
       return String(e);
+    }
+  }
+
+  /**
+   * Best-effort: the CDR was delivered, so a failure here must not reschedule
+   * the item (that would POST the CDR again).
+   */
+  private async markCdrRowAsSent(item: GireveRetryQueueItem): Promise<void> {
+    try {
+      const cdrId = await this.cdrsService.findSentCdrId(
+        item.resourceId,
+        item.partnerTenantPartnerId,
+      );
+      if (cdrId === undefined) {
+        this.logger.warn('Gireve retry: sent CDR row not found', {
+          id: item.id,
+          resourceId: item.resourceId,
+          partnerTenantPartnerId: item.partnerTenantPartnerId,
+        });
+        return;
+      }
+      await this.cdrsService.markCdrAsSent(cdrId, new Date().toISOString());
+    } catch (e) {
+      this.logger.error('Gireve retry: failed to mark CDR as sent', {
+        id: item.id,
+        resourceId: item.resourceId,
+        error: this.parseError(e),
+      });
     }
   }
 
@@ -162,7 +193,7 @@ export class GireveBroadcastRetryWorker {
           break;
         }
         case ModuleId.Cdrs: {
-          await this.cdrsClientApi.request(
+          const response = await this.cdrsClientApi.request(
             item.cpoCountryCode,
             item.cpoPartyId,
             toCountryCode,
@@ -178,6 +209,23 @@ export class GireveBroadcastRetryWorker {
             item.ocpiPath ?? undefined,
             partner.awsSecretCertificateArn ?? undefined,
           );
+          // Gireve answered, so the retry is done; but HTTP 2xx only means it received
+          // the CDR: an OCPI rejection (e.g. 2001) must not count as delivered.
+          if (
+            response?.status_code === OcpiResponseStatusCode.GenericSuccessCode
+          ) {
+            await this.markCdrRowAsSent(item);
+          } else {
+            this.logger.error(
+              'Gireve retry: CDR rejected, not marked as sent',
+              {
+                id: item.id,
+                resourceId: item.resourceId,
+                statusCode: response?.status_code,
+                statusMessage: response?.status_message,
+              },
+            );
+          }
           break;
         }
         case ModuleId.Tariffs: {

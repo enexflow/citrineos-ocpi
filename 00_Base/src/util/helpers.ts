@@ -170,8 +170,8 @@ export const handleHttpMethodForPartner = (
 };
 
 export const isGirevePartner = (partner: {
-  countryCode?: string;
-  partyId?: string;
+  countryCode?: string | null;
+  partyId?: string | null;
 }) => {
   const config = Container.get<OcpiConfig>(OcpiConfigToken);
   return (

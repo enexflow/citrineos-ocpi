@@ -27,6 +27,7 @@ jest.mock('../../util/helpers', () => ({
 import { CdrsService } from '../CdrsService';
 import {
   FIND_SENT_CDR_QUERY,
+  FIND_SENT_CDR_BY_TRANSACTION_QUERY,
   INSERT_CDR_MUTATION,
   UPDATE_CDR_SENT_STATUS_MUTATION,
 } from '../../graphql/queries/cdr.queries';
@@ -83,12 +84,31 @@ describe('CdrsService CDR persistence', () => {
       expect(mockGraphqlClient.request).not.toHaveBeenCalled();
     });
 
-    it('looks up an existing CDR by (ocpiCdrId, toTenantPartnerId) first', async () => {
+    // The CDR id is recomputed on every send: matching on it would miss a CDR
+    // stored under an earlier id format and send the transaction twice.
+    it('looks up an existing CDR by (transactionId, toTenantPartnerId) first', async () => {
       mockGraphqlClient.request
         .mockResolvedValueOnce({ Cdrs: [] })
         .mockResolvedValueOnce({ insert_Cdrs_one: { id: 500 } });
 
       await service.insertSentCdr(toTenantPartner, cdr, ctx);
+
+      expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
+        1,
+        FIND_SENT_CDR_BY_TRANSACTION_QUERY,
+        {
+          transactionId: 99,
+          toTenantPartnerId: 42,
+        },
+      );
+    });
+
+    it('falls back to (ocpiCdrId, toTenantPartnerId) without a transactionId', async () => {
+      mockGraphqlClient.request
+        .mockResolvedValueOnce({ Cdrs: [] })
+        .mockResolvedValueOnce({ insert_Cdrs_one: { id: 500 } });
+
+      await service.insertSentCdr(toTenantPartner, cdr, { tenantId: 7 });
 
       expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
         1,
@@ -101,12 +121,17 @@ describe('CdrsService CDR persistence', () => {
     });
 
     // Guards against duplicate rows when a session-end event is redelivered.
-    it('returns the existing row id and does NOT insert when already stored', async () => {
-      mockGraphqlClient.request.mockResolvedValueOnce({ Cdrs: [{ id: 321 }] });
+    it('returns the existing row and does NOT insert when already stored', async () => {
+      const stored = {
+        id: 321,
+        ocpiCdrId: 'tx-1',
+        successfullySentAt: '2026-01-01T11:00:02Z',
+      };
+      mockGraphqlClient.request.mockResolvedValueOnce({ Cdrs: [stored] });
 
       const result = await service.insertSentCdr(toTenantPartner, cdr, ctx);
 
-      expect(result).toBe(321);
+      expect(result).toEqual(stored);
       expect(mockGraphqlClient.request).toHaveBeenCalledTimes(1); // no insert
     });
 
@@ -117,7 +142,7 @@ describe('CdrsService CDR persistence', () => {
 
       const result = await service.insertSentCdr(toTenantPartner, cdr, ctx);
 
-      expect(result).toBe(500);
+      expect(result).toEqual({ id: 500, ocpiCdrId: 'CDR-001' });
       expect(mockGraphqlClient.request).toHaveBeenNthCalledWith(
         2,
         INSERT_CDR_MUTATION,

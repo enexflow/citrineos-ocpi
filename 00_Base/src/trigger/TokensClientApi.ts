@@ -29,9 +29,7 @@ export class TokensClientApi extends BaseClientApi {
         value.identifier === EndpointIdentifier.TOKENS_RECEIVER,
     )?.url;
     if (!url) {
-      throw new Error(
-        `No Tokens endpoint available for partnerProfile ${JSON.stringify(partnerProfile)}`,
-      );
+      throw new Error('No Tokens RECEIVER endpoint available for partner');
     }
     return url;
   }
@@ -42,9 +40,7 @@ export class TokensClientApi extends BaseClientApi {
         value.identifier === EndpointIdentifier.TOKENS_SENDER,
     )?.url;
     if (!url) {
-      throw new Error(
-        `No Tokens endpoint available for partnerProfile ${JSON.stringify(partnerProfile)}`,
-      );
+      throw new Error('No Tokens SENDER endpoint available for partner');
     }
     return url;
   }

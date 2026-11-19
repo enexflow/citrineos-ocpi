@@ -51,37 +51,36 @@ export class TokenBroadcaster extends BaseBroadcaster {
     await this.broadcastToken(tenant, token, HttpMethod.Patch, path);
   }
 
+  // Errors propagate to the caller (TokensModule), which catches them per
+  // tenant and logs them with context. Per-partner HTTP failures are caught
+  // and logged inside broadcastToClients and never reach this point.
   private async broadcastToken(
     tenant: TenantDto,
     token: Partial<TokenDTO>,
     method: HttpMethod,
     path: string,
   ): Promise<void> {
-    try {
-      const tokenTypeParam: Record<string, string> | undefined = token.type
-        ? { type: token.type }
-        : undefined;
+    const tokenTypeParam: Record<string, string> | undefined = token.type
+      ? { type: token.type }
+      : undefined;
 
-      const body = {
-        ...token,
-      };
-      if (method === HttpMethod.Put) {
-        body.party_id = tenant.partyId!;
-        body.country_code = tenant.countryCode!;
-      }
-      await this.tokensClientApi.broadcastToClients({
-        cpoCountryCode: tenant.countryCode!,
-        cpoPartyId: tenant.partyId!,
-        moduleId: ModuleId.Tokens,
-        interfaceRole: InterfaceRole.RECEIVER,
-        httpMethod: method,
-        schema: TokenResponseSchema,
-        body: body,
-        path: path,
-        otherParams: tokenTypeParam,
-      });
-    } catch (e) {
-      this.logger.error(`broadcast${method}Token failed for ${path}`, e);
+    const body = {
+      ...token,
+    };
+    if (method === HttpMethod.Put) {
+      body.party_id = tenant.partyId!;
+      body.country_code = tenant.countryCode!;
     }
+    await this.tokensClientApi.broadcastToClients({
+      cpoCountryCode: tenant.countryCode!,
+      cpoPartyId: tenant.partyId!,
+      moduleId: ModuleId.Tokens,
+      interfaceRole: InterfaceRole.RECEIVER,
+      httpMethod: method,
+      schema: TokenResponseSchema,
+      body: body,
+      path: path,
+      otherParams: tokenTypeParam,
+    });
   }
 }

@@ -50,6 +50,16 @@ export const READ_AUTHORIZATION = gql`
   }
 `;
 
+export const GET_AUTHORIZATION_OWNER = gql`
+  query GetAuthorizationOwner($idToken: citext!, $type: String!) {
+    Authorizations(
+      where: { idToken: { _eq: $idToken }, idTokenType: { _eq: $type } }
+    ) {
+      tenantPartnerId
+    }
+  }
+`;
+
 export const UPDATE_TOKEN_MUTATION = gql`
   mutation UpdateAuthorization(
     $idToken: citext!
@@ -289,6 +299,7 @@ export const GET_AUTHORIZATIONS_PAGINATED = gql`
       realTimeAuth
       language1
       groupAuthorizationId
+      disableOCPI
     }
   }
 `;

@@ -32,3 +32,16 @@ export const base64Encode = (input: string): string =>
 
 export const base64Decode = (input: string): string =>
   Buffer.from(input, 'base64').toString('utf-8');
+
+/**
+ * OCPI 2.2.1 §16.4: unless mentioned otherwise, numbers use 4 decimals.
+ */
+export const roundOcpiNumber = (value: number): number =>
+  Math.round(value * 10_000) / 10_000;
+
+/**
+ * Instant expressed in hours since epoch, rounded to 4 decimals. Durations computed as the
+ * difference of two such values add up exactly across consecutive periods.
+ */
+export const toRoundedHours = (date: Date): number =>
+  roundOcpiNumber(date.getTime() / 3_600_000);

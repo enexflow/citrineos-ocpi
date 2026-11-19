@@ -250,7 +250,7 @@ export class TariffMapper {
       party_id: partyId,
       currency: coreTariff.currency!,
       elements: elements,
-      start_date_time: toDate(coreTariff.startDateTime),
+      start_date_time: toOptionalDate(coreTariff.startDateTime),
       end_date_time: toOptionalDate(coreTariff.endDateTime),
       last_updated: toDate(coreTariff.updatedAt),
       ...(coreTariff.tariffType != null &&

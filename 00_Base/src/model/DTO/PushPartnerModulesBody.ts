@@ -25,6 +25,19 @@ export type PushPartnerModulesBody = z.infer<
   typeof PushPartnerModulesBodySchema
 >;
 
+/**
+ * Tokens admin push body. `includeOcpiDisabled` also re-sends our OCPI-disabled
+ * tokens as `valid: false`: the live invalidation is broadcast once, without
+ * retry, so this is the catch-up path when a partner missed it.
+ */
+export const PushPartnerTokensBodySchema = PushPartnerModulesBodySchema.extend({
+  includeOcpiDisabled: z.boolean().optional(),
+});
+
+export const PushPartnerTokensBodySchemaName = 'PushPartnerTokensBodySchema';
+
+export type PushPartnerTokensBody = z.infer<typeof PushPartnerTokensBodySchema>;
+
 export type PushFailure = {
   authId: string;
   uid?: string;

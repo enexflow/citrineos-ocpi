@@ -264,6 +264,29 @@ export const FIND_SENT_CDR_QUERY = gql`
       limit: 1
     ) {
       id
+      ocpiCdrId
+      successfullySentAt
+    }
+  }
+`;
+
+// A transaction yields one CDR per partner (Cdrs_transactionId_toTenantPartnerId_key),
+// whatever ocpiCdrId it was stored under.
+export const FIND_SENT_CDR_BY_TRANSACTION_QUERY = gql`
+  query FindSentCdrByTransaction(
+    $transactionId: Int!
+    $toTenantPartnerId: Int!
+  ) {
+    Cdrs(
+      where: {
+        transactionId: { _eq: $transactionId }
+        toTenantPartnerId: { _eq: $toTenantPartnerId }
+      }
+      limit: 1
+    ) {
+      id
+      ocpiCdrId
+      successfullySentAt
     }
   }
 `;

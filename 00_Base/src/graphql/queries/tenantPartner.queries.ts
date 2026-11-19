@@ -85,6 +85,33 @@ export const GET_TENANT_PARTNER_BY_ID = gql`
   }
 `;
 
+export const GET_REAL_TIME_TOKEN_AUTH_TENANT_PARTNERS = gql`
+  query GetRealTimeTokenAuthTenantPartners($tenantId: Int!) {
+    TenantPartners(
+      where: { tenantId: { _eq: $tenantId }, realTimeTokenAuth: { _eq: true } }
+      order_by: { id: asc }
+    ) {
+      id
+      countryCode
+      partyId
+      partnerProfileOCPI
+      awsSecretCertificateArn
+      tenantId
+      tenant: Tenant {
+        id
+        countryCode
+        partyId
+        serverProfileOCPI
+      }
+      roamingPartners: RoamingPartners {
+        id
+        countryCode
+        partyId
+      }
+    }
+  }
+`;
+
 export const DELETE_TENANT_PARTNER_BY_SERVER_TOKEN = gql`
   mutation DeleteTenantPartnerByServerToken($serverToken: String!) {
     delete_TenantPartners(

@@ -28,7 +28,7 @@ import type {
   SingleTokenRequest,
   TokenDTO,
   TokenResponse,
-  PushPartnerModulesBody,
+  PushPartnerTokensBody,
 } from '@citrineos/ocpi-base';
 import {
   AsAdminEndpoint,
@@ -72,8 +72,8 @@ import {
   VersionNumberParam,
   WhitelistType,
   WrongClientAccessException,
-  PushPartnerModulesBodySchema,
-  PushPartnerModulesBodySchemaName,
+  PushPartnerTokensBodySchema,
+  PushPartnerTokensBodySchemaName,
 } from '@citrineos/ocpi-base';
 import type { ITokensModuleApi } from './ITokensModuleApi.js';
 
@@ -374,10 +374,10 @@ export class TokensModuleApi
   @AsAdminEndpoint()
   async PushTokensToPartner(
     @BodyWithSchema(
-      PushPartnerModulesBodySchema,
-      PushPartnerModulesBodySchemaName,
+      PushPartnerTokensBodySchema,
+      PushPartnerTokensBodySchemaName,
     )
-    body: PushPartnerModulesBody,
+    body: PushPartnerTokensBody,
   ) {
     this.logger.info('PushTokensToPartner', body);
 

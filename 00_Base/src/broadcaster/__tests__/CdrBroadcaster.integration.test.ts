@@ -58,6 +58,8 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
   let tenant: any;
   let partnerId: number;
   let dbTariffId: number;
+  let dbTransactionId: number;
+  let expectedCdrId: string;
 
   beforeAll(async () => {
     stack = await startOcpiTestStack();
@@ -105,6 +107,7 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
   beforeEach(async () => {
     await stack.cleanup([
       'Cdrs',
+      'Transactions',
       'TariffElements',
       'Tariffs',
       'TenantPartners',
@@ -157,13 +160,24 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
       `INSERT INTO "TariffElements" ("tariffId", "priceComponents", "createdAt", "updatedAt")
        VALUES (${dbTariffId}, '[{"type":"ENERGY","price":0.42,"step_size":1}]'::jsonb, now(), now())`,
     );
+
+    // The CDR id embeds the Transactions PK, and Cdrs.transactionId is an FK to it:
+    // seed a real row so both resolve.
+    const [tx]: any[] = await stack.sequelize.query(
+      `INSERT INTO "Transactions"
+         ("transactionId", "tenantId", "isActive", "totalKwh", "chargingState", "createdAt", "updatedAt")
+       VALUES ('TX-1', ${tenant.id}, false, 5.5, 'Charging', now(), now())
+       RETURNING id`,
+      { type: 'SELECT' as any },
+    );
+    dbTransactionId = tx.id;
+    // {country_code}*{party_id}*F{Transactions.id}*{Locations.id}
+    expectedCdrId = `FR*CPO*F${dbTransactionId}*10`;
   });
 
   function buildTransactionDto(overrides: Record<string, any> = {}) {
     return {
-      // id intentionally omitted: CdrBroadcaster passes transactionDto.id as
-      // Cdrs.transactionId (FK to real Transactions), and leaving it undefined
-      // resolves to null so no real Transactions row needs seeding here.
+      id: dbTransactionId,
       transactionId: 'TX-1',
       stationId: 'ST-1',
       evseId: 1,
@@ -249,6 +263,30 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
     return row;
   }
 
+  // A CDR stored under the pre-format-change id (the transactionId), as rows sent
+  // before the CDR id format changed are.
+  async function seedLegacyCdr(sent: boolean) {
+    await stack.sequelize.query(
+      `INSERT INTO "Cdrs"
+         ("ocpiCdrId", "countryCode", "partyId", "startDateTime", "endDateTime", "cdrToken",
+          "authMethod", "cdrLocation", currency, "chargingPeriods", "totalCost", "totalEnergy",
+          "totalTime", "lastUpdated", "tenantId", "toTenantPartnerId", "transactionId",
+          "successfullySentAt", "createdAt", "updatedAt")
+       VALUES ('TX-1', 'FR', 'CPO', '2026-01-01T10:00:00Z', '2026-01-01T11:00:00Z', '{}'::jsonb,
+          'WHITELIST', '{}'::jsonb, 'EUR', '[]'::jsonb, '{"excl_vat":0}'::jsonb, 5.5,
+          1, '2026-01-01T11:00:00Z', ${tenant.id}, ${partnerId}, ${dbTransactionId},
+          ${sent ? 'now()' : 'NULL'}, now(), now())`,
+    );
+  }
+
+  async function countSentCdrs() {
+    const [row]: any[] = await stack.sequelize.query(
+      `SELECT count(*)::int AS n FROM "Cdrs" WHERE "toTenantPartnerId" = ${partnerId}`,
+      { type: 'SELECT' as any },
+    );
+    return row.n;
+  }
+
   it('POSTs the mapped CDR to the partner and marks it as sent on a delivered response', async () => {
     let seen: { path: string; body: any; headers: any } | undefined;
 
@@ -264,7 +302,8 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
 
     expect(scope.isDone()).toBe(true);
     expect(seen!.body).toMatchObject({
-      id: 'TX-1',
+      id: expectedCdrId,
+      session_id: 'TX-1',
       currency: 'EUR',
       total_energy: 5.5,
       cdr_location: expect.objectContaining({
@@ -284,7 +323,7 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
       'ocpi-to-party-id': 'EMS',
     });
 
-    const sentRow = await findSentCdr('TX-1');
+    const sentRow = await findSentCdr(expectedCdrId);
     expect(sentRow).toBeDefined();
     expect(sentRow.successfullySentAt).not.toBeNull();
   });
@@ -298,9 +337,38 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
     await broadcaster.broadcastPostCdr(transactionDto);
 
     expect(scope.isDone()).toBe(true);
-    const sentRow = await findSentCdr('TX-1');
+    const sentRow = await findSentCdr(expectedCdrId);
     expect(sentRow).toBeDefined();
     expect(sentRow.successfullySentAt).toBeNull();
+  });
+
+  it('does not re-send a CDR already delivered under its legacy id', async () => {
+    await seedLegacyCdr(true);
+    const scope = nock(PARTNER_ORIGIN).post(/.*/).reply(200, {});
+
+    await broadcaster.broadcastPostCdr(buildTransactionDto());
+
+    expect(scope.isDone()).toBe(false);
+    expect(await countSentCdrs()).toBe(1);
+  });
+
+  it('re-sends an undelivered CDR under its legacy id, not the new format', async () => {
+    await seedLegacyCdr(false);
+    let seenBody: any;
+    const scope = nock(PARTNER_ORIGIN)
+      .post('/ocpi/emsp/2.2.1/cdrs')
+      .reply(200, function (_uri, body) {
+        seenBody = body;
+        return { status_code: 1000, timestamp: '2026-01-01T11:00:01Z' };
+      });
+
+    await broadcaster.broadcastPostCdr(buildTransactionDto());
+
+    expect(scope.isDone()).toBe(true);
+    expect(seenBody.id).toBe('TX-1');
+    expect(await countSentCdrs()).toBe(1);
+    const legacyRow = await findSentCdr('TX-1');
+    expect(legacyRow.successfullySentAt).not.toBeNull();
   });
 
   it('does not broadcast (or store a CDR) for a still-active transaction', async () => {
@@ -313,7 +381,7 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
     await broadcaster.broadcastPostCdr(transactionDto);
 
     expect(scope.isDone()).toBe(false);
-    const sentRow = await findSentCdr('TX-1');
+    const sentRow = await findSentCdr(expectedCdrId);
     expect(sentRow).toBeUndefined();
   });
 
@@ -339,7 +407,7 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
     await broadcaster.broadcastPostCdr(transactionDto);
 
     expect(scope.isDone()).toBe(false);
-    const sentRow = await findSentCdr('TX-1');
+    const sentRow = await findSentCdr(expectedCdrId);
     expect(sentRow).toBeUndefined();
   });
 });
