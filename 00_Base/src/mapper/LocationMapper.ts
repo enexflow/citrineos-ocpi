@@ -473,10 +473,25 @@ export class EvseMapper {
     );
   }
 
+  /**
+   * False for connectors hidden from OCPI via Connectors.disableOCPI (null =
+   * enabled), e.g. phantom connectors left behind when a station reports other
+   * connector ids than the configured ones. Read structurally so this does not
+   * depend on the core ConnectorDto version.
+   */
+  static isConnectorOcpiEnabled(connector: ConnectorDto): boolean {
+    return (
+      (connector as ConnectorDto & { disableOCPI?: boolean | null })
+        .disableOCPI !== true
+    );
+  }
+
   static mapEvseStatusFromConnectors(
-    connectors: ConnectorDto[],
+    allConnectors: ConnectorDto[],
     activeTransactionConnectorIds?: ReadonlySet<number>,
   ): EvseStatus {
+    // an OCPI-disabled connector must not drive the status of its EVSE
+    const connectors = allConnectors?.filter(EvseMapper.isConnectorOcpiEnabled);
     if (!connectors || connectors.length === 0) {
       return EvseStatus.UNKNOWN;
     }

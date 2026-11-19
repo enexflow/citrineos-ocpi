@@ -167,6 +167,7 @@ export class LocationsBroadcaster extends BaseBroadcaster {
     const path = `/${tenant.countryCode}/${tenant.partyId}/${locationId}/${UID_FORMAT(stationId, evseId)}`;
     const status = EvseMapper.mapEvseStatusFromConnectors(evseConnectors);
     const connectors = evseConnectors
+      .filter(EvseMapper.isConnectorOcpiEnabled)
       .map((c) => {
         const mapped = ConnectorMapper.fromGraphql(c);
         if (!mapped) return undefined;

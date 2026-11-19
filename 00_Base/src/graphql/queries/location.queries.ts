@@ -74,7 +74,15 @@ export const GET_OUR_LOCATIONS_QUERY = gql`
           createdAt
           updatedAt
           ocpiStatus
-          connectors: Connectors {
+          # Connectors.disableOCPI hides a single connector from OCPI (null = enabled)
+          connectors: Connectors(
+            where: {
+              _or: [
+                { disableOCPI: { _is_null: true } }
+                { disableOCPI: { _eq: false } }
+              ]
+            }
+          ) {
             id
             stationId
             evseId
@@ -256,7 +264,15 @@ export const GET_OWN_LOCATION_QUERY = gql`
           createdAt
           updatedAt
           ocpiStatus
-          connectors: Connectors {
+          # Connectors.disableOCPI hides a single connector from OCPI (null = enabled)
+          connectors: Connectors(
+            where: {
+              _or: [
+                { disableOCPI: { _is_null: true } }
+                { disableOCPI: { _eq: false } }
+              ]
+            }
+          ) {
             id
             stationId
             evseId
@@ -295,7 +311,7 @@ export const GET_EVSE_BY_ID_QUERY = gql`
   query GetEvseById(
     $locationWhere: Locations_bool_exp!
     $stationId: String!
-    $evseId: Int!
+    $evseTypeId: Int!
   ) {
     Locations(where: $locationWhere) {
       chargingPool: ChargingStations(where: { id: { _eq: $stationId } }) {
@@ -318,7 +334,8 @@ export const GET_EVSE_BY_ID_QUERY = gql`
         locationId
         createdAt
         updatedAt
-        evses: Evses(where: { id: { _eq: $evseId } }) {
+        # the OCPI evse uid is "stationId::evseTypeId" (UID_FORMAT), not the DB id
+        evses: Evses(where: { evseTypeId: { _eq: $evseTypeId } }) {
           id
           stationId
           ocpiStatus
@@ -329,24 +346,14 @@ export const GET_EVSE_BY_ID_QUERY = gql`
           removed
           createdAt
           updatedAt
-        }
-      }
-    }
-  }
-`;
-
-export const GET_CONNECTOR_BY_ID_QUERY = gql`
-  query GetConnectorById(
-    $locationWhere: Locations_bool_exp!
-    $stationId: String!
-    $evseId: Int!
-    $connectorId: Int!
-  ) {
-    Locations(where: $locationWhere) {
-      chargingPool: ChargingStations(where: { id: { _eq: $stationId } }) {
-        evses: Evses(where: { id: { _eq: $evseId } }) {
+          # Connectors.disableOCPI hides a single connector from OCPI (null = enabled)
           connectors: Connectors(
-            where: { connectorId: { _eq: $connectorId } }
+            where: {
+              _or: [
+                { disableOCPI: { _is_null: true } }
+                { disableOCPI: { _eq: false } }
+              ]
+            }
           ) {
             id
             stationId
@@ -368,6 +375,69 @@ export const GET_CONNECTOR_BY_ID_QUERY = gql`
             vendorErrorCode
             createdAt
             updatedAt
+            tariffs: ConnectorTariffs {
+              id
+              tariffOcpiId
+              connectorOcpiId
+              tariffId
+              connectorId
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const GET_CONNECTOR_BY_ID_QUERY = gql`
+  query GetConnectorById(
+    $locationWhere: Locations_bool_exp!
+    $stationId: String!
+    $evseTypeId: Int!
+    $connectorId: Int!
+  ) {
+    Locations(where: $locationWhere) {
+      chargingPool: ChargingStations(where: { id: { _eq: $stationId } }) {
+        # the OCPI evse uid is "stationId::evseTypeId" (UID_FORMAT), not the DB id
+        evses: Evses(where: { evseTypeId: { _eq: $evseTypeId } }) {
+          # the OCPI connector id we publish is Connectors.id (ConnectorMapper),
+          # not the OCPP connectorId
+          connectors: Connectors(
+            where: {
+              id: { _eq: $connectorId }
+              _or: [
+                { disableOCPI: { _is_null: true } }
+                { disableOCPI: { _eq: false } }
+              ]
+            }
+          ) {
+            id
+            stationId
+            evseId
+            connectorId
+            evseTypeConnectorId
+            format
+            maximumAmperage
+            maximumPowerWatts
+            maximumVoltage
+            powerType
+            termsAndConditionsUrl
+            type
+            status
+            errorCode
+            timestamp
+            info
+            vendorId
+            vendorErrorCode
+            createdAt
+            updatedAt
+            tariffs: ConnectorTariffs {
+              id
+              tariffOcpiId
+              connectorOcpiId
+              tariffId
+              connectorId
+            }
           }
         }
       }
