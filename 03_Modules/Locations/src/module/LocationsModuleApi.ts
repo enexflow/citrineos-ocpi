@@ -432,12 +432,12 @@ export class LocationsModuleApi
     @FunctionalEndpointParams() ocpiHeaders: OcpiHeaders,
   ): Promise<EvseResponse> {
     const stationId = EXTRACT_STATION_ID(evseUid);
-    const evseId = EXTRACT_EVSE_ID(evseUid);
+    const evseTypeId = EXTRACT_EVSE_ID(evseUid);
 
     return this.locationsService.getEvseById(
       locationId,
       stationId,
-      Number(evseId),
+      Number(evseTypeId),
       ocpiHeaders,
     );
   }
@@ -462,12 +462,12 @@ export class LocationsModuleApi
     @FunctionalEndpointParams() ocpiHeaders: OcpiHeaders,
   ): Promise<ConnectorResponse> {
     const stationId = EXTRACT_STATION_ID(evseUid);
-    const evseId = EXTRACT_EVSE_ID(evseUid);
+    const evseTypeId = EXTRACT_EVSE_ID(evseUid);
 
     return this.locationsService.getConnectorById(
       locationId,
       stationId,
-      Number(evseId),
+      Number(evseTypeId),
       Number(connectorId),
       ocpiHeaders,
     );

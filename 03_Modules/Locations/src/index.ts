@@ -59,8 +59,10 @@ type ConnectorNotifyPayload = Partial<ConnectorDto> & {
     countryCode?: string;
   };
   ocpiId?: string | null;
-  // parent location's flag, carried by ConnectorNotify
+  // set by ConnectorNotify: parent location's flag OR the connector's own flag
   disableOCPI?: boolean | null;
+  // set by ConnectorNotify: the connector's own Connectors.disableOCPI only
+  connectorDisableOCPI?: boolean | null;
 };
 type ConnectorTariffNotifyPayload = {
   connectorId: number;
@@ -294,8 +296,11 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     )
       return;
 
-    // if OCPI is disabled for the parent location, don't broadcast
-    if (connectorDto.disableOCPI === true) {
+    // if OCPI is disabled for the parent location or for this connector, don't broadcast
+    if (
+      connectorDto.disableOCPI === true ||
+      connectorDto.connectorDisableOCPI === true
+    ) {
       logDbBroadcast(
         this._logger,
         'debug',
@@ -413,6 +418,17 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
         this._logger,
         'debug',
         'Connector Tariff change with OCPI disabled, skipping broadcast.',
+        event,
+      );
+      return;
+    }
+
+    // if OCPI is disabled for this connector, don't broadcast
+    if (row.disableOCPI === true) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        'Connector Tariff change on OCPI-disabled connector, skipping broadcast.',
         event,
       );
       return;
