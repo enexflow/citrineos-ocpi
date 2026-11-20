@@ -267,16 +267,24 @@ export class LocationMapper {
     }
   }
 
-  static mapLocationHours(locationHours: LocationHours): Hours {
+  static mapLocationHours(locationHours: LocationHours): Hours | undefined {
+    const twentyfourseven = locationHours.twentyfourSeven === true;
+    const regularHours = twentyfourseven
+      ? undefined
+      : locationHours.regularHours?.map((rh) => {
+          return {
+            weekday: rh.weekday,
+            period_begin: rh.periodBegin,
+            period_end: rh.periodEnd,
+          };
+        });
+    // OCPI requires regular_hours when not 24/7; Gireve rejects such Hours, a missing one only warns.
+    if (!twentyfourseven && !regularHours?.length) {
+      return undefined;
+    }
     return {
-      regular_hours: locationHours.regularHours?.map((rh) => {
-        return {
-          weekday: rh.weekday,
-          period_begin: rh.periodBegin,
-          period_end: rh.periodEnd,
-        };
-      }),
-      twentyfourseven: locationHours.twentyfourSeven,
+      regular_hours: regularHours,
+      twentyfourseven,
       exceptional_openings: locationHours.exceptionalOpenings?.map((eo) => {
         return {
           period_begin: eo.periodBegin,
