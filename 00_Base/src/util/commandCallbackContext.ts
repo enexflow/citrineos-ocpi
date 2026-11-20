@@ -4,20 +4,22 @@
 
 import type { OcpiHeaders } from '../model/OcpiHeaders.js';
 
-export interface CommandCallbackContext {
-  responseUrl: string;
-  fromCountryCode: string;
-  fromPartyId: string;
-  toCountryCode: string;
-  toPartyId: string;
-}
-
 export interface OcpiRoutingHeaders {
   fromCountryCode: string;
   fromPartyId: string;
   toCountryCode: string;
   toPartyId: string;
 }
+
+export interface CommandCallbackContext {
+  responseUrl: string;
+  // null when the eMSP sent no complete set of routing headers (peer-to-peer): the callback routes from the tenant partner.
+  routing: OcpiRoutingHeaders | null;
+}
+
+type SerializedCommandCallbackContext = {
+  responseUrl: string;
+} & Partial<OcpiRoutingHeaders>;
 
 export function serializeCommandCallbackContext(
   responseUrl: string,
@@ -29,37 +31,43 @@ export function serializeCommandCallbackContext(
     fromPartyId: ocpiHeaders.fromPartyId,
     toCountryCode: ocpiHeaders.toCountryCode,
     toPartyId: ocpiHeaders.toPartyId,
-  } satisfies CommandCallbackContext);
+  } satisfies SerializedCommandCallbackContext);
 }
 
 export function parseCommandCallbackContext(
   cached: string,
 ): CommandCallbackContext | null {
+  let parsed: Partial<SerializedCommandCallbackContext>;
   try {
-    const parsed = JSON.parse(cached) as Partial<CommandCallbackContext>;
-    if (
-      typeof parsed.responseUrl === 'string' &&
-      typeof parsed.fromCountryCode === 'string' &&
-      typeof parsed.fromPartyId === 'string' &&
-      typeof parsed.toCountryCode === 'string' &&
-      typeof parsed.toPartyId === 'string'
-    ) {
-      return parsed as CommandCallbackContext;
-    }
+    parsed = JSON.parse(cached) as Partial<SerializedCommandCallbackContext>;
   } catch {
     return null;
   }
-  return null;
+  if (typeof parsed?.responseUrl !== 'string') {
+    return null;
+  }
+  const { fromCountryCode, fromPartyId, toCountryCode, toPartyId } = parsed;
+  const hasRouting =
+    typeof fromCountryCode === 'string' &&
+    typeof fromPartyId === 'string' &&
+    typeof toCountryCode === 'string' &&
+    typeof toPartyId === 'string';
+  return {
+    responseUrl: parsed.responseUrl,
+    routing: hasRouting
+      ? { fromCountryCode, fromPartyId, toCountryCode, toPartyId }
+      : null,
+  };
 }
 
 /** Swap inbound command routing headers for the CPO → eMSP callback. */
 export function swapRoutingForCallback(
-  context: CommandCallbackContext,
+  routing: OcpiRoutingHeaders,
 ): OcpiRoutingHeaders {
   return {
-    fromCountryCode: context.toCountryCode,
-    fromPartyId: context.toPartyId,
-    toCountryCode: context.fromCountryCode,
-    toPartyId: context.fromPartyId,
+    fromCountryCode: routing.toCountryCode,
+    fromPartyId: routing.toPartyId,
+    toCountryCode: routing.fromCountryCode,
+    toPartyId: routing.fromPartyId,
   };
 }
