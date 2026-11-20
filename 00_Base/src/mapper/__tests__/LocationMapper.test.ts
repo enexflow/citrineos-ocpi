@@ -2,17 +2,30 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// @zetra/citrineos-base is ESM-only and Jest's CJS runtime cannot parse it
+// (see SessionMapper.test.ts). LocationMapper only reads its enums inside
+// methods, never at module load, and mapLocationHours uses none of them:
+// an empty stub is enough. Add the enums here if a test reaches other mappers.
+jest.mock('@zetra/citrineos-base', () => ({}));
+
 import type { LocationHours } from '@zetra/citrineos-base';
+import { Logger } from 'tslog';
+import { Container } from 'typedi';
 import { LocationMapper } from '../LocationMapper';
 import { HoursSchema } from '../../model/Hours';
-
-// mapLocationHours uses no runtime value from the core barrel, whose ESM dist jest cannot load.
-jest.mock('@zetra/citrineos-base', () => ({}));
 
 const hours = (value: Partial<LocationHours>): LocationHours =>
   value as LocationHours;
 
 describe('LocationMapper.mapLocationHours', () => {
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    const logger = new Logger({ type: 'hidden' });
+    warn = jest.spyOn(logger, 'warn');
+    Container.set(Logger, logger);
+  });
+
   it('maps regular hours to OCPI snake_case with an explicit twentyfourseven', () => {
     const result = LocationMapper.mapLocationHours(
       hours({
@@ -62,8 +75,27 @@ describe('LocationMapper.mapLocationHours', () => {
     'omits opening_times rather than sending invalid Hours (%s)',
     (_, input) => {
       expect(LocationMapper.mapLocationHours(input)).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
     },
   );
+
+  it('logs the location and the exceptional periods it drops', () => {
+    const period = {
+      periodBegin: new Date('2026-12-24T18:00:00Z'),
+      periodEnd: new Date('2026-12-26T06:00:00Z'),
+    };
+
+    LocationMapper.mapLocationHours(
+      hours({ twentyfourSeven: false, exceptionalClosings: [period] }),
+      42,
+    );
+
+    expect(warn).toHaveBeenCalledWith(expect.any(String), {
+      locationId: 42,
+      droppedExceptionalOpenings: 0,
+      droppedExceptionalClosings: 1,
+    });
+  });
 
   it('treats a missing twentyfourSeven flag as false', () => {
     const result = LocationMapper.mapLocationHours(

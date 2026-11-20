@@ -109,7 +109,7 @@ export class LocationMapper {
         ?.map(LocationMapper.mapLocationFacility)
         .filter((f) => f !== null),
       opening_times: location.openingHours
-        ? LocationMapper.mapLocationHours(location.openingHours)
+        ? LocationMapper.mapLocationHours(location.openingHours, location.id)
         : undefined,
       last_updated: location.updatedAt!,
       operator: location.operator as LocationDTO['operator'],
@@ -191,7 +191,7 @@ export class LocationMapper {
         ?.map(LocationMapper.mapLocationFacility)
         .filter((f) => f !== null),
       opening_times: location.openingHours
-        ? LocationMapper.mapLocationHours(location.openingHours)
+        ? LocationMapper.mapLocationHours(location.openingHours, location.id)
         : undefined,
       last_updated: location.updatedAt!,
     };
@@ -267,8 +267,12 @@ export class LocationMapper {
     }
   }
 
-  static mapLocationHours(locationHours: LocationHours): Hours | undefined {
+  static mapLocationHours(
+    locationHours: LocationHours,
+    locationId?: LocationDto['id'],
+  ): Hours | undefined {
     const twentyfourseven = locationHours.twentyfourSeven === true;
+    // OCPI 2.2.1 §8.4.14: regular_hours is only sent when not open 24/7.
     const regularHours = twentyfourseven
       ? undefined
       : locationHours.regularHours?.map((rh) => {
@@ -278,8 +282,19 @@ export class LocationMapper {
             period_end: rh.periodEnd,
           };
         });
-    // OCPI requires regular_hours when not 24/7; Gireve rejects such Hours, a missing one only warns.
+    // Not 24/7 without regular_hours is invalid OCPI and Gireve blocks it,
+    // while a missing opening_times is only a warning: omit it.
     if (!twentyfourseven && !regularHours?.length) {
+      Container.get(Logger).warn(
+        'Location opening_times omitted: not 24/7 and no regular hours',
+        {
+          locationId,
+          droppedExceptionalOpenings:
+            locationHours.exceptionalOpenings?.length ?? 0,
+          droppedExceptionalClosings:
+            locationHours.exceptionalClosings?.length ?? 0,
+        },
+      );
       return undefined;
     }
     return {
