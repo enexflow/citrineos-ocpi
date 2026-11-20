@@ -74,7 +74,8 @@ const buildMiddleware = () => {
   return new AuthMiddleware(graphqlClient as unknown as OcpiGraphqlClient);
 };
 
-describe('AuthMiddleware on a command without routing headers', () => {
+// Covers the middleware contract only; the flag wiring on CommandsModuleApi.postCommand is not tested (top-level await blocks importing it under jest).
+describe('AuthMiddleware contract: skipTenantPartnerUrlValidation on a command without routing headers', () => {
   beforeAll(() => {
     Container.set(Logger, new Logger({ type: 'hidden' }));
   });

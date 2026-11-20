@@ -98,8 +98,8 @@ export class CommandsClientApi extends BaseClientApi {
       cached && cached !== COMMAND_RESPONSE_URL_CACHE_RESOLVED
         ? parseCommandCallbackContext(cached)
         : null;
-    if (context) {
-      return swapRoutingForCallback(context);
+    if (context?.routing) {
+      return swapRoutingForCallback(context.routing);
     }
     return {
       fromCountryCode: toCountryCode,

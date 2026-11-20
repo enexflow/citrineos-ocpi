@@ -66,7 +66,7 @@ export class CommandsModuleApi
     super();
   }
 
-  // The command URL and body carry no top-level party, so a peer-to-peer eMSP without routing headers is identified by its token alone.
+  // Peer-to-peer eMSPs send no routing headers and no top-level party: authenticate by token only.
   @Post('/:commandType')
   @AsOcpiFunctionalEndpoint({ skipTenantPartnerUrlValidation: true })
   @ResponseSchema(CommandResponseSchema, CommandResponseSchemaName, {
