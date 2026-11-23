@@ -41,8 +41,10 @@ import type {
   GetChargingStationByLocationAndOwnerPartnerQueryResult,
   GetChargingStationByLocationAndOwnerPartnerQueryVariables,
   UpsertConnectorMutationResult,
-  GetTariffByPartnerQueryResult,
-  GetTariffByPartnerQueryVariables,
+  FindPartnerTariffQueryResult,
+  FindPartnerTariffQueryVariables,
+  FindPartnerTariffP2pQueryResult,
+  FindPartnerTariffP2pQueryVariables,
   UpsertConnectorTariffOcpiPartnerMutationVariables,
   UpsertConnectorTariffOcpiPartnerMutationResult,
   GetLocationByOcpiIdPartnerAndRoamingPartnerIdQueryResult,
@@ -74,7 +76,8 @@ import {
   GET_EVSE_BY_OCPI_ID_AND_PARTNER_ID_QUERY,
   GET_EVSE_BY_OCPI_ID_PARTNER_AND_ROAMING_PARTNER_ID_QUERY,
   UPSERT_CONNECTOR_TARIFF_OCPIPARTNER_MUTATION,
-  GET_TARIFF_BY_PARTNER_QUERY,
+  FIND_PARTNER_TARIFF_QUERY,
+  FIND_PARTNER_TARIFF_P2P_QUERY,
   DELETE_OCPI_CONNECTOR_TARIFF_MUTATION,
   GET_LOCATION_BY_OCPI_ID_PARTNER_AND_ROAMING_PARTNER_ID_QUERY,
   INSERT_LOCATION_MUTATION,
@@ -464,6 +467,7 @@ export class LocationReceiverService {
         evse.uid,
         evse,
         idChargingStationAssociatedWithLocation,
+        roamingPartner?.id ?? null,
       );
     }
 
@@ -538,21 +542,37 @@ export class LocationReceiverService {
     tariff: any,
     connectorOcpiId: string,
     connectorId: number,
+    roamingPartnerId: number | null,
   ): Promise<any> {
     if (!tenantPartner.id) {
       throw new Error('Tenant partner not found');
     }
-    const tariffResponse = await this.ocpiGraphqlClient.request<
-      GetTariffByPartnerQueryResult,
-      GetTariffByPartnerQueryVariables
-    >(GET_TARIFF_BY_PARTNER_QUERY, {
-      ocpiTariffId: tariff,
-      tenantPartnerId: tenantPartner.id,
-    });
+    // OCPI tariff ids are only unique per party (country_code + party_id).
+    // Behind a hub, several parties share one tenantPartnerId, so scope by
+    // roamingPartnerId the same way TariffsService does when storing the tariff.
+    const tariffResponse =
+      roamingPartnerId != null
+        ? await this.ocpiGraphqlClient.request<
+            FindPartnerTariffQueryResult,
+            FindPartnerTariffQueryVariables
+          >(FIND_PARTNER_TARIFF_QUERY, {
+            ocpiTariffId: tariff,
+            tenantPartnerId: tenantPartner.id,
+            roamingPartnerId,
+          })
+        : await this.ocpiGraphqlClient.request<
+            FindPartnerTariffP2pQueryResult,
+            FindPartnerTariffP2pQueryVariables
+          >(FIND_PARTNER_TARIFF_P2P_QUERY, {
+            ocpiTariffId: tariff,
+            tenantPartnerId: tenantPartner.id,
+          });
 
     const tariffId = tariffResponse.Tariffs[0]?.id;
     if (!tariffId) {
-      throw new Error('Tariff not found');
+      throw new Error(
+        `Tariff ${tariff} not found for tenantPartner ${tenantPartner.id} / roamingPartner ${roamingPartnerId ?? 'none (p2p)'}`,
+      );
     }
 
     const response = await this.ocpiGraphqlClient.request<
@@ -584,6 +604,7 @@ export class LocationReceiverService {
     evseId: string,
     evseOcpiUid: string,
     stationId: string,
+    roamingPartnerId: number | null,
   ): Promise<UpsertConnectorMutationResult> {
     if (!tenantPartner.id) {
       throw new UnauthorizedException('Credentials not found for given token');
@@ -631,6 +652,7 @@ export class LocationReceiverService {
           tariff,
           connectorOcpiId,
           connectorId,
+          roamingPartnerId,
         );
       }
     }
@@ -642,6 +664,7 @@ export class LocationReceiverService {
     evseUid: string,
     evse: LocationEvseDTO,
     stationId: string,
+    roamingPartnerId: number | null,
   ): Promise<void> {
     const response = await this.ocpiGraphqlClient.request<
       UpsertEvseMutationResult,
@@ -688,6 +711,7 @@ export class LocationReceiverService {
           String(insertedEvseId),
           insertedEvseOcpiUid,
           stationId,
+          roamingPartnerId,
         );
       }
     }
@@ -763,7 +787,13 @@ export class LocationReceiverService {
     } else {
       stationId = String(chargingPool[0].id);
     }
-    await this.upsertEvseForPartner(tenantPartner, evseUid, evse, stationId);
+    await this.upsertEvseForPartner(
+      tenantPartner,
+      evseUid,
+      evse,
+      stationId,
+      roamingPartner?.id ?? null,
+    );
 
     // cascade timestamps to parents : location
     const locationResponse = await this.ocpiGraphqlClient.request<
@@ -852,6 +882,7 @@ export class LocationReceiverService {
       String(evse.id),
       evseOcpiUid,
       String(chargingStation.id),
+      roamingPartner?.id ?? null,
     );
 
     // cascade timestamps to parents : location and evse
@@ -1285,6 +1316,7 @@ export class LocationReceiverService {
           tariff,
           connectorId,
           dbConnectorId,
+          roamingPartner?.id ?? null,
         );
         if (!tariffResponse.insert_ConnectorTariffs_one?.id) {
           throw new Error(`Failed to create or update tariff ${tariff}`);

@@ -70,6 +70,10 @@ describe('LocationReceiverService — real Hasura round trip', () => {
 
   beforeEach(async () => {
     await stack.cleanup([
+      'ConnectorTariffs',
+      'TariffElements',
+      'Tariffs',
+      'RoamingPartners',
       'Connectors',
       'Evses',
       'ChargingStations',
@@ -199,5 +203,141 @@ describe('LocationReceiverService — real Hasura round trip', () => {
 
     // 2003 ClientUnknownLocation at HTTP 200 — per locationEMSPMapping.test.ts's header.
     expect(response.status_code).toBe(2003);
+  });
+
+  /**
+   * OCPI tariff ids are only unique per party (country_code + party_id). Behind a
+   * hub, several parties share one TenantPartner, so the same ocpiTariffId can exist
+   * once per RoamingPartner. Seen in prod: FR*HDA and FR*HDT (both via Gireve) each
+   * publish tariff 930818, and FR*HDA connectors were linked to FR*HDT's row because
+   * the lookup ignored roamingPartnerId and took Tariffs[0] with no ordering.
+   */
+  describe('connector tariff linking behind a hub', () => {
+    const TARIFF_OCPI_ID = '930818';
+    const HUB_LOCATION_ID = 'LOC-HUB-HDA-1';
+
+    let hubPartner: any;
+    let hdtTariffId: number;
+    let hdaTariffId: number;
+
+    const hdaLocation = (tariffIds: string[]) =>
+      ({
+        ...locationDto,
+        party_id: 'HDA',
+        id: HUB_LOCATION_ID,
+        evses: [
+          {
+            uid: 'EVSE-HDA-1',
+            evse_id: 'FR*HDA*E1',
+            status: 'AVAILABLE',
+            connectors: [
+              {
+                id: '1',
+                standard: 'IEC_62196_T2_COMBO',
+                format: 'CABLE',
+                power_type: 'DC',
+                max_voltage: 800,
+                max_amperage: 500,
+                tariff_ids: tariffIds,
+                last_updated: '2026-01-01T10:00:00Z',
+              },
+            ],
+            last_updated: '2026-01-01T10:00:00Z',
+          },
+        ],
+      }) as any;
+
+    const insertTariff = async (roamingPartnerId: number, price: number) => {
+      const [row]: any[] = await stack.sequelize.query(
+        `INSERT INTO "Tariffs"
+           (currency, "ocpiTariffId", "tenantId", "tenantPartnerId", "roamingPartnerId",
+            "startDateTime", "createdAt", "updatedAt")
+         VALUES ('EUR', '${TARIFF_OCPI_ID}', ${hubPartner.tenantId}, ${hubPartner.id},
+                 ${roamingPartnerId}, now(), now(), now())
+         RETURNING id`,
+        { type: 'SELECT' as any },
+      );
+      await stack.sequelize.query(
+        `INSERT INTO "TariffElements" ("tariffId", "priceComponents", "createdAt", "updatedAt")
+         VALUES (${row.id}, '[{"type":"ENERGY","price":${price},"step_size":1}]'::jsonb, now(), now())`,
+      );
+      return row.id as number;
+    };
+
+    const linkedTariffIds = async (): Promise<number[]> => {
+      const rows: any[] = await stack.sequelize.query(
+        `SELECT ct."tariffId"
+           FROM "ConnectorTariffs" ct
+           JOIN "Connectors" c ON c.id = ct."connectorId"
+           JOIN "ChargingStations" cs ON cs.id = c."stationId"
+           JOIN "Locations" l ON l.id = cs."locationId"
+          WHERE l."ocpiId" = '${HUB_LOCATION_ID}'`,
+        { type: 'SELECT' as any },
+      );
+      return rows.map((r) => r.tariffId);
+    };
+
+    beforeEach(async () => {
+      const tenantId = tenantPartner.tenantId;
+      const [hub]: any[] = await stack.sequelize.query(
+        `INSERT INTO "TenantPartners" ("tenantId", "countryCode", "partyId", "createdAt", "updatedAt")
+         VALUES (${tenantId}, 'FR', 'GIR', now(), now()) RETURNING id`,
+        { type: 'SELECT' as any },
+      );
+      const insertRoamingPartner = async (partyId: string) => {
+        const [rp]: any[] = await stack.sequelize.query(
+          `INSERT INTO "RoamingPartners" ("countryCode", "partyId", "tenantPartnerId", roles)
+           VALUES ('FR', '${partyId}', ${hub.id}, '["CPO"]'::jsonb) RETURNING id`,
+          { type: 'SELECT' as any },
+        );
+        return { id: rp.id, countryCode: 'FR', partyId };
+      };
+      // HDT first, so on the old unscoped lookup its row is the one Postgres
+      // returns first: the test fails without the fix instead of passing by luck.
+      const hdt = await insertRoamingPartner('HDT');
+      const hda = await insertRoamingPartner('HDA');
+
+      hubPartner = {
+        id: hub.id,
+        tenantId,
+        countryCode: 'FR',
+        partyId: 'GIR',
+        roamingPartners: [hdt, hda],
+      };
+
+      hdtTariffId = await insertTariff(hdt.id, 0.45);
+      hdaTariffId = await insertTariff(hda.id, 0.3);
+    });
+
+    it("links a connector to its own operator's tariff, not another party's with the same id", async () => {
+      await service.putLocationByCountryPartyAndId(
+        'FR',
+        'HDA',
+        hdaLocation([TARIFF_OCPI_ID]),
+        HUB_LOCATION_ID,
+        hubPartner,
+      );
+
+      expect(await linkedTariffIds()).toEqual([hdaTariffId]);
+    });
+
+    it("refuses to borrow another operator's tariff when its own is missing", async () => {
+      await stack.sequelize.query(
+        `DELETE FROM "TariffElements" WHERE "tariffId" = ${hdaTariffId};
+         DELETE FROM "Tariffs" WHERE id = ${hdaTariffId};`,
+      );
+
+      await expect(
+        service.putLocationByCountryPartyAndId(
+          'FR',
+          'HDA',
+          hdaLocation([TARIFF_OCPI_ID]),
+          HUB_LOCATION_ID,
+          hubPartner,
+        ),
+      ).rejects.toThrow(`Tariff ${TARIFF_OCPI_ID} not found`);
+
+      expect(await linkedTariffIds()).not.toContain(hdtTariffId);
+    });
   });
 });
