@@ -33,11 +33,11 @@ export type PennylaneCompanyCustomerRequest = {
     country_alpha2: string;
   };
   vat_number: string;
-  reg_no: string;
-  phone: string;
-  recipient: string;
-  billing_iban: string;
-  notes: string;
+  reg_no?: string;
+  phone?: string;
+  recipient?: string;
+  billing_iban?: string;
+  notes?: string;
   billing_language: string;
   reference?: string;
   external_reference?: string;

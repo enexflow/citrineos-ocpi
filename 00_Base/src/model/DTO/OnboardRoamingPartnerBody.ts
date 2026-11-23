@@ -54,13 +54,18 @@ const PennylaneBillingShape = {
       /^[A-Z]{2}[A-Z0-9]{2,13}$/,
       'must be a VAT number, e.g. FR32123456789',
     ),
-  regNo: z.string().trim().min(1),
-  phone: z.string().regex(/^\+?[0-9 .()-]{6,20}$/, 'must be a phone number'),
-  recipient: z.string().trim().min(1),
+  // Optional (the TS API accepts them missing); still format-checked when sent.
+  regNo: z.string().trim().min(1).optional(),
+  phone: z
+    .string()
+    .regex(/^\+?[0-9 .()-]{6,20}$/, 'must be a phone number')
+    .optional(),
+  recipient: z.string().trim().min(1).optional(),
   billingIban: z
     .string()
-    .regex(/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/, 'must be an IBAN without spaces'),
-  notes: z.string().trim().min(1),
+    .regex(/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/, 'must be an IBAN without spaces')
+    .optional(),
+  notes: z.string().trim().min(1).optional(),
   billingLanguage: z
     .string()
     .regex(/^[a-z]{2}_[A-Z]{2}$/, 'must be a locale, e.g. fr_FR'),
@@ -113,6 +118,96 @@ export const OnboardTenantPartnerEmspBodySchemaName =
 
 export type OnboardTenantPartnerEmspBody = z.infer<
   typeof OnboardTenantPartnerEmspBodySchema
+>;
+
+/**
+ * One row of a hub operations export (the Gireve CSV converted to JSON as is).
+ * Only "Operation Emi3" (e.g. FR*S13) is required; "Operation Owner" is used
+ * to pick a network out of the export.
+ */
+export const NetworkOperationSchema = z.object({
+  'Operation Emi3': z
+    .string()
+    .trim()
+    .regex(
+      /^[A-Z]{2}\*[A-Za-z0-9]{3}$/,
+      'must be an eMI3 operator id, e.g. FR*S13',
+    ),
+  'Operation Name': z.string().optional(),
+  'Operation Owner': z.string().optional(),
+});
+
+export type NetworkOperation = z.infer<typeof NetworkOperationSchema>;
+
+/**
+ * Shared by the network routes: every selected operation becomes one
+ * RoamingPartner with the body's name and contract dates.
+ */
+const NetworkShape = {
+  // Only the operations whose "Operation Owner" matches it (trimmed, case
+  // insensitive) are onboarded. Required when the operations have several
+  // owners, so two networks are never mixed by mistake.
+  operationOwner: z.string().trim().min(1).optional(),
+  operations: z
+    .array(NetworkOperationSchema)
+    .min(1)
+    .max(500)
+    .superRefine((operations, ctx) => {
+      const seen = new Set<string>();
+      operations.forEach((operation, index) => {
+        const id = operation['Operation Emi3'].toUpperCase();
+        if (seen.has(id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [index, 'Operation Emi3'],
+            message: `duplicate operation ${id}`,
+          });
+        }
+        seen.add(id);
+      });
+    }),
+};
+
+const NetworkIdentitySchema = OnboardRoamingPartnerBodySchema.omit({
+  roamingPartnerCountryCode: true,
+  roamingPartnerPartyId: true,
+});
+
+/**
+ * CPO network onboarding: one RoamingPartner (role CPO) per operation, then a
+ * background pull of tariffs and locations, one partner after another.
+ */
+export const OnboardRoamingNetworkCpoBodySchema = NetworkIdentitySchema.extend({
+  ...NetworkShape,
+  // Also pull the operations that were already onboarded (e.g. to finish a
+  // network pull interrupted by a restart).
+  forcePull: z.boolean().optional(),
+});
+
+export const OnboardRoamingNetworkCpoBodySchemaName =
+  'OnboardRoamingNetworkCpoBodySchema';
+
+export type OnboardRoamingNetworkCpoBody = z.infer<
+  typeof OnboardRoamingNetworkCpoBodySchema
+>;
+
+/**
+ * EMSP network onboarding: one RoamingPartner (role EMSP) per operation, all
+ * linked to the same Pennylane customer (named roamingPartnerName).
+ */
+export const OnboardRoamingNetworkEmspBodySchema = NetworkIdentitySchema.extend(
+  {
+    ...NetworkShape,
+    ...PennylaneBillingShape,
+    contractNb: z.string().trim().min(1).max(100),
+  },
+);
+
+export const OnboardRoamingNetworkEmspBodySchemaName =
+  'OnboardRoamingNetworkEmspBodySchema';
+
+export type OnboardRoamingNetworkEmspBody = z.infer<
+  typeof OnboardRoamingNetworkEmspBodySchema
 >;
 
 export type PullSummary = {
