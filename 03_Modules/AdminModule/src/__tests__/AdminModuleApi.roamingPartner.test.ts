@@ -27,6 +27,16 @@ jest.mock('@citrineos/ocpi-base', () => {
     },
     OnboardTenantPartnerEmspBodySchemaName:
       'OnboardTenantPartnerEmspBodySchema',
+    OnboardRoamingNetworkCpoBodySchema: {
+      safeParse: (data: unknown) => ({ success: true, data }),
+    },
+    OnboardRoamingNetworkCpoBodySchemaName:
+      'OnboardRoamingNetworkCpoBodySchema',
+    OnboardRoamingNetworkEmspBodySchema: {
+      safeParse: (data: unknown) => ({ success: true, data }),
+    },
+    OnboardRoamingNetworkEmspBodySchemaName:
+      'OnboardRoamingNetworkEmspBodySchema',
     OcpiResponseStatusCode: { GenericSuccessCode: 1000 },
     DEFAULT_LIMIT: 10,
     DEFAULT_OFFSET: 0,
@@ -107,9 +117,64 @@ const emspBody = { ...body, ...billing, contractNb: 'GIR-2026-001' };
 const flushBackgroundWork = () =>
   new Promise((resolve) => setImmediate(resolve));
 
+// The network pull awaits several calls per partner, one partner after another.
+const flushNetworkPull = async () => {
+  for (let i = 0; i < 20; i++) {
+    await flushBackgroundWork();
+  }
+};
+
+const {
+  roamingPartnerCountryCode: _cc,
+  roamingPartnerPartyId: _pid,
+  ...hub
+} = body;
+
+const networkBody = {
+  ...hub,
+  roamingPartnerName: 'GreenFlux',
+  operationOwner: 'GreenFlux Assets B.V.',
+  operations: [
+    {
+      'Operation Emi3': 'FR*S13',
+      'Operation Owner': 'GreenFlux Assets B.V.',
+    },
+    {
+      'Operation Emi3': 'NL*EVN',
+      'Operation Owner': 'GreenFlux Assets B.V.',
+    },
+    { 'Operation Emi3': 'FR*TCB', 'Operation Owner': 'Other CPO SAS' },
+  ],
+};
+
+const networkEmspBody = {
+  ...networkBody,
+  ...billing,
+  contractNb: 'GIR-2026-001',
+};
+
+const partnerBodyFor = (countryCode: string, partyId: string) => ({
+  ...hub,
+  roamingPartnerCountryCode: countryCode,
+  roamingPartnerPartyId: partyId,
+  roamingPartnerName: 'GreenFlux',
+  roamingPartnerSignatureDate: '2026-01-15',
+  roamingPartnerContractStartDate: '2026-02-01',
+  roamingPartnerIsHdv: undefined,
+});
+
+const pullTargetFor = (countryCode: string, partyId: string) => ({
+  ourCountryCode: 'FR',
+  ourPartyId: 'ZTA',
+  partnerCountryCode: 'FR',
+  partnerPartyId: 'HUB',
+  roamingPartnerCountryCode: countryCode,
+  roamingPartnerPartyId: partyId,
+});
+
 describe('AdminModuleApi roaming partner routes', () => {
   let api: AdminModuleApi;
-  let logger: { info: jest.Mock; error: jest.Mock };
+  let logger: { info: jest.Mock; error: jest.Mock; warn: jest.Mock };
   let upsertRoamingPartner: jest.Mock;
   let pullPartnerTariffs: jest.Mock;
   let pullPartnerLocations: jest.Mock;
@@ -124,7 +189,7 @@ describe('AdminModuleApi roaming partner routes', () => {
     });
 
   beforeEach(() => {
-    logger = { info: jest.fn(), error: jest.fn() };
+    logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() };
     upsertRoamingPartner = jest.fn();
     pullPartnerTariffs = jest.fn().mockResolvedValue({ processed: 3 });
     pullPartnerLocations = jest.fn().mockResolvedValue({ processed: 5 });
@@ -578,6 +643,335 @@ describe('AdminModuleApi roaming partner routes', () => {
       await flushBackgroundWork();
 
       expect(upsertRoamingPartner).not.toHaveBeenCalled();
+      expect(pullPartnerTariffs).not.toHaveBeenCalled();
+      expect(pullPartnerLocations).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /onboard-roaming-network-cpo', () => {
+    const givenHub = () =>
+      graphqlRequest.mockResolvedValue({ TenantPartners: [{ id: 2 }] });
+
+    const givenOutcomes = (...outcomes: (Outcome | Error)[]) =>
+      outcomes.forEach((outcome, index) =>
+        outcome instanceof Error
+          ? upsertRoamingPartner.mockRejectedValueOnce(outcome)
+          : upsertRoamingPartner.mockResolvedValueOnce({
+              id: 10 + index,
+              tenantPartnerId: 2,
+              outcome,
+            }),
+      );
+
+    it('registers each operation of the owner with the shared contract data and reports the others as skipped', async () => {
+      givenHub();
+      givenOutcomes('created', 'unchanged');
+
+      await expect(api.onboardRoamingNetworkCpo(networkBody)).resolves.toEqual({
+        status: '2/2 operations registered; 1 queued for pull',
+        pullQueued: 1,
+        operations: [
+          { operation: 'FR*S13', status: 'roaming partner created' },
+          { operation: 'NL*EVN', status: 'roaming partner already exists' },
+        ],
+        skipped: [{ operation: 'FR*TCB', reason: 'owned by Other CPO SAS' }],
+      });
+      expect(upsertRoamingPartner.mock.calls).toEqual([
+        [partnerBodyFor('FR', 'S13'), 'CPO'],
+        [partnerBodyFor('NL', 'EVN'), 'CPO'],
+      ]);
+      await flushNetworkPull();
+    });
+
+    it('pulls tariffs then locations one partner after another, skipping unchanged partners', async () => {
+      givenHub();
+      givenOutcomes('created', 'unchanged');
+      const body = {
+        ...networkBody,
+        operations: [
+          ...networkBody.operations,
+          {
+            'Operation Emi3': 'BE*GFX',
+            'Operation Owner': 'GreenFlux Assets B.V.',
+          },
+        ],
+      };
+      upsertRoamingPartner.mockResolvedValueOnce({
+        id: 12,
+        tenantPartnerId: 2,
+        outcome: 'role_added',
+      });
+
+      await api.onboardRoamingNetworkCpo(body);
+      await flushNetworkPull();
+
+      expect(pullPartnerTariffs.mock.calls).toEqual([
+        [{ ...pullTargetFor('FR', 'S13'), offset: 0, limit: 100 }],
+        [{ ...pullTargetFor('BE', 'GFX'), offset: 0, limit: 100 }],
+      ]);
+      expect(pullPartnerLocations.mock.calls).toEqual([
+        [{ ...pullTargetFor('FR', 'S13'), offset: 0, limit: 20 }],
+        [{ ...pullTargetFor('BE', 'GFX'), offset: 0, limit: 20 }],
+      ]);
+      const order = [
+        pullPartnerTariffs.mock.invocationCallOrder[0],
+        pullPartnerLocations.mock.invocationCallOrder[0],
+        pullPartnerTariffs.mock.invocationCallOrder[1],
+        pullPartnerLocations.mock.invocationCallOrder[1],
+      ];
+      expect(order).toEqual([...order].sort((a, b) => a - b));
+    });
+
+    it('also pulls unchanged partners with forcePull', async () => {
+      givenHub();
+      givenOutcomes('unchanged', 'unchanged');
+
+      await expect(
+        api.onboardRoamingNetworkCpo({ ...networkBody, forcePull: true }),
+      ).resolves.toMatchObject({ pullQueued: 2 });
+      await flushNetworkPull();
+
+      expect(pullPartnerTariffs).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports a failed upsert and goes on with the next operations, without pulling it', async () => {
+      givenHub();
+      givenOutcomes(new Error('different name'), 'created');
+
+      const result = await api.onboardRoamingNetworkCpo(networkBody);
+      await flushNetworkPull();
+
+      expect(result.status).toBe(
+        '1/2 operations registered; 1 queued for pull',
+      );
+      expect(result.operations[0]).toEqual({
+        operation: 'FR*S13',
+        status: 'failed',
+        error: 'different name',
+      });
+      expect(pullPartnerTariffs.mock.calls).toEqual([
+        [{ ...pullTargetFor('NL', 'EVN'), offset: 0, limit: 100 }],
+      ]);
+    });
+
+    it('goes on with the next partner when a pull fails, and logs it', async () => {
+      givenHub();
+      givenOutcomes('created', 'created');
+      pullPartnerTariffs.mockRejectedValueOnce(new Error('hub down'));
+
+      await api.onboardRoamingNetworkCpo(networkBody);
+      await flushNetworkPull();
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Network pull failed for FR*S13',
+        expect.any(Error),
+      );
+      expect(pullPartnerLocations.mock.calls).toEqual([
+        [{ ...pullTargetFor('NL', 'EVN'), offset: 0, limit: 20 }],
+      ]);
+      expect(logger.info).toHaveBeenCalledWith('Network pull completed', {
+        total: 2,
+        failed: 1,
+      });
+    });
+
+    it('rejects a second network while a pull is running, and accepts one once it has completed', async () => {
+      givenHub();
+      givenOutcomes('created', 'created');
+      let finishPull: () => void = () => undefined;
+      pullPartnerTariffs.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishPull = () => resolve({ processed: 0 });
+          }),
+      );
+
+      await api.onboardRoamingNetworkCpo(networkBody);
+      await expect(api.onboardRoamingNetworkCpo(networkBody)).rejects.toThrow(
+        'A network pull is already running',
+      );
+
+      finishPull();
+      await flushNetworkPull();
+      givenOutcomes('unchanged', 'unchanged');
+      await expect(
+        api.onboardRoamingNetworkCpo(networkBody),
+      ).resolves.toMatchObject({ pullQueued: 0 });
+    });
+
+    it('does not hold the lock when there is nothing to pull', async () => {
+      givenHub();
+      givenOutcomes('unchanged', 'unchanged', 'unchanged', 'unchanged');
+
+      await api.onboardRoamingNetworkCpo(networkBody);
+      await expect(
+        api.onboardRoamingNetworkCpo(networkBody),
+      ).resolves.toMatchObject({ pullQueued: 0 });
+      expect(pullPartnerTariffs).not.toHaveBeenCalled();
+    });
+
+    it('rejects with NotFoundException before any write when the hub does not exist, and releases the lock', async () => {
+      graphqlRequest.mockResolvedValue({ TenantPartners: [] });
+
+      await expect(api.onboardRoamingNetworkCpo(networkBody)).rejects.toThrow(
+        'Tenant partner FR-HUB not found for FR-ZTA',
+      );
+      expect(upsertRoamingPartner).not.toHaveBeenCalled();
+
+      givenHub();
+      givenOutcomes('unchanged', 'unchanged');
+      await expect(
+        api.onboardRoamingNetworkCpo(networkBody),
+      ).resolves.toBeDefined();
+    });
+
+    it('never calls the TS API', async () => {
+      givenHub();
+      givenOutcomes('created', 'created');
+
+      await api.onboardRoamingNetworkCpo(networkBody);
+      await flushNetworkPull();
+
+      expect(createCompanyCustomer).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /onboard-roaming-network-emsp', () => {
+    beforeEach(() => {
+      graphqlRequest.mockResolvedValue({ TenantPartners: [{ id: 2 }] });
+      upsertRoamingPartner
+        .mockResolvedValueOnce({
+          id: 10,
+          tenantPartnerId: 2,
+          outcome: 'created',
+        })
+        .mockResolvedValueOnce({
+          id: 11,
+          tenantPartnerId: 2,
+          outcome: 'created',
+        });
+    });
+
+    it('registers each operation as EMSP and links it to the same Pennylane customer, in order', async () => {
+      createCompanyCustomer
+        .mockResolvedValueOnce({
+          customer: { id: 7, name: 'GreenFlux' },
+          created: true,
+        })
+        .mockResolvedValueOnce({
+          customer: { id: 7, name: 'GreenFlux' },
+          created: false,
+        });
+
+      await expect(
+        api.onboardRoamingNetworkEmsp(networkEmspBody, 'Bearer caller.token'),
+      ).resolves.toEqual({
+        status: '2/2 operations onboarded',
+        pennylaneCustomerIds: [7],
+        operations: [
+          {
+            operation: 'FR*S13',
+            status: 'roaming partner created; pennylane customer created',
+            pennylaneCustomerId: 7,
+          },
+          {
+            operation: 'NL*EVN',
+            status:
+              'roaming partner created; existing pennylane customer linked',
+            pennylaneCustomerId: 7,
+          },
+        ],
+        skipped: [{ operation: 'FR*TCB', reason: 'owned by Other CPO SAS' }],
+      });
+
+      expect(upsertRoamingPartner.mock.calls).toEqual([
+        [partnerBodyFor('FR', 'S13'), 'EMSP'],
+        [partnerBodyFor('NL', 'EVN'), 'EMSP'],
+      ]);
+      expect(createCompanyCustomer).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          name: 'GreenFlux',
+          vat_number: 'FR12345678901',
+          tenant_partner_id: 2,
+          roaming_partner_id: 10,
+          contract_nb: 'GIR-2026-001',
+        }),
+        'Bearer caller.token',
+      );
+      expect(createCompanyCustomer).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ name: 'GreenFlux', roaming_partner_id: 11 }),
+        'Bearer caller.token',
+      );
+      expect(upsertRoamingPartner.mock.invocationCallOrder[1]).toBeGreaterThan(
+        createCompanyCustomer.mock.invocationCallOrder[0],
+      );
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed operation and goes on with the next ones', async () => {
+      createCompanyCustomer
+        .mockRejectedValueOnce(new Error('invalid VAT'))
+        .mockRejectedValueOnce(
+          new UnsuccessfulRequestException('conflict', undefined, {
+            statusCode: 409,
+            code: 'ocpi_partner_already_linked',
+          }),
+        );
+
+      const result = await api.onboardRoamingNetworkEmsp(networkEmspBody);
+
+      expect(result.status).toBe('1/2 operations onboarded');
+      expect(result.pennylaneCustomerIds).toEqual([]);
+      expect(result.operations).toEqual([
+        {
+          operation: 'FR*S13',
+          status: 'failed',
+          error:
+            'roaming partner created; pennylane customer creation failed: invalid VAT',
+        },
+        {
+          operation: 'NL*EVN',
+          status: 'roaming partner created; pennylane customer already linked',
+        },
+      ]);
+    });
+
+    it('warns when the operations end up on several Pennylane customers', async () => {
+      createCompanyCustomer
+        .mockResolvedValueOnce({
+          customer: { id: 7, name: 'GreenFlux' },
+          created: true,
+        })
+        .mockResolvedValueOnce({
+          customer: { id: 8, name: 'GreenFlux' },
+          created: true,
+        });
+
+      const result = await api.onboardRoamingNetworkEmsp(networkEmspBody);
+
+      expect(result.pennylaneCustomerIds).toEqual([7, 8]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Network GreenFlux is linked to 2 Pennylane customers',
+        [7, 8],
+      );
+    });
+
+    it('rejects with NotFoundException before any write when the hub does not exist', async () => {
+      graphqlRequest.mockResolvedValue({ TenantPartners: [] });
+
+      await expect(
+        api.onboardRoamingNetworkEmsp(networkEmspBody),
+      ).rejects.toThrow('Tenant partner FR-HUB not found');
+      expect(upsertRoamingPartner).not.toHaveBeenCalled();
+      expect(createCompanyCustomer).not.toHaveBeenCalled();
+    });
+
+    it('does not pull any partner data', async () => {
+      await api.onboardRoamingNetworkEmsp(networkEmspBody);
+      await flushNetworkPull();
+
       expect(pullPartnerTariffs).not.toHaveBeenCalled();
       expect(pullPartnerLocations).not.toHaveBeenCalled();
     });

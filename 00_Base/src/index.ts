@@ -242,6 +242,9 @@ export type {
   OnboardRoamingPartnerBody,
   OnboardRoamingPartnerEmspBody,
   OnboardTenantPartnerEmspBody,
+  OnboardRoamingNetworkCpoBody,
+  OnboardRoamingNetworkEmspBody,
+  NetworkOperation,
   PennylaneBilling,
 } from './model/DTO/OnboardRoamingPartnerBody.js';
 export {
@@ -251,6 +254,11 @@ export {
   OnboardRoamingPartnerEmspBodySchemaName,
   OnboardTenantPartnerEmspBodySchema,
   OnboardTenantPartnerEmspBodySchemaName,
+  NetworkOperationSchema,
+  OnboardRoamingNetworkCpoBodySchema,
+  OnboardRoamingNetworkCpoBodySchemaName,
+  OnboardRoamingNetworkEmspBodySchema,
+  OnboardRoamingNetworkEmspBodySchemaName,
 } from './model/DTO/OnboardRoamingPartnerBody.js';
 export {
   DeleteLocationBodySchema,
