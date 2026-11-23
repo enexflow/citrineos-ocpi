@@ -14,7 +14,11 @@ import {
 } from 'routing-controllers';
 import { Service } from 'typedi';
 
-import { HttpStatus, type TenantDto } from '@zetra/citrineos-base';
+import {
+  HttpStatus,
+  type TenantDto,
+  type TenantPartnerDto,
+} from '@zetra/citrineos-base';
 
 import type {
   RealTimeAuthorizationRequestBody,
@@ -257,7 +261,12 @@ export class TokensModuleApi
       throw new InvalidParamException('Tenant information not available');
     }
 
-    await this.tokensService.upsertToken(tokenDTO, tenantId, tenantPartnerId);
+    await this.tokensService.upsertToken(
+      tokenDTO,
+      tenantId,
+      tenantPartnerId,
+      ctx.state.tenantPartner as TenantPartnerDto,
+    );
 
     return buildOcpiEmptyResponse(OcpiResponseStatusCode.GenericSuccessCode);
   }

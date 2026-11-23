@@ -14,9 +14,8 @@
  * *Mapping.test.ts files in this repo.
  *
  * There is no separate hub/roaming curl script for Tokens, and — unlike
- * Tariffs/Cdrs — the Tokens receiver endpoints (PUT/PATCH/GET/authorize)
- * never look up or persist a RoamingPartner: TokensModuleApi.putToken calls
- * tokensService.upsertToken() without a roamingPartnerId, and the existence
+ * Tariffs/Cdrs — only the Tokens PUT resolves a RoamingPartner (from the
+ * body country_code/party_id, in upsertToken; NULL if unknown), and the existence
  * check (GET_AUTHORIZATION_BY_TOKEN) keys only on idToken + idTokenType +
  * tenantPartnerId — never on RoamingPartner or on country_code/party_id in
  * the body. So two different roaming partners forwarded through the same

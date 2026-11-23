@@ -334,13 +334,20 @@ export class TokensService {
     token: TokenDTO,
     tenantId: number,
     tenantPartnerId: number,
+    tenantPartner: TenantPartnerDto,
     options?: UpsertTokenOptions,
   ): Promise<TokenDTO> {
+    // CDRs inherit roamingPartnerId from the Authorization; unknown party stays NULL
+    const roamingPartner = getRoamingPartner(
+      tenantPartner,
+      token.country_code,
+      token.party_id,
+    );
     const authorization = await this.upsertTokenInternal(
       token,
       tenantId,
       tenantPartnerId,
-      undefined,
+      roamingPartner?.id,
       options,
     );
     return TokensMapper.toDto(authorization);
