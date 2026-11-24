@@ -42,6 +42,8 @@ describe('selectNetworkOperations', () => {
           'Operation Owner': 'Other CPO SAS',
         },
         { 'Operation Emi3': 'FR*NOO' },
+        // CSV converters can turn an empty cell into null.
+        { 'Operation Emi3': 'FR*NUL', 'Operation Owner': null },
       ],
       '  greenflux assets b.v. ',
     );
@@ -50,6 +52,7 @@ describe('selectNetworkOperations', () => {
     expect(skipped).toEqual([
       { operation: 'FR*TCB', reason: 'owned by Other CPO SAS' },
       { operation: 'FR*NOO', reason: 'no owner' },
+      { operation: 'FR*NUL', reason: 'no owner' },
     ]);
   });
 
@@ -57,9 +60,10 @@ describe('selectNetworkOperations', () => {
     const { selected } = selectNetworkOperations([
       greenflux('FR*S13'),
       { 'Operation Emi3': 'FR*ABA' },
+      { 'Operation Emi3': 'FR*NUL', 'Operation Owner': null },
     ]);
 
-    expect(selected).toHaveLength(2);
+    expect(selected).toHaveLength(3);
   });
 
   it('rejects operations of several owners without operationOwner', () => {

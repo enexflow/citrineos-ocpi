@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  NETWORK_CPO_MAX_OPERATIONS,
+  NETWORK_EMSP_MAX_OPERATIONS,
   OnboardRoamingNetworkCpoBodySchema,
   OnboardRoamingNetworkEmspBodySchema,
   OnboardRoamingPartnerEmspBodySchema,
@@ -232,6 +234,21 @@ describe('network onboarding schemas', () => {
     ).toEqual([]);
   });
 
+  it('accepts empty CSV cells converted to null', () => {
+    expect(
+      cpoIssuePaths({
+        ...cpoBody,
+        operations: [
+          {
+            'Operation Emi3': 'FR*190',
+            'Operation Name': null,
+            'Operation Owner': null,
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
   it('does not take roaming partner identity fields', () => {
     const result = OnboardRoamingNetworkCpoBodySchema.safeParse({
       ...cpoBody,
@@ -266,6 +283,42 @@ describe('network onboarding schemas', () => {
         operations: [...operations, { 'Operation Emi3': 'FR*S13' }],
       }),
     ).toEqual(['operations.2.Operation Emi3']);
+  });
+
+  // Distinct valid eMI3 ids: FR*A00, FR*A01, ...
+  const manyOperations = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      'Operation Emi3': `FR*A${i.toString(36).toUpperCase().padStart(2, '0')}`,
+    }));
+
+  it('caps the EMSP network at NETWORK_EMSP_MAX_OPERATIONS operations', () => {
+    expect(
+      emspIssuePaths({
+        ...emspBody,
+        operations: manyOperations(NETWORK_EMSP_MAX_OPERATIONS),
+      }),
+    ).toEqual([]);
+    expect(
+      emspIssuePaths({
+        ...emspBody,
+        operations: manyOperations(NETWORK_EMSP_MAX_OPERATIONS + 1),
+      }),
+    ).toEqual(['operations']);
+  });
+
+  it('keeps the CPO network cap higher than the EMSP one', () => {
+    expect(
+      cpoIssuePaths({
+        ...cpoBody,
+        operations: manyOperations(NETWORK_EMSP_MAX_OPERATIONS + 1),
+      }),
+    ).toEqual([]);
+    expect(
+      cpoIssuePaths({
+        ...cpoBody,
+        operations: manyOperations(NETWORK_CPO_MAX_OPERATIONS + 1),
+      }),
+    ).toEqual(['operations']);
   });
 
   it.each(['roamingPartnerName', 'roamingPartnerSignatureDate', 'ourPartyId'])(
