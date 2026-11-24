@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  NETWORK_CPO_MAX_OPERATIONS,
-  NETWORK_EMSP_MAX_OPERATIONS,
+  NETWORK_MAX_OPERATIONS,
   OnboardRoamingNetworkCpoBodySchema,
   OnboardRoamingNetworkEmspBodySchema,
   OnboardRoamingPartnerEmspBodySchema,
@@ -261,7 +260,7 @@ describe('network onboarding schemas', () => {
     );
   });
 
-  it.each(['FRS13', 'FR*S1', 'fr*S13', 'FR*S13X', 'FR-S13'])(
+  it.each(['FRS13', 'FR*S1', 'FR*S13X', 'FR-S13', 'FR*S-3'])(
     'rejects the operation id %j',
     (id) => {
       expect(
@@ -285,38 +284,55 @@ describe('network onboarding schemas', () => {
     ).toEqual(['operations.2.Operation Emi3']);
   });
 
+  it('upper-cases the operation id, so a lowercase party id never creates a twin', () => {
+    const result = OnboardRoamingNetworkCpoBodySchema.safeParse({
+      ...cpoBody,
+      operations: [{ 'Operation Emi3': ' fr*s13 ' }],
+    });
+
+    expect(result.success && result.data.operations[0]['Operation Emi3']).toBe(
+      'FR*S13',
+    );
+    expect(
+      cpoIssuePaths({
+        ...cpoBody,
+        operations: [
+          { 'Operation Emi3': 'FR*S13' },
+          { 'Operation Emi3': 'fr*s13' },
+        ],
+      }),
+    ).toEqual(['operations.1.Operation Emi3']);
+  });
+
   // Distinct valid eMI3 ids: FR*A00, FR*A01, ...
   const manyOperations = (count: number) =>
     Array.from({ length: count }, (_, i) => ({
       'Operation Emi3': `FR*A${i.toString(36).toUpperCase().padStart(2, '0')}`,
     }));
 
-  it('caps the EMSP network at NETWORK_EMSP_MAX_OPERATIONS operations', () => {
+  it('caps both network routes at NETWORK_MAX_OPERATIONS operations', () => {
     expect(
-      emspIssuePaths({
-        ...emspBody,
-        operations: manyOperations(NETWORK_EMSP_MAX_OPERATIONS),
+      cpoIssuePaths({
+        ...cpoBody,
+        operations: manyOperations(NETWORK_MAX_OPERATIONS),
       }),
     ).toEqual([]);
     expect(
       emspIssuePaths({
         ...emspBody,
-        operations: manyOperations(NETWORK_EMSP_MAX_OPERATIONS + 1),
+        operations: manyOperations(NETWORK_MAX_OPERATIONS),
+      }),
+    ).toEqual([]);
+    expect(
+      cpoIssuePaths({
+        ...cpoBody,
+        operations: manyOperations(NETWORK_MAX_OPERATIONS + 1),
       }),
     ).toEqual(['operations']);
-  });
-
-  it('keeps the CPO network cap higher than the EMSP one', () => {
     expect(
-      cpoIssuePaths({
-        ...cpoBody,
-        operations: manyOperations(NETWORK_EMSP_MAX_OPERATIONS + 1),
-      }),
-    ).toEqual([]);
-    expect(
-      cpoIssuePaths({
-        ...cpoBody,
-        operations: manyOperations(NETWORK_CPO_MAX_OPERATIONS + 1),
+      emspIssuePaths({
+        ...emspBody,
+        operations: manyOperations(NETWORK_MAX_OPERATIONS + 1),
       }),
     ).toEqual(['operations']);
   });
