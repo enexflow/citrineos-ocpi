@@ -253,6 +253,29 @@ export class AdminModuleApi extends BaseController {
     }
   }
 
+  /**
+   * Result of a failed network operation. Logged, so it is not lost if the
+   * HTTP client gave up. Only our own exceptions' messages (contract conflict,
+   * TS API detail, ...) go back to the caller; anything else, e.g. a Hasura
+   * error, stays in the logs.
+   */
+  private failedOperation(
+    network: string,
+    operation: string,
+    err: unknown,
+  ): NetworkOperationResult {
+    this.logger.warn(`Network ${network}: operation ${operation} failed`, err);
+    const expected =
+      err instanceof InvalidParamException ||
+      err instanceof NotFoundException ||
+      err instanceof UnsuccessfulRequestException;
+    return {
+      operation,
+      status: 'failed',
+      error: expected ? (err as Error).message : 'internal error, see logs',
+    };
+  }
+
   /** 404 when the hub TenantPartner does not exist, before any write. */
   private async assertTenantPartnerExists(identity: {
     ourCountryCode: string;
@@ -306,7 +329,9 @@ export class AdminModuleApi extends BaseController {
     let failed = 0;
     for (const [index, target] of targets.entries()) {
       const label = `${target.roamingPartnerCountryCode}*${target.roamingPartnerPartyId}`;
-      this.logger.info(`Network pull ${index + 1}/${targets.length}: ${label}`);
+      this.logger.info(
+        `Network pull ${index + 1}/${targets.length} (${network}): ${label}`,
+      );
       try {
         await this.pullRoamingPartnerData(target);
       } catch (err) {
@@ -677,11 +702,13 @@ export class AdminModuleApi extends BaseController {
           });
         }
       } catch (err) {
-        results.push({
-          operation: operation.operation,
-          status: 'failed',
-          error: (err as Error)?.message,
-        });
+        results.push(
+          this.failedOperation(
+            body.roamingPartnerName,
+            operation.operation,
+            err,
+          ),
+        );
       }
     }
 
@@ -792,11 +819,13 @@ export class AdminModuleApi extends BaseController {
         );
         results.push({ operation: operation.operation, ...linked });
       } catch (err) {
-        results.push({
-          operation: operation.operation,
-          status: 'failed',
-          error: (err as Error)?.message,
-        });
+        results.push(
+          this.failedOperation(
+            body.roamingPartnerName,
+            operation.operation,
+            err,
+          ),
+        );
       }
     }
 

@@ -75,7 +75,10 @@ jest.mock('@citrineos/ocpi-base', () => {
   };
 });
 
-import { UnsuccessfulRequestException } from '@citrineos/ocpi-base';
+import {
+  InvalidParamException,
+  UnsuccessfulRequestException,
+} from '@citrineos/ocpi-base';
 import { AdminModuleApi } from '../module/AdminModuleApi.js';
 
 type Outcome = 'created' | 'role_added' | 'unchanged';
@@ -737,7 +740,7 @@ describe('AdminModuleApi roaming partner routes', () => {
 
     it('reports a failed upsert and goes on with the next operations, without pulling it', async () => {
       givenHub();
-      givenOutcomes(new Error('different name'), 'created');
+      givenOutcomes(new InvalidParamException('different name'), 'created');
 
       const result = await api.onboardRoamingNetworkCpo(networkBody);
       await flushNetworkPull();
@@ -756,6 +759,27 @@ describe('AdminModuleApi roaming partner routes', () => {
       ]);
     });
 
+    it('logs a failed operation and hides an unexpected error from the caller', async () => {
+      givenHub();
+      const hasuraError = new Error(
+        'GraphQL error: relation "x" does not exist',
+      );
+      givenOutcomes(hasuraError, 'created');
+
+      const result = await api.onboardRoamingNetworkCpo(networkBody);
+      await flushNetworkPull();
+
+      expect(result.operations[0]).toEqual({
+        operation: 'FR*S13',
+        status: 'failed',
+        error: 'internal error, see logs',
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Network GreenFlux: operation FR*S13 failed',
+        hasuraError,
+      );
+    });
+
     it('goes on with the next partner when a pull fails, and logs it', async () => {
       givenHub();
       givenOutcomes('created', 'created');
@@ -764,6 +788,9 @@ describe('AdminModuleApi roaming partner routes', () => {
       await api.onboardRoamingNetworkCpo(networkBody);
       await flushNetworkPull();
 
+      expect(logger.info).toHaveBeenCalledWith(
+        'Network pull 1/2 (GreenFlux): FR*S13',
+      );
       expect(logger.error).toHaveBeenCalledWith(
         'Network pull failed for FR*S13',
         expect.any(Error),
