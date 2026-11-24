@@ -421,7 +421,20 @@ export class LocationsPullService {
     let markedRemoved: number | undefined;
     let markRemovedFailed: number | undefined;
     // in full mode, if locations are not in the response, mark them as removed
-    if (isFullMode) {
+    if (isFullMode && seenLocationIds.size === 0) {
+      // An empty answer is much more likely a hub or access problem (e.g. the
+      // party not open to us yet) than a CPO that removed every location, so
+      // it never marks the known locations removed.
+      this.logger.warn(
+        'PullPartnerLocations: full pull returned no location; known locations are not marked removed',
+        {
+          partnerCountryCode,
+          partnerPartyId,
+          roamingPartnerCountryCode,
+          roamingPartnerPartyId,
+        },
+      );
+    } else if (isFullMode) {
       const {
         markedRemoved: markedRemovedTemp,
         markRemovedFailed: markRemovedFailedTemp,
