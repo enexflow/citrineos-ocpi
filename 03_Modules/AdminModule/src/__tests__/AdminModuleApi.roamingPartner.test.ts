@@ -669,6 +669,7 @@ describe('AdminModuleApi roaming partner routes', () => {
 
       await expect(api.onboardRoamingNetworkCpo(networkBody)).resolves.toEqual({
         status: '2/2 operations registered; 1 queued for pull',
+        failed: 0,
         pullQueued: 1,
         operations: [
           { operation: 'FR*S13', status: 'roaming partner created' },
@@ -744,6 +745,7 @@ describe('AdminModuleApi roaming partner routes', () => {
       expect(result.status).toBe(
         '1/2 operations registered; 1 queued for pull',
       );
+      expect(result.failed).toBe(1);
       expect(result.operations[0]).toEqual({
         operation: 'FR*S13',
         status: 'failed',
@@ -770,6 +772,8 @@ describe('AdminModuleApi roaming partner routes', () => {
         [{ ...pullTargetFor('NL', 'EVN'), offset: 0, limit: 20 }],
       ]);
       expect(logger.info).toHaveBeenCalledWith('Network pull completed', {
+        network: networkBody.roamingPartnerName,
+        success: false,
         total: 2,
         failed: 1,
       });
@@ -834,6 +838,40 @@ describe('AdminModuleApi roaming partner routes', () => {
 
       expect(createCompanyCustomer).not.toHaveBeenCalled();
     });
+
+    it('counts every failed operation, still answering 200', async () => {
+      givenHub();
+      givenOutcomes(new Error('conflict'), new Error('conflict'));
+
+      await expect(
+        api.onboardRoamingNetworkCpo(networkBody),
+      ).resolves.toMatchObject({
+        status: '0/2 operations registered; 0 queued for pull',
+        failed: 2,
+        pullQueued: 0,
+      });
+    });
+
+    it('logs an unexpected rejection of the background pull instead of leaving it unhandled, and releases the lock', async () => {
+      givenHub();
+      givenOutcomes('created', 'created');
+      jest
+        .spyOn(api as any, 'pullNetwork')
+        .mockRejectedValueOnce(new Error('boom'));
+
+      await api.onboardRoamingNetworkCpo(networkBody);
+      await flushNetworkPull();
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Network pull crashed',
+        expect.any(Error),
+      );
+
+      givenOutcomes('unchanged', 'unchanged');
+      await expect(
+        api.onboardRoamingNetworkCpo(networkBody),
+      ).resolves.toMatchObject({ pullQueued: 0 });
+    });
   });
 
   describe('POST /onboard-roaming-network-emsp', () => {
@@ -867,6 +905,7 @@ describe('AdminModuleApi roaming partner routes', () => {
         api.onboardRoamingNetworkEmsp(networkEmspBody, 'Bearer caller.token'),
       ).resolves.toEqual({
         status: '2/2 operations onboarded',
+        failed: 0,
         pennylaneCustomerIds: [7],
         operations: [
           {
@@ -908,6 +947,21 @@ describe('AdminModuleApi roaming partner routes', () => {
         createCompanyCustomer.mock.invocationCallOrder[0],
       );
       expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        'Network EMSP onboarding started',
+        { network: 'GreenFlux', total: 2, skipped: 1 },
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        'Network EMSP onboarding completed',
+        {
+          network: 'GreenFlux',
+          success: true,
+          total: 2,
+          failed: 0,
+          skipped: 1,
+          pennylaneCustomerIds: [7],
+        },
+      );
     });
 
     it('reports a failed operation and goes on with the next ones', async () => {
@@ -923,6 +977,7 @@ describe('AdminModuleApi roaming partner routes', () => {
       const result = await api.onboardRoamingNetworkEmsp(networkEmspBody);
 
       expect(result.status).toBe('1/2 operations onboarded');
+      expect(result.failed).toBe(1);
       expect(result.pennylaneCustomerIds).toEqual([]);
       expect(result.operations).toEqual([
         {
@@ -936,6 +991,10 @@ describe('AdminModuleApi roaming partner routes', () => {
           status: 'roaming partner created; pennylane customer already linked',
         },
       ]);
+      expect(logger.info).toHaveBeenCalledWith(
+        'Network EMSP onboarding completed',
+        expect.objectContaining({ success: false, total: 2, failed: 1 }),
+      );
     });
 
     it('warns when the operations end up on several Pennylane customers', async () => {
@@ -958,7 +1017,7 @@ describe('AdminModuleApi roaming partner routes', () => {
       );
     });
 
-    it('rejects with NotFoundException before any write when the hub does not exist', async () => {
+    it('rejects with NotFoundException before any write when the hub does not exist, and releases the lock', async () => {
       graphqlRequest.mockResolvedValue({ TenantPartners: [] });
 
       await expect(
@@ -966,6 +1025,63 @@ describe('AdminModuleApi roaming partner routes', () => {
       ).rejects.toThrow('Tenant partner FR-HUB not found');
       expect(upsertRoamingPartner).not.toHaveBeenCalled();
       expect(createCompanyCustomer).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        'Network EMSP onboarding completed',
+        {
+          network: 'GreenFlux',
+          success: false,
+          total: 2,
+          error: expect.stringContaining('Tenant partner FR-HUB not found'),
+        },
+      );
+
+      graphqlRequest.mockResolvedValue({ TenantPartners: [{ id: 2 }] });
+      await expect(
+        api.onboardRoamingNetworkEmsp(networkEmspBody),
+      ).resolves.toMatchObject({ status: '2/2 operations onboarded' });
+    });
+
+    it('rejects a second network while one is running, and accepts one once it has completed', async () => {
+      let finishFirst: () => void = () => undefined;
+      createCompanyCustomer.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = () =>
+              resolve({
+                customer: { id: 7, name: 'GreenFlux' },
+                created: true,
+              });
+          }),
+      );
+
+      const first = api.onboardRoamingNetworkEmsp(networkEmspBody);
+      await flushBackgroundWork();
+      await expect(
+        api.onboardRoamingNetworkEmsp(networkEmspBody),
+      ).rejects.toThrow('A network EMSP onboarding is already running');
+
+      finishFirst();
+      await expect(first).resolves.toMatchObject({ failed: 0 });
+
+      upsertRoamingPartner.mockResolvedValue({
+        id: 10,
+        tenantPartnerId: 2,
+        outcome: 'unchanged',
+      });
+      await expect(
+        api.onboardRoamingNetworkEmsp(networkEmspBody),
+      ).resolves.toMatchObject({ status: '2/2 operations onboarded' });
+    });
+
+    it('releases the lock when the run fails', async () => {
+      graphqlRequest.mockRejectedValueOnce(new Error('hasura down'));
+
+      await expect(
+        api.onboardRoamingNetworkEmsp(networkEmspBody),
+      ).rejects.toThrow('hasura down');
+      await expect(
+        api.onboardRoamingNetworkEmsp(networkEmspBody),
+      ).resolves.toBeDefined();
     });
 
     it('does not pull any partner data', async () => {

@@ -90,6 +90,23 @@ type NetworkOperationResult = {
   error?: string;
 };
 
+/** `failed` counts the operations with status "failed". */
+type NetworkCpoResponse = {
+  status: string;
+  failed: number;
+  pullQueued: number;
+  operations: NetworkOperationResult[];
+  skipped: SkippedOperation[];
+};
+
+type NetworkEmspResponse = {
+  status: string;
+  failed: number;
+  pennylaneCustomerIds: number[];
+  operations: NetworkOperationResult[];
+  skipped: SkippedOperation[];
+};
+
 const UPSERT_STATUS = {
   created: 'roaming partner created',
   role_added: 'role added to existing roaming partner',
@@ -162,6 +179,9 @@ export class AdminModuleApi extends BaseController {
   // One network pull at a time, so the hub never serves two of them at once.
   // In-memory: assumes a single OCPI replica.
   private networkPullRunning = false;
+
+  // One EMSP network run at a time, same assumption (single OCPI replica).
+  private networkEmspRunning = false;
 
   /** Pulls tariffs, then locations, of one roaming partner. */
   private async pullRoamingPartnerData(target: PullTarget): Promise<void> {
@@ -275,29 +295,31 @@ export class AdminModuleApi extends BaseController {
     };
   }
 
-  /** Pulls each target in turn; one failure does not stop the others. */
-  private async pullNetwork(targets: PullTarget[]): Promise<void> {
+  /**
+   * Pulls each target in turn; one failure does not stop the others. Ends with
+   * one `Network pull completed` log (`success` is false if any pull failed).
+   */
+  private async pullNetwork(
+    network: string,
+    targets: PullTarget[],
+  ): Promise<void> {
     let failed = 0;
-    try {
-      for (const [index, target] of targets.entries()) {
-        const label = `${target.roamingPartnerCountryCode}*${target.roamingPartnerPartyId}`;
-        this.logger.info(
-          `Network pull ${index + 1}/${targets.length}: ${label}`,
-        );
-        try {
-          await this.pullRoamingPartnerData(target);
-        } catch (err) {
-          failed++;
-          this.logger.error(`Network pull failed for ${label}`, err);
-        }
+    for (const [index, target] of targets.entries()) {
+      const label = `${target.roamingPartnerCountryCode}*${target.roamingPartnerPartyId}`;
+      this.logger.info(`Network pull ${index + 1}/${targets.length}: ${label}`);
+      try {
+        await this.pullRoamingPartnerData(target);
+      } catch (err) {
+        failed++;
+        this.logger.error(`Network pull failed for ${label}`, err);
       }
-      this.logger.info('Network pull completed', {
-        total: targets.length,
-        failed,
-      });
-    } finally {
-      this.networkPullRunning = false;
     }
+    this.logger.info('Network pull completed', {
+      network,
+      success: failed === 0,
+      total: targets.length,
+      failed,
+    });
   }
 
   /**
@@ -584,12 +606,7 @@ export class AdminModuleApi extends BaseController {
       OnboardRoamingNetworkCpoBodySchemaName,
     )
     rawBody: OnboardRoamingNetworkCpoBody,
-  ): Promise<{
-    status: string;
-    pullQueued: number;
-    operations: NetworkOperationResult[];
-    skipped: SkippedOperation[];
-  }> {
+  ): Promise<NetworkCpoResponse> {
     const body = parseBody<OnboardRoamingNetworkCpoBody>(
       OnboardRoamingNetworkCpoBodySchema,
       rawBody,
@@ -603,32 +620,37 @@ export class AdminModuleApi extends BaseController {
         'A network pull is already running; retry when it has completed (see logs)',
       );
     }
-    // Claimed before the first await so two requests cannot both start a pull;
-    // released below unless the pull starts (pullNetwork releases it then).
+    // Claimed before the first await so two requests cannot both start a pull.
+    // Held until the background pull ends, or released now if none starts.
     this.networkPullRunning = true;
-    let pullStarted = false;
+    let registered: { response: NetworkCpoResponse; targets: PullTarget[] };
     try {
-      return await this.registerNetworkCpo(body, selected, skipped, () => {
-        pullStarted = true;
-      });
-    } finally {
-      if (!pullStarted) {
-        this.networkPullRunning = false;
-      }
+      registered = await this.registerNetworkCpo(body, selected, skipped);
+    } catch (err) {
+      this.networkPullRunning = false;
+      throw err;
     }
+
+    if (registered.targets.length === 0) {
+      this.networkPullRunning = false;
+    } else {
+      // pullNetwork catches each partner's failure; the catch only keeps an
+      // unexpected rejection from going unhandled.
+      void this.pullNetwork(body.roamingPartnerName, registered.targets)
+        .catch((err) => this.logger.error('Network pull crashed', err))
+        .finally(() => {
+          this.networkPullRunning = false;
+        });
+    }
+    return registered.response;
   }
 
+  /** Upserts one CPO RoamingPartner per operation; returns those to pull. */
   private async registerNetworkCpo(
     body: OnboardRoamingNetworkCpoBody,
     selected: SelectedOperation[],
     skipped: SkippedOperation[],
-    onPullStarted: () => void,
-  ): Promise<{
-    status: string;
-    pullQueued: number;
-    operations: NetworkOperationResult[];
-    skipped: SkippedOperation[];
-  }> {
+  ): Promise<{ response: NetworkCpoResponse; targets: PullTarget[] }> {
     await this.assertTenantPartnerExists(body);
 
     const results: NetworkOperationResult[] = [];
@@ -663,17 +685,16 @@ export class AdminModuleApi extends BaseController {
       }
     }
 
-    if (targets.length > 0) {
-      onPullStarted();
-      void this.pullNetwork(targets);
-    }
-
     const failed = results.filter((r) => r.status === 'failed').length;
     return {
-      status: `${results.length - failed}/${results.length} operations registered; ${targets.length} queued for pull`,
-      pullQueued: targets.length,
-      operations: results,
-      skipped,
+      targets,
+      response: {
+        status: `${results.length - failed}/${results.length} operations registered; ${targets.length} queued for pull`,
+        failed,
+        pullQueued: targets.length,
+        operations: results,
+        skipped,
+      },
     };
   }
 
@@ -692,12 +713,7 @@ export class AdminModuleApi extends BaseController {
     rawBody: OnboardRoamingNetworkEmspBody,
     // Forwarded to the TS API, which trusts the same Keycloak realm.
     @HeaderParam('authorization') authorization?: string,
-  ): Promise<{
-    status: string;
-    pennylaneCustomerIds: number[];
-    operations: NetworkOperationResult[];
-    skipped: SkippedOperation[];
-  }> {
+  ): Promise<NetworkEmspResponse> {
     const body = parseBody<OnboardRoamingNetworkEmspBody>(
       OnboardRoamingNetworkEmspBodySchema,
       rawBody,
@@ -706,6 +722,57 @@ export class AdminModuleApi extends BaseController {
       body.operations,
       body.operationOwner,
     );
+    if (this.networkEmspRunning) {
+      throw new InvalidParamException(
+        'A network EMSP onboarding is already running; retry when it has completed',
+      );
+    }
+    // Claimed before the first await so two requests cannot both run (e.g. a
+    // retry after a proxy timeout while the first loop is still going).
+    this.networkEmspRunning = true;
+    const network = body.roamingPartnerName;
+    this.logger.info('Network EMSP onboarding started', {
+      network,
+      total: selected.length,
+      skipped: skipped.length,
+    });
+    // Always ends with one `Network EMSP onboarding completed` log, so a run
+    // can be followed in the logs even if the HTTP client gave up.
+    try {
+      const response = await this.onboardNetworkEmsp(
+        body,
+        selected,
+        skipped,
+        authorization,
+      );
+      this.logger.info('Network EMSP onboarding completed', {
+        network,
+        success: response.failed === 0,
+        total: response.operations.length,
+        failed: response.failed,
+        skipped: response.skipped.length,
+        pennylaneCustomerIds: response.pennylaneCustomerIds,
+      });
+      return response;
+    } catch (err) {
+      this.logger.error('Network EMSP onboarding completed', {
+        network,
+        success: false,
+        total: selected.length,
+        error: (err as Error)?.message,
+      });
+      throw err;
+    } finally {
+      this.networkEmspRunning = false;
+    }
+  }
+
+  private async onboardNetworkEmsp(
+    body: OnboardRoamingNetworkEmspBody,
+    selected: SelectedOperation[],
+    skipped: SkippedOperation[],
+    authorization?: string,
+  ): Promise<NetworkEmspResponse> {
     await this.assertTenantPartnerExists(body);
 
     // Synchronous and in order: the caller's token is forwarded to the TS API,
@@ -750,6 +817,7 @@ export class AdminModuleApi extends BaseController {
     const failed = results.filter((r) => r.status === 'failed').length;
     return {
       status: `${results.length - failed}/${results.length} operations onboarded`,
+      failed,
       pennylaneCustomerIds,
       operations: results,
       skipped,
