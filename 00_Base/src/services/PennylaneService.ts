@@ -9,6 +9,7 @@ import { OcpiConfigToken, type OcpiConfig } from '../config/ocpi.types.js';
 import { UnsuccessfulRequestException } from '../exception/UnsuccessfulRequestException.js';
 
 const COMPANY_CUSTOMERS_PATH = '/api/v1/pennylane/company_customers';
+const TS_API_SOCKET_TIMEOUT_MS = 60_000;
 
 /**
  * `detail.code` of the TS API 409 returned when the
@@ -33,11 +34,11 @@ export type PennylaneCompanyCustomerRequest = {
     country_alpha2: string;
   };
   vat_number: string;
-  reg_no: string;
-  phone: string;
-  recipient: string;
-  billing_iban: string;
-  notes: string;
+  reg_no?: string;
+  phone?: string;
+  recipient?: string;
+  billing_iban?: string;
+  notes?: string;
   billing_language: string;
   reference?: string;
   external_reference?: string;
@@ -92,7 +93,12 @@ export class PennylaneService {
       );
     }
 
-    const client = new RestClient('CitrineOS OCPI TS API', baseUrl);
+    // The TS API scans the Pennylane customers before answering; 60 s instead
+    // of typed-rest-client's 3 min default, so a stuck TS API does not hold a
+    // network run (and its lock) for long.
+    const client = new RestClient('CitrineOS OCPI TS API', baseUrl, undefined, {
+      socketTimeout: TS_API_SOCKET_TIMEOUT_MS,
+    });
     let response: IRestResponse<PennylaneCompanyCustomerResponse>;
     try {
       response = await client.create<PennylaneCompanyCustomerResponse>(
