@@ -126,11 +126,14 @@ export type OnboardTenantPartnerEmspBody = z.infer<
  * to pick a network out of the export.
  */
 export const NetworkOperationSchema = z.object({
+  // Upper-cased before the check: party ids are compared with a case-sensitive
+  // _eq, so FR*s13 must not create a twin of FR*S13.
   'Operation Emi3': z
     .string()
     .trim()
+    .toUpperCase()
     .regex(
-      /^[A-Z]{2}\*[A-Za-z0-9]{3}$/,
+      /^[A-Z]{2}\*[A-Z0-9]{3}$/,
       'must be an eMI3 operator id, e.g. FR*S13',
     ),
   // nullish: some CSV-to-JSON converters turn an empty cell into null.
@@ -140,35 +143,12 @@ export const NetworkOperationSchema = z.object({
 
 export type NetworkOperation = z.infer<typeof NetworkOperationSchema>;
 
-// CPO: registration is quick, the pulls run in the background.
-export const NETWORK_CPO_MAX_OPERATIONS = 500;
-// EMSP: one synchronous TS API call per operation (each scans the Pennylane
-// customers) with the caller's token, so keep a request short.
-export const NETWORK_EMSP_MAX_OPERATIONS = 50;
-
-/** Network operations: 1 to `max` rows, no duplicate eMI3 id. */
-const networkOperations = (max: number) =>
-  z
-    .array(NetworkOperationSchema)
-    .min(1)
-    .max(
-      max,
-      `at most ${max} operations per call; split the network into several calls with the same body`,
-    )
-    .superRefine((operations, ctx) => {
-      const seen = new Set<string>();
-      operations.forEach((operation, index) => {
-        const id = operation['Operation Emi3'].toUpperCase();
-        if (seen.has(id)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [index, 'Operation Emi3'],
-            message: `duplicate operation ${id}`,
-          });
-        }
-        seen.add(id);
-      });
-    });
+/**
+ * Operations per network call. EMSP: one synchronous TS API call per operation.
+ * CPO: keeps the registration short. A bigger network is split into several
+ * calls (CPO: wait for `Network pull completed` between two calls).
+ */
+export const NETWORK_MAX_OPERATIONS = 50;
 
 /**
  * Shared by the network routes: every selected operation becomes one
@@ -179,6 +159,27 @@ const NetworkShape = {
   // insensitive) are onboarded. Required when the operations have several
   // owners, so two networks are never mixed by mistake.
   operationOwner: z.string().trim().min(1).optional(),
+  operations: z
+    .array(NetworkOperationSchema)
+    .min(1)
+    .max(
+      NETWORK_MAX_OPERATIONS,
+      `at most ${NETWORK_MAX_OPERATIONS} operations per call; split the network into several calls with the same body`,
+    )
+    .superRefine((operations, ctx) => {
+      const seen = new Set<string>();
+      operations.forEach((operation, index) => {
+        const id = operation['Operation Emi3'];
+        if (seen.has(id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [index, 'Operation Emi3'],
+            message: `duplicate operation ${id}`,
+          });
+        }
+        seen.add(id);
+      });
+    }),
 };
 
 const NetworkIdentitySchema = OnboardRoamingPartnerBodySchema.omit({
@@ -192,7 +193,6 @@ const NetworkIdentitySchema = OnboardRoamingPartnerBodySchema.omit({
  */
 export const OnboardRoamingNetworkCpoBodySchema = NetworkIdentitySchema.extend({
   ...NetworkShape,
-  operations: networkOperations(NETWORK_CPO_MAX_OPERATIONS),
   // Also pull the operations that were already onboarded (e.g. to finish a
   // network pull interrupted by a restart).
   forcePull: z.boolean().optional(),
@@ -212,7 +212,6 @@ export type OnboardRoamingNetworkCpoBody = z.infer<
 export const OnboardRoamingNetworkEmspBodySchema = NetworkIdentitySchema.extend(
   {
     ...NetworkShape,
-    operations: networkOperations(NETWORK_EMSP_MAX_OPERATIONS),
     ...PennylaneBillingShape,
     contractNb: z.string().trim().min(1).max(100),
   },

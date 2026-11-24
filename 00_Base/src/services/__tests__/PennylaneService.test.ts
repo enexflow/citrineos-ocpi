@@ -79,6 +79,8 @@ describe('PennylaneService.createCompanyCustomer', () => {
     expect(restClientCtor).toHaveBeenCalledWith(
       expect.any(String),
       'http://localhost:8080',
+      undefined,
+      { socketTimeout: 60_000 },
     );
     expect(create).toHaveBeenCalledWith(
       '/api/v1/pennylane/company_customers?billing_entity=zetra_distribution',
