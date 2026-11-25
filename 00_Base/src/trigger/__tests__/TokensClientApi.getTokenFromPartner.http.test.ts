@@ -22,6 +22,7 @@ jest.mock('@zetra/citrineos-base', () => ({
 import nock from 'nock';
 import { TokensClientApi } from '../TokensClientApi.js';
 import { EndpointIdentifier } from '../../model/EndpointIdentifier.js';
+import { TokenType } from '../../model/TokenType.js';
 
 const HOST = 'https://partner.example.com';
 const PATH = '/ocpi/2.2.1/tokens';
@@ -54,7 +55,7 @@ function profile(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 
-const lookup = (api: any, partnerProfile: any) =>
+const lookup = (api: any, partnerProfile: any, tokenType?: TokenType) =>
   api.getTokenFromPartner(
     'FR',
     'ZTA',
@@ -64,6 +65,7 @@ const lookup = (api: any, partnerProfile: any) =>
     'FR',
     'ZTA',
     'UID-1',
+    tokenType,
   );
 
 beforeAll(() => {
@@ -90,6 +92,37 @@ describe('TokensClientApi.getTokenFromPartner', () => {
       body,
       error: null,
     });
+  });
+
+  it('sends ?type=, the partner token and the OCPI routing headers', async () => {
+    const scope = nock(HOST)
+      .get(TOKEN_PATH)
+      .query({ type: 'RFID' })
+      .matchHeader(
+        'Authorization',
+        `Token ${Buffer.from('partner-token').toString('base64')}`,
+      )
+      .matchHeader('OCPI-from-country-code', 'FR')
+      .matchHeader('OCPI-from-party-id', 'ZTA')
+      .matchHeader('OCPI-to-country-code', 'FR')
+      .matchHeader('OCPI-to-party-id', 'CPO')
+      .reply(200, { status_code: 1000 });
+
+    const result = await lookup(makeApi(), profile(), TokenType.RFID);
+
+    expect(scope.isDone()).toBe(true);
+    expect(result.ok).toBe(true);
+  });
+
+  it('sends no query string without a type', async () => {
+    const scope = nock(HOST)
+      .get(TOKEN_PATH)
+      .query((query) => Object.keys(query).length === 0)
+      .reply(200, { status_code: 1000 });
+
+    await lookup(makeApi(), profile());
+
+    expect(scope.isDone()).toBe(true);
   });
 
   it('reports a partner 404 with its status', async () => {

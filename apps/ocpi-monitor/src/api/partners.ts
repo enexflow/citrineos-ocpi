@@ -25,6 +25,7 @@ import {
   fetchPartnerIdentity,
   type PartnerIdentity,
 } from './partnerIdentity'
+import { latestCdrByKey, sentCdrByTransactionDbId } from './sessionCdrLink'
 
 export interface AggregateCount {
   aggregate: { count: number } | null
@@ -967,17 +968,15 @@ const SENT_SESSIONS_PAGE_QUERY = `
   }
 `
 
-// CDRs we sent to eMSPs: linked by the Cdrs.transactionId FK, with a fallback
-// on Cdrs.sessionId (= Transactions.transactionId) for rows without the FK.
+// CDRs we sent to eMSPs, linked by the Cdrs.transactionId FK only: CdrBroadcaster
+// always sets it (insertSentCdr), and no _or keeps the lookup on the
+// (transactionId, toTenantPartnerId) index.
 const SENT_SESSION_CDRS_QUERY = `
-  query SentSessionCdrs($transactionDbIds: [Int!]!, $sessionIds: [String!]!) {
+  query SentSessionCdrs($transactionDbIds: [Int!]!) {
     Cdrs(
       where: {
         toTenantPartnerId: { _is_null: false }
-        _or: [
-          { Transaction: { id: { _in: $transactionDbIds } } }
-          { sessionId: { _in: $sessionIds } }
-        ]
+        Transaction: { id: { _in: $transactionDbIds } }
       }
       order_by: { lastUpdated: desc }
     ) {
@@ -1078,25 +1077,6 @@ function sentStatus (
     return 'PENDING'
   }
   return endTime ? 'COMPLETED' : 'ACTIVE'
-}
-
-/**
- * Latest non-credit CDR per key. `rows` must be ordered by lastUpdated desc;
- * rows whose key is null are skipped.
- */
-function latestCdrByKey<T extends CdrSummary> (
-  rows: T[],
-  keyOf: (row: T) => string | null,
-): Map<string, T> {
-  const byKey = new Map<string, T>()
-  for (const row of rows) {
-    const key = keyOf(row)
-    if (key == null || row.credit === true || byKey.has(key)) {
-      continue
-    }
-    byKey.set(key, row)
-  }
-  return byKey
 }
 
 /** Once a CDR exists it is the source of truth for status, kWh and cost. */
@@ -1200,16 +1180,9 @@ export async function fetchSentSessionsPage (
       : (
           await graphqlRequest<SentSessionCdrsResult>(SENT_SESSION_CDRS_QUERY, {
             transactionDbIds: data.rows.map(row => row.id),
-            sessionIds: [...new Set(data.rows.map(row => row.transactionId))],
           })
         ).Cdrs
-  const cdrByTransactionDbId = latestCdrByKey(cdrs, cdr =>
-    cdr.Transaction ? String(cdr.Transaction.id) : null,
-  )
-  // Fallback only for CDRs persisted without the transactionId FK
-  const cdrBySessionId = latestCdrByKey(cdrs, cdr =>
-    cdr.Transaction ? null : cdr.sessionId,
-  )
+  const cdrByTransactionDbId = sentCdrByTransactionDbId(cdrs)
 
   return {
     total: data.total.aggregate?.count ?? 0,
@@ -1231,8 +1204,7 @@ export async function fetchSentSessionsPage (
           lastUpdated: iso(row.updatedAt),
           hasCdr: false,
         },
-        cdrByTransactionDbId.get(String(row.id))
-        ?? cdrBySessionId.get(row.transactionId),
+        cdrByTransactionDbId.get(row.id),
         'CDRS_SENT',
       ),
     ),
