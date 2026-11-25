@@ -19,6 +19,18 @@ import type { LocationReferences } from '../model/LocationReferences.js';
 import type { AuthorizationInfoResponse } from '../model/AuthorizationInfo.js';
 import { AuthorizationInfoResponseSchema } from '../model/AuthorizationInfo.js';
 import { z } from 'zod';
+import { UnsuccessfulRequestException } from '../exception/UnsuccessfulRequestException.js';
+
+/**
+ * typed-rest-client rejects every status > 299 except 404 with a plain Error
+ * carrying statusCode and the parsed body (RestClient.processResponse).
+ */
+const isPartnerHttpError = (
+  err: unknown,
+): err is Error & { statusCode: number; result?: unknown } =>
+  err instanceof Error &&
+  !(err instanceof UnsuccessfulRequestException) &&
+  typeof (err as { statusCode?: unknown }).statusCode === 'number';
 
 /** Outcome of a raw GET on a partner's Tokens RECEIVER, for debugging. */
 export interface PartnerTokenLookup {
@@ -132,9 +144,19 @@ export class TokensClientApi extends BaseClientApi {
     tokenType?: TokenType,
     awsSecretCertificateArn?: string | null,
   ): Promise<PartnerTokenLookup> {
-    let url: string | null = null;
+    let url: string;
     try {
       url = `${this.getUrl(partnerProfile)}/${encodeURIComponent(tokenCountryCode)}/${encodeURIComponent(tokenPartyId)}/${encodeURIComponent(tokenUid)}`;
+    } catch {
+      return {
+        url: null,
+        ok: false,
+        httpStatus: null,
+        body: null,
+        error: 'No Tokens RECEIVER endpoint available for partner',
+      };
+    }
+    try {
       const body: unknown = await this.request(
         fromCountryCode,
         fromPartyId,
@@ -153,20 +175,38 @@ export class TokensClientApi extends BaseClientApi {
       );
       return { url, ok: true, httpStatus: null, body, error: null };
     } catch (err) {
-      // UnsuccessfulRequestException carries iRestResponse; typed-rest-client
-      // errors (non-404 >= 300) carry statusCode/result directly.
-      const e = err as {
-        message?: string;
-        statusCode?: number;
-        result?: unknown;
-        iRestResponse?: { statusCode?: number; result?: unknown };
-      };
+      // The partner answered with a 404 (handleResponse).
+      if (err instanceof UnsuccessfulRequestException) {
+        return {
+          url,
+          ok: false,
+          httpStatus: err.iRestResponse?.statusCode ?? err.statusCode ?? null,
+          body: err.iRestResponse?.result ?? null,
+          error: err.message,
+        };
+      }
+      // The partner answered with another error status.
+      if (isPartnerHttpError(err)) {
+        return {
+          url,
+          ok: false,
+          httpStatus: err.statusCode,
+          body: err.result ?? null,
+          error: err.message,
+        };
+      }
+      // Not the partner's answer (missing credentials, mTLS, network, bug):
+      // its message may hold secrets, so it stays in the logs.
+      this.logger.error(
+        `Token lookup on partner ${toCountryCode}-${toPartyId} failed`,
+        err,
+      );
       return {
         url,
         ok: false,
-        httpStatus: e.iRestResponse?.statusCode ?? e.statusCode ?? null,
-        body: e.iRestResponse?.result ?? e.result ?? null,
-        error: e.message ?? String(err),
+        httpStatus: null,
+        body: null,
+        error: 'Request to partner failed, see OCPI logs',
       };
     }
   }
