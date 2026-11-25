@@ -70,6 +70,14 @@ SPDX-License-Identifier: Apache-2.0
           title="Hub"
           :to="{ name: 'emsp-hub' }"
         />
+
+        <v-list-item
+          base-color="#aecfea"
+          prepend-icon="mdi-bug-outline"
+          rounded="lg"
+          title="Debug"
+          :to="{ name: 'emsp-debug' }"
+        />
       </v-list-group>
 
       <v-list-group fluid value="cpo">

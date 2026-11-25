@@ -10,11 +10,14 @@ module.exports = {
   setupFiles: ['reflect-metadata'],
   // Tests/reference (end-to-end over HTTP) and *.integration.test.ts run under vitest:
   // `npm run test:e2e` / `npm run test:integration`.
+  // apps/* are separate pnpm projects with their own runner (ocpi-monitor:
+  // vitest, `pnpm test` in its CI workflow).
   testPathIgnorePatterns: [
     '/node_modules/',
     '/Tests/reference/',
     '\\.integration\\.test\\.ts$',
     '/dist/',
+    '<rootDir>/apps/',
   ],
   moduleNameMapper: {
     // packageVersion uses import.meta, which ts-jest's CJS transform rejects.

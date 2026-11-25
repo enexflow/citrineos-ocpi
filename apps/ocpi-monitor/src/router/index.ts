@@ -14,6 +14,7 @@ import CpoHub from '@/pages/cpo/Hub.vue'
 import CpoPartnerDetail from '@/pages/cpo/PartnerDetail.vue'
 import CpoPartners from '@/pages/cpo/Partners.vue'
 import CpoRoamingPartnerDetail from '@/pages/cpo/RoamingPartnerDetail.vue'
+import EmspDebug from '@/pages/emsp/Debug.vue'
 import EmspHub from '@/pages/emsp/Hub.vue'
 import EmspPartnerDetail from '@/pages/emsp/PartnerDetail.vue'
 import EmspPartners from '@/pages/emsp/Partners.vue'
@@ -64,6 +65,12 @@ const router = createRouter({
           name: 'emsp-roaming-detail',
           component: EmspRoamingPartnerDetail,
           meta: { title: 'eMSP · Roaming partner detail' },
+        },
+        {
+          path: 'emsp/debug',
+          name: 'emsp-debug',
+          component: EmspDebug,
+          meta: { title: 'eMSP · Debug' },
         },
         {
           path: 'cpo/our-data',

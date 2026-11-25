@@ -115,7 +115,8 @@ export abstract class BaseClientApi {
     if (!token) {
       throw new MissingRequiredParamException(
         'token',
-        `TenantPartner missing server token: ${JSON.stringify(partnerProfile)}`,
+        // Never include partnerProfile: it holds the credentials (SEC-001).
+        'TenantPartner missing server token',
       );
     }
     headers[HttpHeader.Authorization] = `Token ${base64Encode(token)}`;

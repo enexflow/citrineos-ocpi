@@ -72,6 +72,13 @@ jest.mock('@citrineos/ocpi-base', () => {
     CdrsService: stubClass(),
     DeleteLocationBodySchema: {},
     DeleteLocationBodySchemaName: 'DeleteLocationBodySchema',
+    TokensClientApi: stubClass(),
+    TokenType: {
+      AD_HOC_USER: 'AD_HOC_USER',
+      APP_USER: 'APP_USER',
+      OTHER: 'OTHER',
+      RFID: 'RFID',
+    },
   };
 });
 
@@ -183,6 +190,7 @@ describe('AdminModuleApi roaming partner routes', () => {
   let pullPartnerLocations: jest.Mock;
   let createCompanyCustomer: jest.Mock;
   let graphqlRequest: jest.Mock;
+  let getTokenFromPartner: jest.Mock;
 
   const givenOutcome = (outcome: Outcome) =>
     upsertRoamingPartner.mockResolvedValue({
@@ -201,6 +209,7 @@ describe('AdminModuleApi roaming partner routes', () => {
       created: true,
     });
     graphqlRequest = jest.fn();
+    getTokenFromPartner = jest.fn();
     api = new AdminModuleApi(
       logger as any,
       { upsertRoamingPartner } as any,
@@ -211,6 +220,7 @@ describe('AdminModuleApi roaming partner routes', () => {
       { request: graphqlRequest } as any,
       {} as any, // locationsService
       { createCompanyCustomer } as any,
+      { getTokenFromPartner } as any, // tokensClientApi
     );
   });
 
@@ -1117,6 +1127,126 @@ describe('AdminModuleApi roaming partner routes', () => {
 
       expect(pullPartnerTariffs).not.toHaveBeenCalled();
       expect(pullPartnerLocations).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /partners/:id/tokens/:uid', () => {
+    const SECRET = 'our-server-token-SECRET';
+    const partnerRow = {
+      id: 5,
+      countryCode: 'FR',
+      partyId: 'CPO',
+      awsSecretCertificateArn: null,
+      partnerProfileOCPI: {
+        roles: [{ role: 'CPO', businessDetails: { name: 'Acme CPO' } }],
+        credentials: { token: SECRET },
+        serverCredentials: { token: SECRET },
+      },
+      tenant: { id: 1, countryCode: 'FR', partyId: 'ZTA' },
+    };
+    const givenPartner = (row: unknown) =>
+      graphqlRequest.mockResolvedValue({ TenantPartners_by_pk: row });
+
+    it('returns the partner answer without any credentials', async () => {
+      givenPartner(partnerRow);
+      const lookup = {
+        url: 'https://partner.example.com/tokens/FR/ZTA/UID-1',
+        ok: true,
+        httpStatus: null,
+        body: { status_code: 1000 },
+        error: null,
+      };
+      getTokenFromPartner.mockResolvedValue(lookup);
+
+      const result = await api.getPartnerToken('5', 'UID-1', 'rfid');
+
+      expect(result.data).toMatchObject({
+        partner: { id: 5, countryCode: 'FR', partyId: 'CPO', role: 'CPO' },
+        request: {
+          method: 'GET',
+          countryCode: 'FR',
+          partyId: 'ZTA',
+          uid: 'UID-1',
+          type: 'RFID',
+        },
+        ...lookup,
+      });
+      expect(JSON.stringify(result)).not.toContain(SECRET);
+      expect(getTokenFromPartner).toHaveBeenCalledWith(
+        'FR',
+        'ZTA',
+        'FR',
+        'CPO',
+        partnerRow.partnerProfileOCPI,
+        'FR',
+        'ZTA',
+        'UID-1',
+        'RFID',
+        null,
+      );
+    });
+
+    it('uses the country_code / party_id query params for the token', async () => {
+      givenPartner(partnerRow);
+      getTokenFromPartner.mockResolvedValue({});
+
+      await api.getPartnerToken('5', 'UID-1', undefined, 'de', 'abc');
+
+      expect(getTokenFromPartner.mock.calls[0].slice(5, 9)).toEqual([
+        'DE',
+        'ABC',
+        'UID-1',
+        undefined,
+      ]);
+    });
+
+    it.each([
+      ['a non-numeric id', 'abc', 'UID-1', undefined, 'NotFoundException'],
+      ['an empty uid', '5', '', undefined, 'InvalidParamException'],
+      [
+        'a uid over 36 chars',
+        '5',
+        'x'.repeat(37),
+        undefined,
+        'InvalidParamException',
+      ],
+      ['an unknown type', '5', 'UID-1', 'card', 'InvalidParamException'],
+    ])(
+      'rejects %s without calling the partner',
+      async (_case, id, uid, type, errorName) => {
+        givenPartner(partnerRow);
+
+        await expect(api.getPartnerToken(id, uid, type)).rejects.toHaveProperty(
+          'constructor.name',
+          errorName,
+        );
+        expect(getTokenFromPartner).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ['does not exist', null],
+      ['is not registered', { ...partnerRow, partnerProfileOCPI: null }],
+    ])('returns 404 when the partner %s', async (_case, row) => {
+      givenPartner(row);
+
+      await expect(api.getPartnerToken('5', 'UID-1')).rejects.toHaveProperty(
+        'constructor.name',
+        'NotFoundException',
+      );
+      expect(getTokenFromPartner).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['country_code', 'FRA', undefined],
+      ['party_id', undefined, 'AB'],
+    ])('rejects an invalid %s', async (_param, countryCode, partyId) => {
+      givenPartner(partnerRow);
+
+      await expect(
+        api.getPartnerToken('5', 'UID-1', undefined, countryCode, partyId),
+      ).rejects.toHaveProperty('constructor.name', 'InvalidParamException');
+      expect(getTokenFromPartner).not.toHaveBeenCalled();
     });
   });
 
