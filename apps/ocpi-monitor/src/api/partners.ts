@@ -15,7 +15,8 @@ import type {
   OcpiTariffReceived,
   PartnerOverview,
   PartnerRoleCounts,
-  RecentSessions,
+  RecentSession,
+  RecentSessionsPage,
 } from '@/types/partner'
 import { graphqlRequest } from './graphql.js'
 import { fetchMappedSessionsForPartner } from './ocpiSender'
@@ -867,15 +868,18 @@ export async function fetchCdrFinancials (
   }
 }
 
-const RECENT_SESSIONS_QUERY = `
-  query RecentSessions($limit: Int!) {
-    received: Sessions(
+const RECEIVED_SESSIONS_PAGE_QUERY = `
+  query ReceivedSessionsPage($limit: Int!, $offset: Int!) {
+    rows: Sessions(
       where: { tenantPartnerId: { _is_null: false } }
-      order_by: { lastUpdated: desc_nulls_last }
+      order_by: [{ lastUpdated: desc_nulls_last }, { id: desc }]
       limit: $limit
+      offset: $offset
     ) {
       id
       ocpiSessionId
+      tenantPartnerId
+      roamingPartnerId
       status
       startDateTime
       kwh
@@ -892,10 +896,43 @@ const RECENT_SESSIONS_QUERY = `
         partyId
       }
     }
-    sent: Transactions(
+    total: Sessions_aggregate(where: { tenantPartnerId: { _is_null: false } }) {
+      aggregate {
+        count
+      }
+    }
+  }
+`
+
+// CDRs received from CPOs: Cdrs.sessionId is the CPO's OCPI session id
+// (= Sessions.ocpiSessionId), scoped by the same tenant/roaming partner.
+const RECEIVED_SESSION_CDRS_QUERY = `
+  query ReceivedSessionCdrs($sessionIds: [String!]!) {
+    Cdrs(
+      where: {
+        fromTenantPartnerId: { _is_null: false }
+        sessionId: { _in: $sessionIds }
+      }
+      order_by: { lastUpdated: desc }
+    ) {
+      sessionId
+      fromTenantPartnerId
+      roamingPartnerId
+      credit
+      currency
+      totalCost
+      totalEnergy
+    }
+  }
+`
+
+const SENT_SESSIONS_PAGE_QUERY = `
+  query SentSessionsPage($limit: Int!, $offset: Int!) {
+    rows: Transactions(
       where: { Authorization: { tenantPartnerId: { _is_null: false } } }
-      order_by: { updatedAt: desc_nulls_last }
+      order_by: [{ updatedAt: desc_nulls_last }, { id: desc }]
       limit: $limit
+      offset: $offset
     ) {
       id
       transactionId
@@ -920,6 +957,39 @@ const RECENT_SESSIONS_QUERY = `
         }
       }
     }
+    total: Transactions_aggregate(
+      where: { Authorization: { tenantPartnerId: { _is_null: false } } }
+    ) {
+      aggregate {
+        count
+      }
+    }
+  }
+`
+
+// CDRs we sent to eMSPs: linked by the Cdrs.transactionId FK, with a fallback
+// on Cdrs.sessionId (= Transactions.transactionId) for rows without the FK.
+const SENT_SESSION_CDRS_QUERY = `
+  query SentSessionCdrs($transactionDbIds: [Int!]!, $sessionIds: [String!]!) {
+    Cdrs(
+      where: {
+        toTenantPartnerId: { _is_null: false }
+        _or: [
+          { Transaction: { id: { _in: $transactionDbIds } } }
+          { sessionId: { _in: $sessionIds } }
+        ]
+      }
+      order_by: { lastUpdated: desc }
+    ) {
+      sessionId
+      credit
+      currency
+      totalCost
+      totalEnergy
+      Transaction {
+        id
+      }
+    }
   }
 `
 
@@ -928,10 +998,20 @@ interface Party {
   partyId: string
 }
 
-interface RecentSessionsQueryResult {
-  received: Array<{
+interface CdrSummary {
+  sessionId: string | null
+  credit: boolean | null
+  currency: string
+  totalCost: unknown
+  totalEnergy: unknown
+}
+
+interface ReceivedSessionsPageResult {
+  rows: Array<{
     id: number
     ocpiSessionId: string
+    tenantPartnerId: number | null
+    roamingPartnerId: number | null
     status: string | null
     startDateTime: string
     kwh: number | null
@@ -942,7 +1022,20 @@ interface RecentSessionsQueryResult {
     TenantPartner: Party | null
     RoamingPartner: Party | null
   }>
-  sent: Array<{
+  total: AggregateCount
+}
+
+interface ReceivedSessionCdrsResult {
+  Cdrs: Array<
+    CdrSummary & {
+      fromTenantPartnerId: number | null
+      roamingPartnerId: number | null
+    }
+  >
+}
+
+interface SentSessionsPageResult {
+  rows: Array<{
     id: number
     transactionId: string
     chargingState: string | null
@@ -958,6 +1051,11 @@ interface RecentSessionsQueryResult {
       RoamingPartner: Party | null
     } | null
   }>
+  total: AggregateCount
+}
+
+interface SentSessionCdrsResult {
+  Cdrs: Array<CdrSummary & { Transaction: { id: number } | null }>
 }
 
 function partnerLabel (
@@ -983,44 +1081,160 @@ function sentStatus (
 }
 
 /**
- * Home dashboard: the N most recently updated sessions received (Sessions
- * pushed by CPOs) and sent (Transactions we map and push to eMSPs).
+ * Latest non-credit CDR per key. `rows` must be ordered by lastUpdated desc;
+ * rows whose key is null are skipped.
  */
-export async function fetchRecentSessions (
-  limit = 5,
-): Promise<RecentSessions> {
-  const data = await graphqlRequest<RecentSessionsQueryResult>(
-    RECENT_SESSIONS_QUERY,
-    { limit },
+function latestCdrByKey<T extends CdrSummary> (
+  rows: T[],
+  keyOf: (row: T) => string | null,
+): Map<string, T> {
+  const byKey = new Map<string, T>()
+  for (const row of rows) {
+    const key = keyOf(row)
+    if (key == null || row.credit === true || byKey.has(key)) {
+      continue
+    }
+    byKey.set(key, row)
+  }
+  return byKey
+}
+
+/** Once a CDR exists it is the source of truth for status, kWh and cost. */
+function applyCdr (
+  session: RecentSession,
+  cdr: CdrSummary | undefined,
+  cdrStatus: string,
+): RecentSession {
+  if (!cdr) {
+    return session
+  }
+  return {
+    ...session,
+    status: cdrStatus,
+    kwh: num(cdr.totalEnergy),
+    totalCost: cdr.totalCost,
+    currency: cdr.currency,
+    hasCdr: true,
+  }
+}
+
+function receivedKey (
+  sessionId: string,
+  tenantPartnerId: number | null,
+  roamingPartnerId: number | null,
+): string {
+  return `${sessionId}|${tenantPartnerId ?? ''}|${roamingPartnerId ?? ''}`
+}
+
+/**
+ * Home dashboard: one page of sessions received (Sessions pushed by CPOs),
+ * most recently updated first, overridden by their CDR when one exists.
+ */
+export async function fetchReceivedSessionsPage (
+  page: number,
+  itemsPerPage: number,
+): Promise<RecentSessionsPage> {
+  const data = await graphqlRequest<ReceivedSessionsPageResult>(
+    RECEIVED_SESSIONS_PAGE_QUERY,
+    { limit: itemsPerPage, offset: (page - 1) * itemsPerPage },
+  )
+
+  const sessionIds = [...new Set(data.rows.map(row => row.ocpiSessionId))]
+  const cdrs
+    = sessionIds.length === 0
+      ? []
+      : (
+          await graphqlRequest<ReceivedSessionCdrsResult>(
+            RECEIVED_SESSION_CDRS_QUERY,
+            { sessionIds },
+          )
+        ).Cdrs
+  const cdrByKey = latestCdrByKey(cdrs, cdr =>
+    cdr.sessionId == null
+      ? null
+      : receivedKey(cdr.sessionId, cdr.fromTenantPartnerId, cdr.roamingPartnerId),
   )
 
   return {
-    received: data.received.map(row => ({
-      id: row.id,
-      sessionId: row.ocpiSessionId,
-      partner: partnerLabel(row.TenantPartner, row.RoamingPartner),
-      tokenId: row.cdrToken?.uid ?? null,
-      status: row.status,
-      startDateTime: iso(row.startDateTime),
-      kwh: num(row.kwh),
-      totalCost: row.totalCost,
-      currency: row.currency,
-      lastUpdated: iso(row.lastUpdated),
-    })),
-    sent: data.sent.map(row => ({
-      id: row.id,
-      sessionId: row.transactionId,
-      partner: partnerLabel(
-        row.Authorization?.TenantPartner,
-        row.Authorization?.RoamingPartner,
+    total: data.total.aggregate?.count ?? 0,
+    items: data.rows.map(row =>
+      applyCdr(
+        {
+          id: row.id,
+          sessionId: row.ocpiSessionId,
+          partner: partnerLabel(row.TenantPartner, row.RoamingPartner),
+          tokenId: row.cdrToken?.uid ?? null,
+          status: row.status,
+          startDateTime: iso(row.startDateTime),
+          kwh: num(row.kwh),
+          totalCost: row.totalCost,
+          currency: row.currency,
+          lastUpdated: iso(row.lastUpdated),
+          hasCdr: false,
+        },
+        cdrByKey.get(
+          receivedKey(row.ocpiSessionId, row.tenantPartnerId, row.roamingPartnerId),
+        ),
+        'CDRS_RECEIVED',
       ),
-      tokenId: row.Authorization?.idToken ?? null,
-      status: sentStatus(row.chargingState, row.endTime),
-      startDateTime: iso(row.startTime),
-      kwh: num(row.totalKwh),
-      totalCost: num(row.totalCost),
-      currency: row.Tariff?.currency ?? null,
-      lastUpdated: iso(row.updatedAt),
-    })),
+    ),
+  }
+}
+
+/**
+ * Home dashboard: one page of sessions sent (Transactions we map and push to
+ * eMSPs), most recently updated first, overridden by their CDR when one exists.
+ */
+export async function fetchSentSessionsPage (
+  page: number,
+  itemsPerPage: number,
+): Promise<RecentSessionsPage> {
+  const data = await graphqlRequest<SentSessionsPageResult>(
+    SENT_SESSIONS_PAGE_QUERY,
+    { limit: itemsPerPage, offset: (page - 1) * itemsPerPage },
+  )
+
+  const cdrs
+    = data.rows.length === 0
+      ? []
+      : (
+          await graphqlRequest<SentSessionCdrsResult>(SENT_SESSION_CDRS_QUERY, {
+            transactionDbIds: data.rows.map(row => row.id),
+            sessionIds: [...new Set(data.rows.map(row => row.transactionId))],
+          })
+        ).Cdrs
+  const cdrByTransactionDbId = latestCdrByKey(cdrs, cdr =>
+    cdr.Transaction ? String(cdr.Transaction.id) : null,
+  )
+  // Fallback only for CDRs persisted without the transactionId FK
+  const cdrBySessionId = latestCdrByKey(cdrs, cdr =>
+    cdr.Transaction ? null : cdr.sessionId,
+  )
+
+  return {
+    total: data.total.aggregate?.count ?? 0,
+    items: data.rows.map(row =>
+      applyCdr(
+        {
+          id: row.id,
+          sessionId: row.transactionId,
+          partner: partnerLabel(
+            row.Authorization?.TenantPartner,
+            row.Authorization?.RoamingPartner,
+          ),
+          tokenId: row.Authorization?.idToken ?? null,
+          status: sentStatus(row.chargingState, row.endTime),
+          startDateTime: iso(row.startTime),
+          kwh: num(row.totalKwh),
+          totalCost: num(row.totalCost),
+          currency: row.Tariff?.currency ?? null,
+          lastUpdated: iso(row.updatedAt),
+          hasCdr: false,
+        },
+        cdrByTransactionDbId.get(String(row.id))
+        ?? cdrBySessionId.get(row.transactionId),
+        'CDRS_SENT',
+      ),
+    ),
   }
 }

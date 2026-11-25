@@ -211,6 +211,7 @@ describe('AdminModuleApi roaming partner routes', () => {
       { request: graphqlRequest } as any,
       {} as any, // locationsService
       { createCompanyCustomer } as any,
+      {} as any, // tokensClientApi
     );
   });
 

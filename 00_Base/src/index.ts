@@ -43,6 +43,7 @@ export {
   AuthorizationInfoResponseSchemaName,
 } from './model/AuthorizationInfo.js';
 export { TokensClientApi } from './trigger/TokensClientApi.js';
+export type { PartnerTokenLookup } from './trigger/TokensClientApi.js';
 export { AuthorizationInfoAllowed } from './model/AuthorizationInfoAllowed.js';
 export type { LocationReferences } from './model/LocationReferences.js';
 export {
