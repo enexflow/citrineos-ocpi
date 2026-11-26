@@ -17,7 +17,10 @@ import { stripCommandResultMessageIfDisabled } from '../model/CommandResult.js';
 import {
   COMMAND_RESPONSE_URL_CACHE_NAMESPACE,
   COMMAND_RESPONSE_URL_CACHE_RESOLVED,
+  commandCacheTtlSeconds,
 } from '../util/Consts.js';
+import type { OcpiConfig } from '../config/ocpi.types.js';
+import { OcpiConfigToken } from '../config/ocpi.types.js';
 import { CacheWrapper } from '../util/CacheWrapper.js';
 import {
   parseCommandCallbackContext,
@@ -27,6 +30,8 @@ import {
 @Service()
 export class CommandsClientApi extends BaseClientApi {
   protected cache!: ICache;
+  @Inject(OcpiConfigToken)
+  protected config!: OcpiConfig;
 
   constructor(@Inject() cacheWrapper: CacheWrapper) {
     super();
@@ -62,7 +67,9 @@ export class CommandsClientApi extends BaseClientApi {
       commandId,
       COMMAND_RESPONSE_URL_CACHE_RESOLVED,
       COMMAND_RESPONSE_URL_CACHE_NAMESPACE,
-      5, // Flush the resolution after a few seconds so that it doesn't stay in cache indefinitely
+      // Keep the marker until the timeout check has run (it may run on another instance,
+      // up to the command timeout after the command was sent), then let it expire.
+      commandCacheTtlSeconds(this.config.commands.timeout),
     );
 
     return this.request(

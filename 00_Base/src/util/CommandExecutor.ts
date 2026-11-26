@@ -40,6 +40,7 @@ import {
 import {
   COMMAND_RESPONSE_URL_CACHE_NAMESPACE,
   COMMAND_RESPONSE_URL_CACHE_RESOLVED,
+  commandCacheTtlSeconds,
 } from './Consts.js';
 import type { OcpiHeaders } from '../model/OcpiHeaders.js';
 import {
@@ -522,61 +523,74 @@ export class CommandExecutor {
     tenantPartner: TenantPartnerDto,
   ): Promise<string> {
     const commandId = uuidv4();
+    const timeoutSeconds = this.config.commands.timeout;
+    // The entry outlives the timeout so that the timeout check below, and a late callback
+    // routed to another instance, can still read it.
     await this.cache.set(
       commandId,
       serializeCommandCallbackContext(responseUrl, ocpiHeaders),
       COMMAND_RESPONSE_URL_CACHE_NAMESPACE,
-      this.config.commands.timeout,
+      commandCacheTtlSeconds(timeoutSeconds),
     );
 
-    this.cache
-      .onChange(
-        commandId,
-        this.config.commands.timeout,
-        COMMAND_RESPONSE_URL_CACHE_NAMESPACE,
-      )
-      .then((value) => {
-        if (value !== COMMAND_RESPONSE_URL_CACHE_RESOLVED) {
-          this.logger.warn('Command timed out', {
+    // Plain local timer rather than ICache.onChange: the check only needs the shared cache
+    // value, so it works the same with MemoryCache and RedisCache, and does not depend on
+    // Redis keyspace notifications. The callback that resolves the command may land on any
+    // instance; it writes COMMAND_RESPONSE_URL_CACHE_RESOLVED to the shared cache.
+    const timer = setTimeout(() => {
+      this.checkCommandTimeout(commandId, responseUrl, tenantPartner).catch(
+        (error: any) => {
+          this.logger.error('Error checking command timeout', {
             commandId,
+            error,
           });
-          this.commandsClientApi
-            .postCommandResult(
-              tenantPartner.countryCode!,
-              tenantPartner.partyId!,
-              tenantPartner.tenant!.countryCode!,
-              tenantPartner.tenant!.partyId!,
-              tenantPartner.partnerProfileOCPI!,
-              responseUrl,
-              {
-                result: CommandResultType.TIMEOUT,
-                message: {
-                  language: 'en',
-                  text: 'Charging station communication failed',
-                },
-              },
-              commandId,
-              tenantPartner.awsSecretCertificateArn,
-            )
-            .catch((error: any) => {
-              this.logger.error(
-                'Error posting command result on command timeout',
-                {
-                  commandId,
-                  error,
-                },
-              );
-            });
-        }
-      })
-      .catch((error: any) => {
-        this.logger.error('Error in command cache onChange', {
-          commandId,
-          error,
-        });
-      });
+        },
+      );
+    }, timeoutSeconds * 1000);
+    timer.unref?.();
 
     return commandId;
+  }
+
+  private async checkCommandTimeout(
+    commandId: string,
+    responseUrl: string,
+    tenantPartner: TenantPartnerDto,
+  ): Promise<void> {
+    const value = await this.cache.get<string>(
+      commandId,
+      COMMAND_RESPONSE_URL_CACHE_NAMESPACE,
+    );
+    if (value === COMMAND_RESPONSE_URL_CACHE_RESOLVED) {
+      return;
+    }
+    this.logger.warn('Command timed out', {
+      commandId,
+    });
+    try {
+      await this.commandsClientApi.postCommandResult(
+        tenantPartner.countryCode!,
+        tenantPartner.partyId!,
+        tenantPartner.tenant!.countryCode!,
+        tenantPartner.tenant!.partyId!,
+        tenantPartner.partnerProfileOCPI!,
+        responseUrl,
+        {
+          result: CommandResultType.TIMEOUT,
+          message: {
+            language: 'en',
+            text: 'Charging station communication failed',
+          },
+        },
+        commandId,
+        tenantPartner.awsSecretCertificateArn,
+      );
+    } catch (error: any) {
+      this.logger.error('Error posting command result on command timeout', {
+        commandId,
+        error,
+      });
+    }
   }
 
   private getCommandHandler(

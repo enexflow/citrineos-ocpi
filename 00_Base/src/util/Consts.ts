@@ -18,3 +18,12 @@ export const COMMAND_RESPONSE_URL_CACHE_NAMESPACE = 'commands';
  * was resolved instead of timed out and doesn't attempt to send a command result.
  */
 export const COMMAND_RESPONSE_URL_CACHE_RESOLVED = 'resolved';
+/**
+ * Extra lifetime given to command cache entries (pending response url and the resolved
+ * marker) beyond the command timeout. The timeout check reads the entry when the timeout
+ * elapses, so the entry must still exist at that moment, on whichever instance wrote it.
+ */
+export const COMMAND_CACHE_GRACE_SECONDS = 60;
+
+export const commandCacheTtlSeconds = (commandTimeoutSeconds: number): number =>
+  commandTimeoutSeconds + COMMAND_CACHE_GRACE_SECONDS;
