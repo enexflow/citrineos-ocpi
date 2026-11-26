@@ -195,6 +195,69 @@ describe('LocationNotify / EvseNotify / ConnectorNotify / ConnectorTariffNotify 
     expect(n.operation).toBe('INSERT');
   });
 
+  // LocationsModule.handleEvseUpdate pushes an EVSE status PATCH only when the
+  // payload has an ocpiStatus key, i.e. only when that column changed
+  describe('Evses UPDATE and ocpiStatus', () => {
+    async function seedEvse(): Promise<number> {
+      const [row]: any[] = await stack.sequelize.query(
+        `INSERT INTO "Evses" ("tenantId", "stationId", "evseTypeId", "createdAt", "updatedAt")
+         VALUES (${tenantId}, '${stationId}', 3, now(), now()) RETURNING id`,
+        { type: 'SELECT' as any },
+      );
+      await resetNotifications();
+      return row.id;
+    }
+
+    it('setting ocpiStatus REMOVED carries it, with the location flag', async () => {
+      const id = await seedEvse();
+
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "ocpiStatus" = 'REMOVED' WHERE id = ${id}`,
+      );
+
+      const [n] = await waitFor();
+      expect(n.channel).toBe('EvseNotification');
+      expect(n.operation).toBe('UPDATE');
+      expect(n.data).toMatchObject({
+        id,
+        stationId,
+        ocpiStatus: 'REMOVED',
+        disableOCPI: false,
+      });
+    });
+
+    it('clearing ocpiStatus carries the key with null', async () => {
+      const id = await seedEvse();
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "ocpiStatus" = 'REMOVED' WHERE id = ${id}`,
+      );
+      await resetNotifications();
+
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "ocpiStatus" = NULL WHERE id = ${id}`,
+      );
+
+      const [n] = await waitFor();
+      expect(n.data).toHaveProperty('ocpiStatus', null);
+    });
+
+    it('an update of another column does not carry ocpiStatus', async () => {
+      const id = await seedEvse();
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "ocpiStatus" = 'REMOVED' WHERE id = ${id}`,
+      );
+      await resetNotifications();
+
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "physicalReference" = 'A1' WHERE id = ${id}`,
+      );
+
+      const [n] = await waitFor();
+      expect(n.data.physicalReference).toBe('A1');
+      expect(n.data).not.toHaveProperty('ocpiStatus');
+    });
+  });
+
   it('Connectors INSERT notifies on ConnectorNotification with isStatusChanged=true', async () => {
     await seedConnector();
 
@@ -283,91 +346,5 @@ describe('LocationNotify / EvseNotify / ConnectorNotify / ConnectorTariffNotify 
 
     await new Promise((r) => setTimeout(r, 300));
     expect(received).toHaveLength(0);
-  });
-
-  // Runs before the nested block adds the column: the trigger must not break
-  // connector writes when the core Connectors.disableOCPI column is missing.
-  it('Connectors INSERT carries connectorDisableOCPI=false whatever the core schema', async () => {
-    await seedConnector();
-
-    const [n] = await waitFor();
-    expect(n.data.disableOCPI).toBe(false);
-    expect(n.data.connectorDisableOCPI).toBe(false);
-  });
-
-  describe('connector-level disableOCPI', () => {
-    beforeAll(async () => {
-      // core migration 20261118100000-add-disableOCPI-connector, in case the
-      // core test image predates it
-      await stack.sequelize.query(
-        `ALTER TABLE "Connectors" ADD COLUMN IF NOT EXISTS "disableOCPI" BOOLEAN DEFAULT FALSE`,
-      );
-    });
-
-    async function setConnectorDisabled(id: number, value: boolean) {
-      await stack.sequelize.query(
-        `UPDATE "Connectors" SET "disableOCPI" = ${value}, "updatedAt" = now() WHERE id = ${id}`,
-      );
-    }
-
-    async function setLocationDisabled(value: boolean) {
-      await stack.sequelize.query(
-        `UPDATE "Locations" SET "disableOCPI" = ${value}
-         WHERE id = (SELECT "locationId" FROM "ChargingStations" WHERE id = '${stationId}')`,
-      );
-    }
-
-    it('INSERT of a disabled connector sets both flags', async () => {
-      await stack.sequelize.query(
-        `INSERT INTO "Connectors" ("stationId", "connectorId", status, "tenantId", "disableOCPI", "createdAt", "updatedAt")
-         VALUES ('${stationId}', 1, 'Available', ${tenantId}, true, now(), now())`,
-      );
-
-      const [n] = await waitFor();
-      expect(n.data.disableOCPI).toBe(true);
-      expect(n.data.connectorDisableOCPI).toBe(true);
-    });
-
-    it('status UPDATE on a disabled connector still carries the flag (column unchanged)', async () => {
-      const id = await seedConnector();
-      await setConnectorDisabled(id, true);
-      await resetNotifications();
-
-      await stack.sequelize.query(
-        `UPDATE "Connectors" SET status = 'Charging', "updatedAt" = now() WHERE id = ${id}`,
-      );
-
-      const [n] = await waitFor();
-      expect(n.isStatusChanged).toBe(true);
-      expect(n.data.disableOCPI).toBe(true);
-      expect(n.data.connectorDisableOCPI).toBe(true);
-    });
-
-    it('a disabled location sets disableOCPI but not connectorDisableOCPI', async () => {
-      const id = await seedConnector();
-      await setLocationDisabled(true);
-      await resetNotifications();
-
-      await stack.sequelize.query(
-        `UPDATE "Connectors" SET status = 'Charging', "updatedAt" = now() WHERE id = ${id}`,
-      );
-
-      const [n] = await waitFor();
-      expect(n.data.disableOCPI).toBe(true);
-      expect(n.data.connectorDisableOCPI).toBe(false);
-    });
-
-    it('re-enabling the connector clears both flags', async () => {
-      const id = await seedConnector();
-      await setConnectorDisabled(id, true);
-      await resetNotifications();
-
-      await setConnectorDisabled(id, false);
-
-      const [n] = await waitFor();
-      expect(n.isStatusChanged).toBe(false);
-      expect(n.data.disableOCPI).toBe(false);
-      expect(n.data.connectorDisableOCPI).toBe(false);
-    });
   });
 });

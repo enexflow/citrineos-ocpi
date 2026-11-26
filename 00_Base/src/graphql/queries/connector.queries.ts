@@ -245,7 +245,6 @@ export const GET_OWN_CONNECTOR_FOR_TARIFF_BROADCAST_QUERY = gql`
       evseId
       stationId
       updatedAt
-      disableOCPI
       tariffs: ConnectorTariffs(
         where: { tenantPartnerId: { _is_null: true } }
       ) {
@@ -260,16 +259,8 @@ export const GET_OWN_CONNECTOR_FOR_TARIFF_BROADCAST_QUERY = gql`
       }
       Evse {
         evseTypeId
-        # OCPI-disabled connectors are left out of the EVSE sent to Gireve
-        Connectors(
-          order_by: { connectorId: asc }
-          where: {
-            _or: [
-              { disableOCPI: { _is_null: true } }
-              { disableOCPI: { _eq: false } }
-            ]
-          }
-        ) {
+        ocpiStatus
+        Connectors(order_by: { connectorId: asc }) {
           id
           stationId
           evseId

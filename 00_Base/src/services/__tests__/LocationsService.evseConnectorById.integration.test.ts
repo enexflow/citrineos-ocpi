@@ -12,7 +12,8 @@
  *    id 50 / evseTypeId 1 to keep the two apart;
  *  - connector_id is Connectors.id (ConnectorMapper), not the OCPP connectorId:
  *    connectors are seeded with ids 101/111 and OCPP connectorIds 1/11.
- * Connectors hidden by Connectors.disableOCPI must not be returned.
+ * An EVSE hidden from OCPI (Evses.ocpiStatus = REMOVED) is still returned, with
+ * status REMOVED whatever its connectors report.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Container } from 'typedi';
@@ -28,8 +29,8 @@ import { EvseStatus } from '../../model/EvseStatus';
 const STATION_ID = 'KEMPOWER-1';
 const EVSE_DB_ID = 50;
 const EVSE_TYPE_ID = 1;
-const PHANTOM_CONNECTOR_ID = 101; // OCPP connector 1, never reported by the station
-const REAL_CONNECTOR_ID = 111; // OCPP connector 11, the one the station reports
+const CHARGING_CONNECTOR_ID = 101; // OCPP connector 1
+const REAL_CONNECTOR_ID = 111; // OCPP connector 11
 
 describe('LocationsService.getEvseById / getConnectorById', () => {
   let stack: OcpiTestStack;
@@ -40,24 +41,6 @@ describe('LocationsService.getEvseById / getConnectorById', () => {
   beforeAll(async () => {
     stack = await startOcpiTestStack();
     Container.set(Logger, new Logger({ minLevel: 6 }));
-
-    // core migration 20261118100000-add-disableOCPI-connector, in case the
-    // core test image predates it; Hasura only sees the column after a reload
-    await stack.sequelize.query(
-      `ALTER TABLE "Connectors" ADD COLUMN IF NOT EXISTS "disableOCPI" BOOLEAN DEFAULT FALSE`,
-    );
-    const reload = await fetch(
-      stack.graphqlEndpoint.replace(/\/graphql$/, '/metadata'),
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...stack.graphqlHeaders,
-        },
-        body: JSON.stringify({ type: 'reload_metadata', args: {} }),
-      },
-    );
-    expect(reload.ok).toBe(true);
 
     const client = new OcpiGraphqlClient(
       stack.graphqlEndpoint,
@@ -108,22 +91,17 @@ describe('LocationsService.getEvseById / getConnectorById', () => {
        VALUES (${EVSE_DB_ID}, ${t.id}, '${STATION_ID}', ${EVSE_TYPE_ID}, now(), now())`,
     );
 
-    // phantom connector is Charging so it would win the EVSE status if counted
-    const connector = (
-      id: number,
-      ocppConnectorId: number,
-      status: string,
-      disableOCPI: boolean,
-    ) =>
+    // one Charging connector, so the computed EVSE status is CHARGING
+    const connector = (id: number, ocppConnectorId: number, status: string) =>
       stack.sequelize.query(
         `INSERT INTO "Connectors"
            (id, "stationId", "evseId", "connectorId", status, type, format, "powerType",
-            "maximumVoltage", "maximumAmperage", "tenantId", "disableOCPI", "createdAt", "updatedAt")
+            "maximumVoltage", "maximumAmperage", "tenantId", "createdAt", "updatedAt")
          VALUES (${id}, '${STATION_ID}', ${EVSE_DB_ID}, ${ocppConnectorId}, '${status}',
-                 'CHAdeMO', 'Cable', 'DC', 500, 125, ${t.id}, ${disableOCPI}, now(), now())`,
+                 'CHAdeMO', 'Cable', 'DC', 500, 125, ${t.id}, now(), now())`,
       );
-    await connector(PHANTOM_CONNECTOR_ID, 1, 'Charging', true);
-    await connector(REAL_CONNECTOR_ID, 11, 'Available', false);
+    await connector(CHARGING_CONNECTOR_ID, 1, 'Charging');
+    await connector(REAL_CONNECTOR_ID, 11, 'Available');
 
     const [tariff]: any[] = await stack.sequelize.query(
       `INSERT INTO "Tariffs" (currency, "ocpiTariffId", "tenantId", "startDateTime", "createdAt", "updatedAt")
@@ -137,7 +115,7 @@ describe('LocationsService.getEvseById / getConnectorById', () => {
     );
   });
 
-  it('finds the EVSE by the evseTypeId in its uid and returns its enabled connectors', async () => {
+  it('finds the EVSE by the evseTypeId in its uid and returns its connectors', async () => {
     const res = await service.getEvseById(
       locationId,
       STATION_ID,
@@ -147,11 +125,10 @@ describe('LocationsService.getEvseById / getConnectorById', () => {
 
     expect(res.status_code).toBe(OcpiResponseStatusCode.GenericSuccessCode);
     expect(res.data?.uid).toBe(`${STATION_ID}::${EVSE_TYPE_ID}`);
-    expect(res.data?.connectors.map((c: { id: string }) => c.id)).toEqual([
-      String(REAL_CONNECTOR_ID),
-    ]);
-    // the disabled phantom connector is Charging; it must not drive the status
-    expect(res.data?.status).toBe(EvseStatus.AVAILABLE);
+    expect(
+      res.data?.connectors.map((c: { id: string }) => c.id).sort(),
+    ).toEqual([String(CHARGING_CONNECTOR_ID), String(REAL_CONNECTOR_ID)]);
+    expect(res.data?.status).toBe(EvseStatus.CHARGING);
   });
 
   it('does not match on the EVSE database id', async () => {
@@ -165,9 +142,9 @@ describe('LocationsService.getEvseById / getConnectorById', () => {
     expect(res.status_code).toBe(OcpiResponseStatusCode.ClientUnknownLocation);
   });
 
-  it('returns an empty connector list when every connector is disabled', async () => {
+  it('returns an OCPI-REMOVED EVSE with status REMOVED, not the computed one', async () => {
     await stack.sequelize.query(
-      `UPDATE "Connectors" SET "disableOCPI" = true WHERE id = ${REAL_CONNECTOR_ID}`,
+      `UPDATE "Evses" SET "ocpiStatus" = 'REMOVED' WHERE id = ${EVSE_DB_ID}`,
     );
 
     const res = await service.getEvseById(
@@ -178,7 +155,9 @@ describe('LocationsService.getEvseById / getConnectorById', () => {
     );
 
     expect(res.status_code).toBe(OcpiResponseStatusCode.GenericSuccessCode);
-    expect(res.data?.connectors).toEqual([]);
+    expect(res.data?.uid).toBe(`${STATION_ID}::${EVSE_TYPE_ID}`);
+    // a connector is Charging, the published status must still be REMOVED
+    expect(res.data?.status).toBe(EvseStatus.REMOVED);
   });
 
   describe('getConnectorById', () => {
@@ -209,14 +188,6 @@ describe('LocationsService.getEvseById / getConnectorById', () => {
 
     it('does not match on the EVSE database id', async () => {
       const res = await get(EVSE_DB_ID, REAL_CONNECTOR_ID);
-
-      expect(res.status_code).toBe(
-        OcpiResponseStatusCode.ClientUnknownLocation,
-      );
-    });
-
-    it('does not return an OCPI-disabled connector', async () => {
-      const res = await get(EVSE_TYPE_ID, PHANTOM_CONNECTOR_ID);
 
       expect(res.status_code).toBe(
         OcpiResponseStatusCode.ClientUnknownLocation,

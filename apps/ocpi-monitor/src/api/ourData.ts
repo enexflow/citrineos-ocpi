@@ -61,9 +61,7 @@ const OUR_LOCATIONS_QUERY = `
         }
       }
       ChargingStations {
-        Connectors(
-          where: { _or: [{ disableOCPI: { _is_null: true } }, { disableOCPI: { _eq: false } }] }
-        ) {
+        Connectors {
           id
           ConnectorTariffs(
             where: { tenantPartnerId: { _is_null: true } }

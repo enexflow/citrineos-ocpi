@@ -45,9 +45,6 @@ jest.mock('../../mapper/index', () => ({
     fromGraphql: jest.fn(),
     fromPartialGraphql: jest.fn(),
     mapEvseStatusFromConnectors: jest.fn(),
-    isConnectorOcpiEnabled: jest.fn(
-      (c: { disableOCPI?: boolean | null }) => c.disableOCPI !== true,
-    ),
   },
   ConnectorMapper: {
     fromGraphql: jest.fn(),
@@ -319,29 +316,6 @@ describe('LocationsBroadcaster', () => {
       );
 
       expect(callArg().body.connectors).toHaveLength(1);
-    });
-
-    it('leaves OCPI-disabled connectors out of the EVSE connector list', async () => {
-      const disabled = {
-        id: 11,
-        evseId: 3,
-        ocpiId: null,
-        disableOCPI: true,
-      } as any;
-
-      await broadcaster.broadcastPatchConnectorTariffsGireve(
-        tenant,
-        'LOC1',
-        'ST1',
-        3,
-        [connectorA, disabled, connectorB],
-        9,
-        ['T1'],
-        lastUpdated,
-      );
-
-      const ids = callArg().body.connectors.map((c: any) => c.id);
-      expect(ids).toEqual(['C9', '10']);
     });
 
     it('includes ONLY Gireve partners via partnerFilter', async () => {

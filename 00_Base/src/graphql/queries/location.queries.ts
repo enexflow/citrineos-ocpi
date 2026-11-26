@@ -74,15 +74,7 @@ export const GET_OUR_LOCATIONS_QUERY = gql`
           createdAt
           updatedAt
           ocpiStatus
-          # Connectors.disableOCPI hides a single connector from OCPI (null = enabled)
-          connectors: Connectors(
-            where: {
-              _or: [
-                { disableOCPI: { _is_null: true } }
-                { disableOCPI: { _eq: false } }
-              ]
-            }
-          ) {
+          connectors: Connectors {
             id
             stationId
             evseId
@@ -264,15 +256,7 @@ export const GET_OWN_LOCATION_QUERY = gql`
           createdAt
           updatedAt
           ocpiStatus
-          # Connectors.disableOCPI hides a single connector from OCPI (null = enabled)
-          connectors: Connectors(
-            where: {
-              _or: [
-                { disableOCPI: { _is_null: true } }
-                { disableOCPI: { _eq: false } }
-              ]
-            }
-          ) {
+          connectors: Connectors {
             id
             stationId
             evseId
@@ -346,15 +330,7 @@ export const GET_EVSE_BY_ID_QUERY = gql`
           removed
           createdAt
           updatedAt
-          # Connectors.disableOCPI hides a single connector from OCPI (null = enabled)
-          connectors: Connectors(
-            where: {
-              _or: [
-                { disableOCPI: { _is_null: true } }
-                { disableOCPI: { _eq: false } }
-              ]
-            }
-          ) {
+          connectors: Connectors {
             id
             stationId
             evseId
@@ -402,15 +378,7 @@ export const GET_CONNECTOR_BY_ID_QUERY = gql`
         evses: Evses(where: { evseTypeId: { _eq: $evseTypeId } }) {
           # the OCPI connector id we publish is Connectors.id (ConnectorMapper),
           # not the OCPP connectorId
-          connectors: Connectors(
-            where: {
-              id: { _eq: $connectorId }
-              _or: [
-                { disableOCPI: { _is_null: true } }
-                { disableOCPI: { _eq: false } }
-              ]
-            }
-          ) {
+          connectors: Connectors(where: { id: { _eq: $connectorId } }) {
             id
             stationId
             evseId

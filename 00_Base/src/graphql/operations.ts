@@ -463,6 +463,7 @@ export type GetChargingStationByIdQueryResult = {
       evseId?: string | null,
       physicalReference?: string | null,
       removed?: boolean | null,
+      ocpiStatus?: string | null,
       createdAt: any,
       updatedAt: any
     }>,
@@ -479,7 +480,6 @@ export type GetChargingStationByIdQueryResult = {
       info?: string | null,
       vendorId?: string | null,
       vendorErrorCode?: string | null,
-      disableOCPI?: boolean | null,
       createdAt: any,
       updatedAt: any
     }>,
@@ -746,7 +746,6 @@ export type GetOwnConnectorForTariffBroadcastQueryResult = {
     evseId?: number | null,
     stationId: string,
     updatedAt: any,
-    disableOCPI?: boolean | null,
     tariffs: Array<{
       tariffOcpiId: string
     }>,
@@ -759,6 +758,7 @@ export type GetOwnConnectorForTariffBroadcastQueryResult = {
     },
     Evse?: {
       evseTypeId?: number | null,
+      ocpiStatus?: string | null,
       Connectors: Array<{
         id: number,
         stationId: string,
