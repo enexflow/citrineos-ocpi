@@ -207,7 +207,7 @@ Client HTTP sortant pour appeler les endpoints OCPI Tariffs des partenaires :
 | `00_Base/src/model/DTO/tariffs/PutTariffRequest.ts` | DTO d'entrée pour le PUT (sans `last_updated`).                                                     |
 | `00_Base/src/model/TariffElement.ts`                | `TariffElementSchema` : `price_components` + `restrictions`                                         |
 | `00_Base/src/model/TariffRestrictions.ts`           | Restrictions horaires, jour, kWh, durée, puissance                                                  |
-| `00_Base/src/model/TariffDimensionType.ts`          | Enum : `ENERGY`, `FLAT`, `PARKING_TIME`, `TIME`                                                     |
+| `00_Base/src/model/TariffDimensionType.ts`          | Enum : `ENERGY`, `FLAT`, `PARKING_TIME`, `SESSION_TIME` (Gireve), `TIME`                            |
 | `00_Base/src/model/TariffType.ts`                   | Enum : `AD_HOC_PAYMENT`, `PROFILE_CHEAP`, `PROFILE_FAST`, `PROFILE_GREEN`, `REGULAR`                |
 
 ---

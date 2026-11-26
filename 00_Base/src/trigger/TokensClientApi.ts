@@ -18,6 +18,32 @@ import { TokenType } from '../model/TokenType.js';
 import type { LocationReferences } from '../model/LocationReferences.js';
 import type { AuthorizationInfoResponse } from '../model/AuthorizationInfo.js';
 import { AuthorizationInfoResponseSchema } from '../model/AuthorizationInfo.js';
+import { z } from 'zod';
+import { UnsuccessfulRequestException } from '../exception/UnsuccessfulRequestException.js';
+
+/**
+ * typed-rest-client rejects every status > 299 except 404 with a plain Error
+ * carrying statusCode and the parsed body (RestClient.processResponse).
+ */
+const isPartnerHttpError = (
+  err: unknown,
+): err is Error & { statusCode: number; result?: unknown } =>
+  err instanceof Error &&
+  !(err instanceof UnsuccessfulRequestException) &&
+  typeof (err as { statusCode?: unknown }).statusCode === 'number';
+
+/** Outcome of a raw GET on a partner's Tokens RECEIVER, for debugging. */
+export interface PartnerTokenLookup {
+  /** URL called, without credentials (null when no Tokens RECEIVER is known) */
+  url: string | null;
+  /** true when the partner answered with a 2xx HTTP status */
+  ok: boolean;
+  /** HTTP status when the partner answered with an error status */
+  httpStatus: number | null;
+  /** partner's response body, unvalidated */
+  body: unknown;
+  error: string | null;
+}
 
 @Service()
 export class TokensClientApi extends BaseClientApi {
@@ -98,5 +124,90 @@ export class TokensClientApi extends BaseClientApi {
       undefined,
       awsSecretCertificateArn ?? undefined,
     );
+  }
+
+  /**
+   * GET {tokens_RECEIVER}/{country_code}/{party_id}/{uid}[?type=] on the
+   * partner (CPO side): what the partner has stored for one of our tokens.
+   * Returns the partner's answer as-is, without schema validation, and never
+   * throws on partner errors so the caller can show them.
+   */
+  async getTokenFromPartner(
+    fromCountryCode: string,
+    fromPartyId: string,
+    toCountryCode: string,
+    toPartyId: string,
+    partnerProfile: PartnerProfile,
+    tokenCountryCode: string,
+    tokenPartyId: string,
+    tokenUid: string,
+    tokenType?: TokenType,
+    awsSecretCertificateArn?: string | null,
+  ): Promise<PartnerTokenLookup> {
+    let url: string;
+    try {
+      url = `${this.getUrl(partnerProfile)}/${encodeURIComponent(tokenCountryCode)}/${encodeURIComponent(tokenPartyId)}/${encodeURIComponent(tokenUid)}`;
+    } catch {
+      return {
+        url: null,
+        ok: false,
+        httpStatus: null,
+        body: null,
+        error: 'No Tokens RECEIVER endpoint available for partner',
+      };
+    }
+    try {
+      const body: unknown = await this.request(
+        fromCountryCode,
+        fromPartyId,
+        toCountryCode,
+        toPartyId,
+        HttpMethod.Get,
+        z.unknown(),
+        partnerProfile,
+        true,
+        url,
+        undefined,
+        undefined,
+        tokenType ? { type: tokenType } : undefined,
+        undefined,
+        awsSecretCertificateArn ?? undefined,
+      );
+      return { url, ok: true, httpStatus: null, body, error: null };
+    } catch (err) {
+      // The partner answered with a 404 (handleResponse).
+      if (err instanceof UnsuccessfulRequestException) {
+        return {
+          url,
+          ok: false,
+          httpStatus: err.iRestResponse?.statusCode ?? err.statusCode ?? null,
+          body: err.iRestResponse?.result ?? null,
+          error: err.message,
+        };
+      }
+      // The partner answered with another error status.
+      if (isPartnerHttpError(err)) {
+        return {
+          url,
+          ok: false,
+          httpStatus: err.statusCode,
+          body: err.result ?? null,
+          error: err.message,
+        };
+      }
+      // Not the partner's answer (missing credentials, mTLS, network, bug):
+      // its message may hold secrets, so it stays in the logs.
+      this.logger.error(
+        `Token lookup on partner ${toCountryCode}-${toPartyId} failed`,
+        err,
+      );
+      return {
+        url,
+        ok: false,
+        httpStatus: null,
+        body: null,
+        error: 'Request to partner failed, see OCPI logs',
+      };
+    }
   }
 }

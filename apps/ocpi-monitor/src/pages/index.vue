@@ -212,8 +212,9 @@ SPDX-License-Identifier: Apache-2.0
             Last sessions received VS sent
           </h2>
           <p class="text-body-large mb-0" style="color: #587474">
-            5 most recently updated — received = Sessions pushed to us by CPOs,
-            sent = Transactions we map and push to eMSPs.
+            Most recently updated first — received = Sessions pushed to us by CPOs,
+            sent = Transactions we map and push to eMSPs. Once a CDR exists, its
+            status, kWh and cost replace the session's.
           </p>
         </div>
 
@@ -222,21 +223,11 @@ SPDX-License-Identifier: Apache-2.0
           :loading="recentLoading"
           prepend-icon="mdi-refresh"
           variant="tonal"
-          @click="loadRecentSessions"
+          @click="refreshRecentTables"
         >
           Refresh
         </v-btn>
       </div>
-
-      <v-alert
-        v-if="recentError"
-        class="mb-4"
-        density="comfortable"
-        type="error"
-        variant="tonal"
-      >
-        {{ recentError }}
-      </v-alert>
 
       <v-row>
         <v-col v-for="table in recentTables" :key="table.key" cols="12">
@@ -244,15 +235,27 @@ SPDX-License-Identifier: Apache-2.0
             <v-icon :icon="table.icon" size="18" />
             {{ table.title }}
           </div>
-          <v-data-table
+          <v-alert
+            v-if="table.state.error"
+            class="mb-2"
+            density="comfortable"
+            type="error"
+            variant="tonal"
+          >
+            {{ table.state.error }}
+          </v-alert>
+          <v-data-table-server
+            v-model:items-per-page="table.state.itemsPerPage"
+            v-model:page="table.state.page"
             class="rounded-lg"
             density="compact"
             :headers="recentHeaders"
-            hide-default-footer
             item-value="id"
-            :items="table.items"
-            :items-per-page="-1"
-            :loading="recentLoading"
+            :items="table.state.items"
+            :items-length="table.state.total"
+            :items-per-page-options="RECENT_ITEMS_PER_PAGE_OPTIONS"
+            :loading="table.state.loading"
+            @update:options="loadRecentTable(table)"
           >
             <template #item.sessionId="{ item }">
               <code class="id-code">{{ item.sessionId }}</code>
@@ -262,7 +265,16 @@ SPDX-License-Identifier: Apache-2.0
               <span v-else>—</span>
             </template>
             <template #item.status="{ item }">
-              {{ item.status ?? '—' }}
+              <v-chip
+                v-if="item.hasCdr"
+                color="success"
+                label
+                size="x-small"
+                variant="tonal"
+              >
+                {{ item.status }}
+              </v-chip>
+              <span v-else>{{ item.status ?? '—' }}</span>
             </template>
             <template #item.startDateTime="{ item }">
               {{ formatDate(item.startDateTime) }}
@@ -281,7 +293,7 @@ SPDX-License-Identifier: Apache-2.0
                 {{ table.empty }}
               </div>
             </template>
-          </v-data-table>
+          </v-data-table-server>
         </v-col>
       </v-row>
     </div>
@@ -293,15 +305,17 @@ SPDX-License-Identifier: Apache-2.0
     CdrFinancials,
     CurrencyAmount,
     PartnerRoleCounts,
-    RecentSessions,
+    RecentSession,
+    RecentSessionsPage,
   } from '@/types/partner'
-  import { computed, onMounted, ref } from 'vue'
+  import { computed, onMounted, reactive, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     amountOf,
     fetchCdrFinancials,
     fetchPartnerRoleCounts,
-    fetchRecentSessions,
+    fetchReceivedSessionsPage,
+    fetchSentSessionsPage,
   } from '@/api/partners'
 
   const router = useRouter()
@@ -418,9 +432,62 @@ SPDX-License-Identifier: Apache-2.0
     }
   }
 
-  const recent = ref<RecentSessions | null>(null)
-  const recentLoading = ref(false)
-  const recentError = ref<string | null>(null)
+  const RECENT_ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
+
+  interface RecentTableState {
+    items: RecentSession[]
+    total: number
+    page: number
+    itemsPerPage: number
+    loading: boolean
+    error: string | null
+    /** guards against an older page response overwriting a newer one */
+    requestId: number
+  }
+
+  interface RecentTable {
+    key: 'received' | 'sent'
+    title: string
+    icon: string
+    empty: string
+    fetchPage: (page: number, itemsPerPage: number) => Promise<RecentSessionsPage>
+    state: RecentTableState
+  }
+
+  function newRecentTableState (): RecentTableState {
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      itemsPerPage: 5,
+      loading: false,
+      error: null,
+      requestId: 0,
+    }
+  }
+
+  const recentTables: RecentTable[] = [
+    {
+      key: 'received',
+      title: 'Sessions received',
+      icon: 'mdi-download',
+      empty: 'No sessions received yet.',
+      fetchPage: fetchReceivedSessionsPage,
+      state: reactive(newRecentTableState()),
+    },
+    {
+      key: 'sent',
+      title: 'Sessions sent',
+      icon: 'mdi-upload',
+      empty: 'No sessions sent yet.',
+      fetchPage: fetchSentSessionsPage,
+      state: reactive(newRecentTableState()),
+    },
+  ]
+
+  const recentLoading = computed(() =>
+    recentTables.some(table => table.state.loading),
+  )
 
   const recentHeaders = [
     { title: 'Session id', key: 'sessionId', sortable: false },
@@ -432,23 +499,6 @@ SPDX-License-Identifier: Apache-2.0
     { title: 'Cost', key: 'totalCost', sortable: false, align: 'end' as const },
     { title: 'Last updated', key: 'lastUpdated', sortable: false },
   ]
-
-  const recentTables = computed(() => [
-    {
-      key: 'received',
-      title: 'Last 5 sessions received',
-      icon: 'mdi-download',
-      items: recent.value?.received ?? [],
-      empty: 'No sessions received yet.',
-    },
-    {
-      key: 'sent',
-      title: 'Last 5 sessions sent',
-      icon: 'mdi-upload',
-      items: recent.value?.sent ?? [],
-      empty: 'No sessions sent yet.',
-    },
-  ])
 
   function formatDate (value: string | null): string {
     return value ? new Date(value).toLocaleString() : '—'
@@ -468,23 +518,32 @@ SPDX-License-Identifier: Apache-2.0
     return currency ? `${amount} ${currency}` : amount
   }
 
-  async function loadRecentSessions () {
-    recentLoading.value = true
-    recentError.value = null
+  // Called by v-data-table-server on mount and on every page / page-size change
+  async function loadRecentTable (table: RecentTable) {
+    const { state } = table
+    const requestId = ++state.requestId
+    state.loading = true
+    state.error = null
     try {
-      recent.value = await fetchRecentSessions(5)
+      const result = await table.fetchPage(state.page, state.itemsPerPage)
+      if (requestId !== state.requestId) return
+      state.items = result.items
+      state.total = result.total
     } catch (error_) {
-      recent.value = null
-      recentError.value
-        = error_ instanceof Error ? error_.message : String(error_)
+      if (requestId !== state.requestId) return
+      state.items = []
+      state.error = error_ instanceof Error ? error_.message : String(error_)
     } finally {
-      recentLoading.value = false
+      if (requestId === state.requestId) state.loading = false
     }
+  }
+
+  function refreshRecentTables () {
+    for (const table of recentTables) loadRecentTable(table)
   }
 
   onMounted(load)
   onMounted(loadFinancials)
-  onMounted(loadRecentSessions)
 </script>
 
 <style scoped>

@@ -45,6 +45,8 @@ import {
   DeleteLocationBodySchemaName,
   TariffsService,
   LocationsService,
+  TokensClientApi,
+  TokenType,
   type OnboardRoamingPartnerBody,
   type DeleteLocationBody,
   type DeleteLocationSummary,
@@ -61,6 +63,7 @@ import {
   JsonController,
   Param,
   Post,
+  QueryParam,
 } from 'routing-controllers';
 import { Service } from 'typedi';
 import { RoamingPartnerService } from '@citrineos/ocpi-base';
@@ -112,6 +115,11 @@ const UPSERT_STATUS = {
   role_added: 'role added to existing roaming partner',
   unchanged: 'roaming partner already exists',
 } as const;
+
+// OCPI 2.2.1 Token.uid is CiString(36).
+const OCPI_TOKEN_UID_MAX_LENGTH = 36;
+const OCPI_COUNTRY_CODE_REGEX = /^[A-Z]{2}$/;
+const OCPI_PARTY_ID_REGEX = /^[A-Z0-9]{3}$/;
 
 const pennylaneStatus = (created: boolean) =>
   created ? 'pennylane customer created' : 'existing pennylane customer linked';
@@ -172,6 +180,7 @@ export class AdminModuleApi extends BaseController {
     readonly ocpiGraphqlClient: OcpiGraphqlClient,
     readonly locationsService: LocationsService,
     readonly pennylaneService: PennylaneService,
+    readonly tokensClientApi: TokensClientApi,
   ) {
     super();
   }
@@ -504,6 +513,111 @@ export class AdminModuleApi extends BaseController {
       status_code: OcpiResponseStatusCode.GenericSuccessCode,
       timestamp: new Date(),
     };
+  }
+
+  /**
+   * Admin UI debug: GET one token from a peer-to-peer partner's Tokens
+   * RECEIVER, i.e. what that CPO has stored for one of our tokens. Returns
+   * the partner's raw answer; the partner credential stays server-side.
+   * country_code / party_id default to our own tenant identity.
+   */
+  @Get('/partners/:id/tokens/:uid')
+  @AsAdminEndpoint()
+  async getPartnerToken(
+    @Param('id') idParam: string,
+    @Param('uid') uid: string,
+    @QueryParam('type') typeParam?: string,
+    @QueryParam('country_code') countryCodeParam?: string,
+    @QueryParam('party_id') partyIdParam?: string,
+  ) {
+    const { id, tokenType } = this.parsePartnerTokenParams(
+      idParam,
+      uid,
+      typeParam,
+    );
+
+    const result = await this.ocpiGraphqlClient.request<
+      GetTenantPartnerByIdQueryResult,
+      GetTenantPartnerByIdQueryVariables
+    >(GET_TENANT_PARTNER_BY_ID, { id });
+    const partner = result.TenantPartners_by_pk;
+    const tenant = partner?.tenant;
+    if (
+      !partner?.partnerProfileOCPI ||
+      !tenant?.countryCode ||
+      !tenant.partyId
+    ) {
+      throw new NotFoundException(`Partner ${id} not found or not registered`);
+    }
+    const owner = this.resolveTokenOwner(
+      { countryCode: tenant.countryCode, partyId: tenant.partyId },
+      countryCodeParam,
+      partyIdParam,
+    );
+
+    const lookup = await this.tokensClientApi.getTokenFromPartner(
+      tenant.countryCode,
+      tenant.partyId,
+      partner.countryCode,
+      partner.partyId,
+      partner.partnerProfileOCPI,
+      owner.countryCode,
+      owner.partyId,
+      uid,
+      tokenType,
+      partner.awsSecretCertificateArn,
+    );
+
+    return {
+      data: {
+        partner: this.toIdentity(partner),
+        request: { method: 'GET', ...owner, uid, type: tokenType ?? null },
+        ...lookup,
+      },
+    };
+  }
+
+  /** Route params of GET /partners/:id/tokens/:uid, validated. */
+  private parsePartnerTokenParams(
+    idParam: string,
+    uid: string,
+    typeParam?: string,
+  ): { id: number; tokenType?: TokenType } {
+    const id = Number(idParam);
+    if (!Number.isInteger(id)) {
+      throw new NotFoundException(`Partner ${idParam} not found`);
+    }
+    if (!uid || uid.length > OCPI_TOKEN_UID_MAX_LENGTH) {
+      throw new InvalidParamException(
+        `uid must be 1 to ${OCPI_TOKEN_UID_MAX_LENGTH} characters`,
+      );
+    }
+    const tokenType = typeParam
+      ? (typeParam.toUpperCase() as TokenType)
+      : undefined;
+    if (tokenType && !Object.values(TokenType).includes(tokenType)) {
+      throw new InvalidParamException(
+        `type must be one of ${Object.values(TokenType).join(', ')}`,
+      );
+    }
+    return { id, tokenType };
+  }
+
+  /** Token owner: the query params, or our own tenant identity by default. */
+  private resolveTokenOwner(
+    tenant: { countryCode: string; partyId: string },
+    countryCodeParam?: string,
+    partyIdParam?: string,
+  ): { countryCode: string; partyId: string } {
+    const countryCode = (countryCodeParam || tenant.countryCode).toUpperCase();
+    const partyId = (partyIdParam || tenant.partyId).toUpperCase();
+    if (!OCPI_COUNTRY_CODE_REGEX.test(countryCode)) {
+      throw new InvalidParamException('country_code must be 2 letters');
+    }
+    if (!OCPI_PARTY_ID_REGEX.test(partyId)) {
+      throw new InvalidParamException('party_id must be 3 characters');
+    }
+    return { countryCode, partyId };
   }
 
   @Post('/onboard-roaming-partner-cpo')

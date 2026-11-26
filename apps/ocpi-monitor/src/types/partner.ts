@@ -296,17 +296,21 @@ export interface RecentSession {
   partner: string
   /** token uid used for the session (cdrToken.uid received / Authorization.idToken sent) */
   tokenId: string | null
+  /** CDRS_RECEIVED / CDRS_SENT once a CDR exists, otherwise the session status */
   status: string | null
   startDateTime: string | null
+  /** CDR totalEnergy when a CDR exists, otherwise the session kWh */
   kwh: number | null
+  /** CDR totalCost when a CDR exists, otherwise the session totalCost */
   totalCost: unknown
   currency: string | null
   lastUpdated: string | null
+  /** true when status/kwh/totalCost/currency come from the session's CDR */
+  hasCdr: boolean
 }
 
-export interface RecentSessions {
-  /** Sessions pushed to us by CPOs (Sessions table) */
-  received: RecentSession[]
-  /** Transactions we map and push to eMSPs as OCPI sessions */
-  sent: RecentSession[]
+export interface RecentSessionsPage {
+  items: RecentSession[]
+  /** total number of sessions across all pages */
+  total: number
 }
