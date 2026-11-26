@@ -32,6 +32,21 @@ export class KoaServer {
     console.log(`Server started on port ${port}`);
   }
 
+  /** Stops accepting connections and resolves once in-flight requests are done. */
+  public close(): Promise<void> {
+    return new Promise((resolve) => {
+      if (!this.server) {
+        resolve();
+        return;
+      }
+      this.server.close(() => {
+        console.log('Koa server closed');
+        resolve();
+      });
+      this.server.closeIdleConnections?.();
+    });
+  }
+
   public shutdown() {
     if (this.server) {
       this.server.close(() => {

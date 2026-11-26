@@ -125,6 +125,14 @@ export abstract class AbstractDtoModule implements IDtoModule {
   }
 
   /**
+   * Stops consuming the events subscribed by {@link initHandlers}.
+   */
+  public async stopHandlers(): Promise<void> {
+    await this._receiver.unsubscribeAll?.();
+    this._logger.info('Event handlers stopped');
+  }
+
+  /**
    * Initializes the handler for handling GraphQL subscription messages.
    */
   public async initHandlers(): Promise<void> {

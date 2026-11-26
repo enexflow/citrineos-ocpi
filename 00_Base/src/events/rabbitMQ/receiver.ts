@@ -23,6 +23,12 @@ interface DtoSubscription {
   filter: { [k: string]: string };
 }
 
+interface ActiveConsumer {
+  channel: amqplib.Channel;
+  consumerTag: string;
+  subscription: DtoSubscription;
+}
+
 /**
  * Implementation of a {@link IEventHandler} using RabbitMQ as the underlying transport.
  */
@@ -47,6 +53,7 @@ export class RabbitMqDtoReceiver
   // Queues are transient: the broker drops them with their connection or home node, so every
   // subscription must be replayed after a reconnect or a consumer cancel.
   private readonly _subscriptions: DtoSubscription[] = [];
+  private _consumers: ActiveConsumer[] = [];
   private _queueSequence = 0;
   private _lastRestoreFailureAt = 0;
 
@@ -89,10 +96,40 @@ export class RabbitMqDtoReceiver
     }
 
     const subscription: DtoSubscription = { eventType, objectType, filter };
-    await this._declareAndConsume(this._channel, subscription);
     this._subscriptions.push(subscription);
+    try {
+      await this._declareAndConsume(this._channel, subscription);
+    } catch (error) {
+      this._subscriptions.splice(this._subscriptions.indexOf(subscription), 1);
+      throw error;
+    }
 
     return true;
+  }
+
+  /**
+   * Cancels every consumer and forgets the subscriptions, so nothing is replayed on reconnect.
+   * The transient queues are deleted by the broker once their consumer is gone.
+   */
+  async unsubscribeAll(): Promise<void> {
+    this._subscriptions.length = 0;
+    const consumers = this._consumers;
+    this._consumers = [];
+    const channel = this._channel;
+    for (const consumer of consumers) {
+      if (consumer.channel !== channel) {
+        continue; // Superseded channel: its consumers died with it.
+      }
+      try {
+        await consumer.channel.cancel(consumer.consumerTag);
+      } catch (error) {
+        this._logger.warn(
+          `Failed to cancel RabbitMQ consumer ${consumer.consumerTag}`,
+          error,
+        );
+      }
+    }
+    this._logger.info(`Cancelled ${consumers.length} RabbitMQ consumer(s).`);
   }
 
   shutdown(): Promise<void> {
@@ -259,7 +296,7 @@ export class RabbitMqDtoReceiver
     );
     await channel.bindQueue(queueName, exchange, '', subscription.filter);
 
-    await channel.consume(queueName, (msg) => {
+    const { consumerTag } = await channel.consume(queueName, (msg) => {
       // amqplib signals a broker-side basic.cancel (queue deleted) with a null message.
       if (msg === null) {
         this._onConsumerCancelled(channel, subscription);
@@ -267,10 +304,18 @@ export class RabbitMqDtoReceiver
       }
       void this._onEvent(msg, channel);
     });
+    if (!this._subscriptions.includes(subscription)) {
+      // unsubscribeAll ran while this consumer was being set up.
+      await channel.cancel(consumerTag);
+      return;
+    }
+    this._consumers.push({ channel, consumerTag, subscription });
   }
 
   private async _resubscribeAll(channel: amqplib.Channel): Promise<void> {
-    for (const subscription of this._subscriptions) {
+    this._consumers = this._consumers.filter((c) => c.channel === channel);
+    for (const subscription of [...this._subscriptions]) {
+      if (!this._subscriptions.includes(subscription)) continue;
       await this._declareAndConsume(channel, subscription);
     }
   }
@@ -284,8 +329,15 @@ export class RabbitMqDtoReceiver
     channel: amqplib.Channel,
     subscription: DtoSubscription,
   ): void {
+    this._consumers = this._consumers.filter(
+      (c) => c.channel !== channel || c.subscription !== subscription,
+    );
     if (channel !== this._channel) {
       // Superseded channel: the reconnect that replaced it re-subscribed everything.
+      return;
+    }
+    if (!this._subscriptions.includes(subscription)) {
+      // Unsubscribed meanwhile (e.g. leadership lost): nothing to restore.
       return;
     }
     const label = `${subscription.eventType} ${subscription.objectType} ${subscription.filter.eventId ?? ''}`;

@@ -96,6 +96,12 @@ export interface IDtoEventReceiver {
   handle(event: IDtoEvent<IDtoPayload>): void;
 
   /**
+   * Cancels every subscription made with {@link subscribe}, so that this receiver stops
+   * consuming until it subscribes again.
+   */
+  unsubscribeAll?(): Promise<void>;
+
+  /**
    * Shuts down the handler.
    */
   shutdown(): Promise<void>;
@@ -138,6 +144,13 @@ export interface IDtoModule {
    * @returns A promise that resolves when the handlers are initialized.
    */
   initHandlers(): Promise<void>;
+
+  /**
+   * Stops the handlers started by {@link initHandlers}; they can be started again later.
+   *
+   * @returns A promise that resolves when the handlers are stopped.
+   */
+  stopHandlers?(): Promise<void>;
 }
 
 /**

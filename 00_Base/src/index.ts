@@ -418,6 +418,7 @@ export {
 } from './model/DTO/tariffs/TariffDTO.js';
 export { BodyWithExample } from './util/decorators/BodyWithExample.js';
 export { CommandExecutor } from './util/CommandExecutor.js';
+export { ServiceReadiness } from './util/ServiceReadiness.js';
 export type { PutTariffRequest } from './model/DTO/tariffs/PutTariffRequest.js';
 export {
   PutTariffRequestSchema,
@@ -479,7 +480,12 @@ export class OcpiServer extends KoaServer {
     this.initContainer();
   }
 
-  public async initialize() {
+  /**
+   * @param options.deferEventHandlers - Do not start the modules' event handlers here; the
+   * caller starts them with {@link startEventProcessing}, e.g. once this instance is elected
+   * to process events.
+   */
+  public async initialize(options: { deferEventHandlers?: boolean } = {}) {
     for (const moduleListElement of this.moduleList) {
       const constructedModule = Container.get(moduleListElement) as OcpiModule &
         IDtoModule;
@@ -487,13 +493,31 @@ export class OcpiServer extends KoaServer {
         if (constructedModule.init) {
           await constructedModule.init();
         }
-        if (constructedModule.initHandlers) {
+        if (constructedModule.initHandlers && !options.deferEventHandlers) {
           await constructedModule.initHandlers();
         }
         this._modules.push(constructedModule);
       }
     }
     this.initKoaServer();
+  }
+
+  /** Starts consuming events in every module that handles them. */
+  public async startEventProcessing(): Promise<void> {
+    for (const module of this._modules as Partial<IDtoModule>[]) {
+      if (module.initHandlers) {
+        await module.initHandlers();
+      }
+    }
+  }
+
+  /** Stops consuming events in every module; {@link startEventProcessing} can resume. */
+  public async stopEventProcessing(): Promise<void> {
+    for (const module of this._modules as Partial<IDtoModule>[]) {
+      if (module.stopHandlers) {
+        await module.stopHandlers();
+      }
+    }
   }
 
   private initKoaServer() {

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 import type {
+  EventLeadershipListener,
   IDtoEventSender,
   IDtoEventSubscriber,
   IDtoPayload,
@@ -57,6 +58,23 @@ export class DtoRouter implements IDtoRouter {
     return this._sender;
   }
 
+  /** True while this instance is the one processing events. */
+  isLeader(): boolean {
+    return this._subscriber.isLeader;
+  }
+
+  addLeadershipListener(listener: EventLeadershipListener): void {
+    this._subscriber.addLeadershipListener(listener);
+  }
+
+  /**
+   * Starts competing for event processing. Call after every {@link subscribe} and
+   * {@link addLeadershipListener}.
+   */
+  startLeaderElection(): void {
+    this._subscriber.startLeaderElection();
+  }
+
   async shutdown(): Promise<void> {
     await this._subscriber.shutdown();
     await this._sender.shutdown();
@@ -93,7 +111,11 @@ export class DtoRouter implements IDtoRouter {
           `${eventId} received error for eventType ${eventType} and objectType ${objectType}: ${error.message}`,
         );
       },
-      () => {},
+      () => {
+        this._logger.warn(
+          `${eventId} lost its Postgres notification connection, reconnecting`,
+        );
+      },
     );
     return true;
   }

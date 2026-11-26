@@ -71,4 +71,34 @@ describe('defineOcpiConfig', () => {
     expect(config.gireve?.countryCode).toBe('FR');
     expect(config.gireve?.partyId).toBe('007');
   });
+
+  it('switches the cache to Redis from env vars (k8s deployment)', () => {
+    process.env.CITRINEOS_OCPI_CACHE_REDIS_HOST = 'redis-ha-haproxy';
+    process.env.CITRINEOS_OCPI_CACHE_REDIS_PORT = '6379';
+
+    const config = defineOcpiConfig(structuredClone(minimalConfig));
+
+    expect(config.cache.redis).toEqual({
+      host: 'redis-ha-haproxy',
+      port: 6379,
+    });
+  });
+
+  it('reads event leader election settings from env vars', () => {
+    process.env.CITRINEOS_OCPI_EVENTS_LEADERELECTION_ENABLED = 'false';
+    process.env.CITRINEOS_OCPI_EVENTS_LEADERELECTION_RETRYINTERVALSECONDS = '5';
+
+    const config = defineOcpiConfig(structuredClone(minimalConfig));
+
+    expect(config.events?.leaderElection).toEqual({
+      enabled: false,
+      retryIntervalSeconds: 5,
+    });
+  });
+
+  it('leaves leader election unset by default (enabled in code)', () => {
+    const config = defineOcpiConfig(structuredClone(minimalConfig));
+
+    expect(config.events?.leaderElection?.enabled).toBeUndefined();
+  });
 });
