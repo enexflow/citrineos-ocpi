@@ -31,6 +31,7 @@ export const GET_CHARGING_STATION_BY_ID_QUERY = gql`
         evseId
         physicalReference
         removed
+        ocpiStatus
         createdAt
         updatedAt
         evseTypeId

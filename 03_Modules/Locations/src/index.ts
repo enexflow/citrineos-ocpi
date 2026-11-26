@@ -40,6 +40,24 @@ import type { EvseStatus } from '@citrineos/ocpi-base/src/model/EvseStatus.js';
 export { LocationsModuleApi } from './module/LocationsModuleApi.js';
 export type { ILocationsModuleApi } from './module/ILocationsModuleApi.js';
 
+/**
+ * Evses.ocpiStatus values that override the status computed from the
+ * connectors (see EvseMapper.resolveOurEvseStatus). REMOVED hides an EVSE from
+ * OCPI; PLANNED announces one that is not live yet. While one is set, connector
+ * events must not push a computed status that would contradict it.
+ */
+const OCPI_STATUS_OVERRIDES: ReadonlySet<string> = new Set([
+  'REMOVED',
+  'PLANNED',
+]);
+
+const ocpiStatusOverride = (
+  ocpiStatus: string | null | undefined,
+): EvseStatus | undefined =>
+  ocpiStatus != null && OCPI_STATUS_OVERRIDES.has(ocpiStatus)
+    ? (ocpiStatus as EvseStatus)
+    : undefined;
+
 type EvseNotifyPayload = Partial<EvseDto> & {
   tenant?: TenantDto;
   ownerTenantPartner?: {
@@ -48,6 +66,8 @@ type EvseNotifyPayload = Partial<EvseDto> & {
     countryCode?: string;
   };
   ocpiUid?: string | null;
+  // only present when it changed: EvseNotify carries changed columns only
+  ocpiStatus?: string | null;
   // parent location's flag, carried by EvseNotify
   disableOCPI?: boolean | null;
 };
@@ -224,27 +244,59 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
 
-    // if the evse is not owned by a tenant partner, we can broadcast the update
-    const tenant = evseDto.tenant;
+    // only Evses.ocpiStatus changes are pushed (e.g. an EVSE hidden from OCPI
+    // with REMOVED, or brought back with null); EvseNotify carries changed
+    // columns only, so the key is absent when ocpiStatus did not change
+    if (!('ocpiStatus' in evseDto)) return;
+
+    // whole location disabled: disable-location-ocpi PATCHes its EVSEs itself
+    if (evseDto.disableOCPI === true) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        'EVSE ocpiStatus change with OCPI disabled on location, skipping broadcast.',
+        event,
+      );
+      return;
+    }
 
     const chargingStationResponse = await this.ocpiGraphqlClient.request<
       GetChargingStationByIdQueryResult,
       GetChargingStationByIdQueryVariables
     >(GET_CHARGING_STATION_BY_ID_QUERY, { id: evseDto.stationId! });
-    if (!chargingStationResponse.ChargingStations[0]) {
+    const station = chargingStationResponse.ChargingStations[0];
+    if (!station) {
       this._logger.error(
         `Charging Station not found for ID ${evseDto.stationId}, cannot broadcast.`,
       );
       return;
     }
-    const chargingStationDto = chargingStationResponse
-      .ChargingStations[0] as unknown as ChargingStationDto;
+    const evse = station.evses?.find((e) => e.id === evseDto.id);
+    if (!evse) {
+      this._logger.error(
+        `EVSE ${evseDto.id} not found on station ${evseDto.stationId}`,
+      );
+      return;
+    }
 
-    // await this.locationsBroadcaster.broadcastPatchEvse(
-    //   tenant!,
-    //   evseDto,
-    //   chargingStationDto,
-    // );
+    // back to null (or any non-override value): publish the real status again
+    const status =
+      ocpiStatusOverride(evseDto.ocpiStatus) ??
+      EvseMapper.mapEvseStatusFromConnectors(
+        (station.connectors?.filter((c) => c.evseId === evse.id) ??
+          []) as unknown as ConnectorDto[],
+        EvseMapper.activeTransactionConnectorIds(station),
+      );
+
+    // ocpiStatus is often set without touching updatedAt (Hasura mutation),
+    // and partners may drop a PATCH older than what they hold
+    await this.locationsBroadcaster.broadcastPatchEvseStatus(
+      evseDto.tenant!,
+      evse as unknown as EvseDto,
+      new Date(),
+      station as unknown as ChargingStationDto,
+      status,
+    );
   }
 
   @AsDtoEventHandler(
@@ -333,6 +385,17 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
         );
         return;
       }
+      // EVSE hidden from OCPI (REMOVED) or not live yet (PLANNED): a computed
+      // status would bring it back at partners
+      if (ocpiStatusOverride(evseDto.ocpiStatus)) {
+        logDbBroadcast(
+          this._logger,
+          'debug',
+          `Connector status change on EVSE with ocpiStatus ${evseDto.ocpiStatus}, skipping broadcast.`,
+          event,
+        );
+        return;
+      }
       const evseConnectors =
         chargingStationDto.connectors?.filter(
           (c: ConnectorDto) => c.evseId === connectorDto.evseId,
@@ -413,6 +476,19 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
         this._logger,
         'debug',
         'Connector Tariff change with OCPI disabled, skipping broadcast.',
+        event,
+      );
+      return;
+    }
+
+    // EVSE hidden from OCPI (REMOVED) or not live yet (PLANNED): tariff PATCHes
+    // on it are pointless, and the Gireve one carries a computed EVSE status
+    // that would bring it back
+    if (ocpiStatusOverride(row.Evse?.ocpiStatus)) {
+      logDbBroadcast(
+        this._logger,
+        'debug',
+        `Connector Tariff change on EVSE with ocpiStatus ${row.Evse?.ocpiStatus}, skipping broadcast.`,
         event,
       );
       return;

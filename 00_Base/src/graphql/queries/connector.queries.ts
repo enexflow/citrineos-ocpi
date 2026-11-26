@@ -259,6 +259,7 @@ export const GET_OWN_CONNECTOR_FOR_TARIFF_BROADCAST_QUERY = gql`
       }
       Evse {
         evseTypeId
+        ocpiStatus
         Connectors(order_by: { connectorId: asc }) {
           id
           stationId

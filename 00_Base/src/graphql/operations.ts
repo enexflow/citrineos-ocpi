@@ -463,6 +463,7 @@ export type GetChargingStationByIdQueryResult = {
       evseId?: string | null,
       physicalReference?: string | null,
       removed?: boolean | null,
+      ocpiStatus?: string | null,
       createdAt: any,
       updatedAt: any
     }>,
@@ -757,6 +758,7 @@ export type GetOwnConnectorForTariffBroadcastQueryResult = {
     },
     Evse?: {
       evseTypeId?: number | null,
+      ocpiStatus?: string | null,
       Connectors: Array<{
         id: number,
         stationId: string,
@@ -1401,7 +1403,7 @@ export type GetLocationByOcpiIdQueryResult = {
 export type GetEvseByIdQueryVariables = Exact<{
   locationWhere: Locations_Bool_Exp;
   stationId: Scalars['String']['input'];
-  evseId: Scalars['Int']['input'];
+  evseTypeId: Scalars['Int']['input'];
 }>;
 
 
@@ -1437,7 +1439,36 @@ export type GetEvseByIdQueryResult = {
         physicalReference?: string | null,
         removed?: boolean | null,
         createdAt: any,
-        updatedAt: any
+        updatedAt: any,
+        connectors: Array<{
+          id: number,
+          stationId: string,
+          evseId?: number | null,
+          connectorId?: number | null,
+          evseTypeConnectorId?: number | null,
+          format?: string | null,
+          maximumAmperage?: number | null,
+          maximumPowerWatts?: number | null,
+          maximumVoltage?: number | null,
+          powerType?: string | null,
+          termsAndConditionsUrl?: string | null,
+          type?: string | null,
+          status?: string | null,
+          errorCode?: string | null,
+          timestamp?: any | null,
+          info?: string | null,
+          vendorId?: string | null,
+          vendorErrorCode?: string | null,
+          createdAt: any,
+          updatedAt: any,
+          tariffs: Array<{
+            id: number,
+            tariffOcpiId: string,
+            connectorOcpiId: string,
+            tariffId: number,
+            connectorId: number
+          }>
+        }>
       }>
     }>
   }>
@@ -1446,7 +1477,7 @@ export type GetEvseByIdQueryResult = {
 export type GetConnectorByIdQueryVariables = Exact<{
   locationWhere: Locations_Bool_Exp;
   stationId: Scalars['String']['input'];
-  evseId: Scalars['Int']['input'];
+  evseTypeId: Scalars['Int']['input'];
   connectorId: Scalars['Int']['input'];
 }>;
 
@@ -1475,7 +1506,14 @@ export type GetConnectorByIdQueryResult = {
           vendorId?: string | null,
           vendorErrorCode?: string | null,
           createdAt: any,
-          updatedAt: any
+          updatedAt: any,
+          tariffs: Array<{
+            id: number,
+            tariffOcpiId: string,
+            connectorOcpiId: string,
+            tariffId: number,
+            connectorId: number
+          }>
         }>
       }>
     }>

@@ -229,18 +229,19 @@ export class LocationsService {
   async getEvseById(
     locationId: number,
     stationId: string,
-    evseId: number,
+    // the number after "::" in the OCPI evse uid, i.e. Evses.evseTypeId
+    evseTypeId: number,
     ocpiHeaders: OcpiHeaders,
   ): Promise<EvseResponse> {
     this.logger.debug(
-      `Getting EVSE ${evseId} from Charging Station ${stationId} in Location ${locationId}`,
+      `Getting EVSE ${evseTypeId} from Charging Station ${stationId} in Location ${locationId}`,
     );
 
     try {
       const variables = {
         locationWhere: this.buildOwnLocationWhere(locationId, ocpiHeaders),
         stationId,
-        evseId,
+        evseTypeId,
       };
       const response = await this.ocpiGraphqlClient.request<
         GetEvseByIdQueryResult,
@@ -248,12 +249,12 @@ export class LocationsService {
       >(GET_EVSE_BY_ID_QUERY, variables);
       if (!response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]) {
         throw new NotFoundException(
-          `Evse ${evseId} not found for location ${locationId}`,
+          `Evse ${stationId}::${evseTypeId} not found for location ${locationId}`,
         );
       }
       const evse = EvseMapper.fromGraphql(
         response.Locations[0].chargingPool[0] as unknown as ChargingStationDto,
-        response.Locations[0].chargingPool[0].evses[0] as EvseDto,
+        response.Locations[0].chargingPool[0].evses[0] as unknown as EvseDto,
       );
       return buildOcpiResponse(OcpiResponseStatusCode.GenericSuccessCode, evse);
     } catch (e) {
@@ -271,19 +272,27 @@ export class LocationsService {
   async getConnectorById(
     locationId: number,
     stationId: string,
-    evseId: number,
+    // the number after "::" in the OCPI evse uid, i.e. Evses.evseTypeId
+    evseTypeId: number,
+    // the OCPI connector id we publish, i.e. Connectors.id
     connectorId: number,
     ocpiHeaders: OcpiHeaders,
   ): Promise<ConnectorResponse> {
     this.logger.debug(
-      `Getting Connector ${connectorId} from EVSE ${evseId} in Charging Station ${stationId} in Location ${locationId}`,
+      `Getting Connector ${connectorId} from EVSE ${stationId}::${evseTypeId} in Location ${locationId}`,
     );
 
     try {
+      // a non-numeric connector_id can't be one of ours (and isn't a valid Int)
+      if (!Number.isInteger(connectorId)) {
+        throw new NotFoundException(
+          `Connector ${connectorId} not found for evse ${stationId}::${evseTypeId} in location ${locationId}`,
+        );
+      }
       const variables = {
         locationWhere: this.buildOwnLocationWhere(locationId, ocpiHeaders),
         stationId,
-        evseId,
+        evseTypeId,
         connectorId,
       };
       const response = await this.ocpiGraphqlClient.request<
@@ -295,14 +304,7 @@ export class LocationsService {
         !response.Locations?.[0]?.chargingPool?.[0]?.evses?.[0]?.connectors?.[0]
       ) {
         throw new NotFoundException(
-          `Connector ${connectorId} not found for evse ${evseId} in location ${locationId}`,
-        );
-      }
-      if (
-        response.Locations[0].chargingPool[0].evses[0].connectors.length > 1
-      ) {
-        this.logger.warn(
-          `Multiple connectors found for location id ${locationId}, station id ${stationId}, EVSE id ${evseId}, and connector id ${connectorId}. Returning the first one. All entries: ${JSON.stringify(response.Locations[0].chargingPool[0].evses[0].connectors)}`,
+          `Connector ${connectorId} not found for evse ${stationId}::${evseTypeId} in location ${locationId}`,
         );
       }
       const connector = ConnectorMapper.fromGraphql(

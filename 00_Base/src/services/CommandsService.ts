@@ -463,8 +463,14 @@ export class CommandsService {
     if (!evse) {
       return { available: false, status: EvseStatus.UNKNOWN };
     }
-    if (evse.removed) {
+    // Evses.ocpiStatus REMOVED / PLANNED: hidden from OCPI or not live yet,
+    // whatever the connectors report
+    const ocpiStatus = evse.ocpiStatus as string | null | undefined;
+    if (evse.removed || ocpiStatus === EvseStatus.REMOVED) {
       return { available: false, status: EvseStatus.REMOVED };
+    }
+    if (ocpiStatus === EvseStatus.PLANNED) {
+      return { available: false, status: EvseStatus.PLANNED };
     }
 
     let connectors: ConnectorDto[] = Array.from(

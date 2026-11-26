@@ -195,6 +195,69 @@ describe('LocationNotify / EvseNotify / ConnectorNotify / ConnectorTariffNotify 
     expect(n.operation).toBe('INSERT');
   });
 
+  // LocationsModule.handleEvseUpdate pushes an EVSE status PATCH only when the
+  // payload has an ocpiStatus key, i.e. only when that column changed
+  describe('Evses UPDATE and ocpiStatus', () => {
+    async function seedEvse(): Promise<number> {
+      const [row]: any[] = await stack.sequelize.query(
+        `INSERT INTO "Evses" ("tenantId", "stationId", "evseTypeId", "createdAt", "updatedAt")
+         VALUES (${tenantId}, '${stationId}', 3, now(), now()) RETURNING id`,
+        { type: 'SELECT' as any },
+      );
+      await resetNotifications();
+      return row.id;
+    }
+
+    it('setting ocpiStatus REMOVED carries it, with the location flag', async () => {
+      const id = await seedEvse();
+
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "ocpiStatus" = 'REMOVED' WHERE id = ${id}`,
+      );
+
+      const [n] = await waitFor();
+      expect(n.channel).toBe('EvseNotification');
+      expect(n.operation).toBe('UPDATE');
+      expect(n.data).toMatchObject({
+        id,
+        stationId,
+        ocpiStatus: 'REMOVED',
+        disableOCPI: false,
+      });
+    });
+
+    it('clearing ocpiStatus carries the key with null', async () => {
+      const id = await seedEvse();
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "ocpiStatus" = 'REMOVED' WHERE id = ${id}`,
+      );
+      await resetNotifications();
+
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "ocpiStatus" = NULL WHERE id = ${id}`,
+      );
+
+      const [n] = await waitFor();
+      expect(n.data).toHaveProperty('ocpiStatus', null);
+    });
+
+    it('an update of another column does not carry ocpiStatus', async () => {
+      const id = await seedEvse();
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "ocpiStatus" = 'REMOVED' WHERE id = ${id}`,
+      );
+      await resetNotifications();
+
+      await stack.sequelize.query(
+        `UPDATE "Evses" SET "physicalReference" = 'A1' WHERE id = ${id}`,
+      );
+
+      const [n] = await waitFor();
+      expect(n.data.physicalReference).toBe('A1');
+      expect(n.data).not.toHaveProperty('ocpiStatus');
+    });
+  });
+
   it('Connectors INSERT notifies on ConnectorNotification with isStatusChanged=true', async () => {
     await seedConnector();
 
