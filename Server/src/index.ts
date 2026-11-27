@@ -17,6 +17,7 @@ import {
   getOcpiSystemConfig,
   OcpiModule,
   OcpiServer,
+  ServiceReadiness,
 } from '@citrineos/ocpi-base';
 import { CommandsModule } from '@citrineos/ocpi-commands';
 import { VersionsModule } from '@citrineos/ocpi-versions';
@@ -34,6 +35,12 @@ import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import { AdminModule } from '@citrineos/ocpi-admin';
 
+/**
+ * Upper bound for a graceful shutdown. Keep below the pod's terminationGracePeriodSeconds minus
+ * its preStop delay.
+ */
+const SHUTDOWN_TIMEOUT_MS = 25_000;
+
 export class CitrineOSServer {
   /**
    * Fields
@@ -46,7 +53,9 @@ export class CitrineOSServer {
   private host?: string;
   private port?: number;
   private eventGroup?: EventGroup;
-  private ocpiServer!: OcpiServer;
+  private ocpiServer?: OcpiServer;
+  private dtoRouter?: DtoRouter;
+  private shuttingDown = false;
 
   /**
    * Constructor for the class.
@@ -61,9 +70,9 @@ export class CitrineOSServer {
     // Set event group
     this.eventGroup = eventGroupFromString(appName);
 
-    process.on('SIGINT', this.shutdown.bind(this));
-    process.on('SIGTERM', this.shutdown.bind(this));
-    process.on('SIGQUIT', this.shutdown.bind(this));
+    for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT'] as const) {
+      process.on(signal, () => void this.shutdown(signal));
+    }
   }
 
   async initialize(): Promise<void> {
@@ -72,28 +81,37 @@ export class CitrineOSServer {
 
     // init cache
     this.initCache();
-
-    // Set up shutdown handlers
-    for (const event of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
-      process.on(event, async () => {
-        await this.shutdown();
-      });
-    }
   }
 
-  async shutdown() {
-    // todo shut down depending on setup
-    // Shut down all modules and central system
-    for (const module of this.modules) {
-      await module.shutdown();
+  async shutdown(signal?: string) {
+    if (this.shuttingDown) {
+      return;
     }
-
-    this.ocpiServer.shutdown();
-
-    setTimeout(() => {
-      console.log('Exiting...');
+    this.shuttingDown = true;
+    this._logger?.info(`Shutting down${signal ? ` on ${signal}` : ''}...`);
+    const forceExit = setTimeout(() => {
+      console.error('Graceful shutdown timed out, exiting.');
       process.exit(1);
-    }, 2000);
+    }, SHUTDOWN_TIMEOUT_MS);
+    forceExit.unref();
+
+    try {
+      Container.get(ServiceReadiness).markNotReady();
+      // Stops LISTEN, stops the modules' consumers and releases the event-processing lock, so
+      // that another instance takes over right away.
+      await this.dtoRouter?.shutdown();
+      for (const module of this.modules) {
+        await module.shutdown();
+      }
+      for (const module of this.ocpiServer?.modules ?? []) {
+        await (module as Partial<IDtoModule>).shutdown?.();
+      }
+      await this.ocpiServer?.close();
+    } catch (error) {
+      this._logger?.error('Error during shutdown', error);
+    }
+    console.log('Exiting...');
+    process.exit(0);
   }
 
   async initConfig() {
@@ -159,14 +177,21 @@ export class CitrineOSServer {
       this._logger!,
       this.getOcpiModuleConfig(),
     );
-    await this.ocpiServer.initialize();
-    await this.initDtoRouter();
+    // With leader election, the modules' event handlers start only on the elected instance.
+    const leaderElection =
+      this.ocpiConfig!.events?.leaderElection?.enabled ?? true;
+    await this.ocpiServer.initialize({ deferEventHandlers: leaderElection });
+    await this.initDtoRouter(this.ocpiServer);
+    Container.get(ServiceReadiness).markReady(
+      () => this.dtoRouter?.isLeader() ?? false,
+    );
   }
 
-  private async initDtoRouter() {
+  private async initDtoRouter(ocpiServer: OcpiServer) {
     const dtoRouter: DtoRouter = Container.get(DtoRouter);
+    this.dtoRouter = dtoRouter;
     await dtoRouter.init();
-    for (const module of this.ocpiServer.modules) {
+    for (const module of ocpiServer.modules) {
       const eventHandlers = getDtoEventHandlerMetaData(module);
       for (const eventHandler of eventHandlers) {
         const subscribed = await dtoRouter.subscribe(
@@ -179,6 +204,17 @@ export class CitrineOSServer {
         );
       }
     }
+    dtoRouter.addLeadershipListener({
+      onAcquired: async () => {
+        this._logger?.info('This instance now processes events');
+        await ocpiServer.startEventProcessing();
+      },
+      onLost: async () => {
+        this._logger?.warn('This instance no longer processes events');
+        await ocpiServer.stopEventProcessing();
+      },
+    });
+    dtoRouter.startLeaderElection();
   }
 }
 

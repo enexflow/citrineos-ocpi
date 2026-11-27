@@ -22,6 +22,26 @@ export const oidcConfigSchema = z
   })
   .optional();
 
+/**
+ * Event processing (pg NOTIFY -> RabbitMQ -> module handlers) runs on a single instance at a
+ * time: the instance holding a Postgres advisory lock. Other instances serve HTTP only and
+ * take over when the lock is released.
+ */
+export const eventsConfigSchema = z
+  .object({
+    leaderElection: z
+      .object({
+        /** false: every instance processes events (only safe with a single instance). */
+        enabled: z.boolean().default(true).optional(),
+        /** Hashed with Postgres hashtext() into the advisory lock key. */
+        lockKey: z.string().min(1).default('citrineos-ocpi:events').optional(),
+        /** How often a standby instance tries to take the lock. */
+        retryIntervalSeconds: z.number().int().positive().default(3).optional(),
+      })
+      .optional(),
+  })
+  .optional();
+
 export const ocpiConfigInputSchema = z.object({
   env: z.enum(['development', 'production']),
 
@@ -239,6 +259,8 @@ export const ocpiConfigInputSchema = z.object({
         .optional(),
     })
     .optional(),
+
+  events: eventsConfigSchema,
 });
 
 export type OcpiConfigInput = z.infer<typeof ocpiConfigInputSchema>;
@@ -442,9 +464,12 @@ export const ocpiConfigSchema = z.object({
         .optional(),
     })
     .optional(),
+
+  events: eventsConfigSchema,
 });
 
 export type OIDCConfig = z.infer<typeof oidcConfigSchema>;
+export type EventsConfig = z.infer<typeof eventsConfigSchema>;
 export type OcpiConfig = z.infer<typeof ocpiConfigSchema>;
 export const OcpiConfigToken = new Token<OcpiConfig>('ocpi.config');
 export const AjvToken = new Token<Ajv>('ajv');

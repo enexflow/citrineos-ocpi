@@ -8,13 +8,14 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   setupFiles: ['reflect-metadata'],
-  // Tests/reference (end-to-end over HTTP) and *.integration.test.ts run under vitest:
-  // `npm run test:e2e` / `npm run test:integration`.
+  // Tests/reference + Tests/ha (end-to-end over HTTP) and *.integration.test.ts run under vitest:
+  // `npm run test:e2e` / `npm run test:e2e:ha` / `npm run test:integration`.
   // apps/* are separate pnpm projects with their own runner (ocpi-monitor:
   // vitest, `pnpm test` in its CI workflow).
   testPathIgnorePatterns: [
     '/node_modules/',
     '/Tests/reference/',
+    '/Tests/ha/',
     '\\.integration\\.test\\.ts$',
     '/dist/',
     '<rootDir>/apps/',

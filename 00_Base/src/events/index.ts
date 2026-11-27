@@ -26,3 +26,4 @@ export {
 export { RabbitMqDtoReceiver } from './rabbitMQ/receiver.js';
 export { RabbitMqDtoSender } from './rabbitMQ/sender.js';
 export { PgNotifyEventSubscriber } from './pgNotify/subscriber.js';
+export type { EventLeadershipListener } from './pgNotify/subscriber.js';

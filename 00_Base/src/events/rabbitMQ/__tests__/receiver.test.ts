@@ -27,6 +27,10 @@ class FakeChannel extends EventEmitter {
     this.consumers.set(queue, callback);
     return { consumerTag: queue };
   });
+  cancel = jest.fn(async (consumerTag: string) => {
+    this.consumers.delete(consumerTag);
+    return {};
+  });
   ack = jest.fn();
   nack = jest.fn();
 }
@@ -253,5 +257,65 @@ describe('RabbitMqDtoReceiver', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  describe('unsubscribeAll', () => {
+    it('cancels every consumer', async () => {
+      await receiver.subscribe(DtoEventType.UPDATE, DtoEventObjectType.Evse, {
+        eventId: 'EvseNotification',
+      });
+      await receiver.subscribe(
+        DtoEventType.INSERT,
+        DtoEventObjectType.Authorization,
+        { eventId: 'AuthorizationNotification' },
+      );
+      const channel = models[0].channel;
+
+      await receiver.unsubscribeAll();
+
+      expect(channel.cancel).toHaveBeenCalledTimes(2);
+      expect(channel.consumers.size).toBe(0);
+    });
+
+    it('does not replay unsubscribed subscriptions after a reconnect', async () => {
+      await receiver.subscribe(DtoEventType.UPDATE, DtoEventObjectType.Evse, {
+        eventId: 'EvseNotification',
+      });
+      await receiver.unsubscribeAll();
+
+      models[0].dropConnection();
+      await flush();
+
+      expect(models).toHaveLength(2);
+      expect(models[1].channel.consume).not.toHaveBeenCalled();
+    });
+
+    it('does not restore a subscription cancelled by the broker after unsubscribeAll', async () => {
+      await receiver.subscribe(DtoEventType.UPDATE, DtoEventObjectType.Evse, {
+        eventId: 'EvseNotification',
+      });
+      const channel = models[0].channel;
+      const consumer = lastConsumer(channel);
+      await receiver.unsubscribeAll();
+      channel.consume.mockClear();
+
+      consumer(null);
+      await flush();
+
+      expect(channel.consume).not.toHaveBeenCalled();
+    });
+
+    it('can subscribe again afterwards', async () => {
+      await receiver.subscribe(DtoEventType.UPDATE, DtoEventObjectType.Evse, {
+        eventId: 'EvseNotification',
+      });
+      await receiver.unsubscribeAll();
+
+      await receiver.subscribe(DtoEventType.UPDATE, DtoEventObjectType.Evse, {
+        eventId: 'EvseNotification',
+      });
+
+      expect(models[0].channel.consumers.size).toBe(1);
+    });
   });
 });
