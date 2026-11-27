@@ -69,6 +69,7 @@ export abstract class OCPPCommandHandler {
 
   abstract sendStopSessionCommand(
     stopSession: StopSession,
+    transactionId: string,
     tenantPartner: TenantPartnerDto,
     chargingStation: ChargingStationDto,
     commandId: string,

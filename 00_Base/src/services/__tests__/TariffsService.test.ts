@@ -27,9 +27,10 @@ import { GET_TENANT_PARTNER_ID_BY_COUNTRY_PARTY } from '../../graphql/queries/te
 
 jest.mock('../../graphql/OcpiGraphqlClient');
 
+// Own tariff: ts-api writes its OCPI id at creation, Citrine only reads it.
 const mockCoreTariff = {
   id: 1,
-  ocpiTariffId: null,
+  ocpiTariffId: 'FR*HYX*T000001',
   currency: 'EUR',
   pricePerKwh: 0.25,
   pricePerMin: null,
@@ -174,7 +175,10 @@ describe('TariffsService', () => {
   describe('getTariffs', () => {
     it('should return paginated tariffs with tenantPartnerId IS NULL filter', async () => {
       mockGraphqlClient.request.mockResolvedValue({
-        Tariffs: [mockCoreTariff, { ...mockCoreTariff, id: 2 }],
+        Tariffs: [
+          mockCoreTariff,
+          { ...mockCoreTariff, id: 2, ocpiTariffId: 'FR*HYX*T000002' },
+        ],
       });
 
       const ocpiHeaders = new OcpiHeaders('DE', 'ABC', 'FR', 'HYX');
@@ -190,6 +194,8 @@ describe('TariffsService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             tenantPartnerId: { _is_null: true },
+            // Not published yet: ts-api has not written its id.
+            ocpiTariffId: { _is_null: false },
             Tenant: {
               countryCode: { _eq: 'FR' },
               partyId: { _eq: 'HYX' },
@@ -199,8 +205,8 @@ describe('TariffsService', () => {
       );
       expect(result.data).toHaveLength(2);
       expect(result.count).toBe(2);
-      expect(result.data[0].id).toBe('FRHYXT000001');
-      expect(result.data[1].id).toBe('FRHYXT000002');
+      expect(result.data[0].id).toBe('FR*HYX*T000001');
+      expect(result.data[1].id).toBe('FR*HYX*T000002');
     });
 
     it('should apply date filters when provided', async () => {

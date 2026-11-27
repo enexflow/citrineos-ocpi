@@ -27,6 +27,7 @@ import { UID_FORMAT } from '../model/DTO/EvseDTO.js';
 import { OcpiGraphqlClient } from '../graphql/index.js';
 import { ChargingStateEnum } from '@zetra/citrineos-base';
 import { roundOcpiNumber, toRoundedHours } from '../util/Util.js';
+import { getOcpiSessionId } from '../util/OcpiObjectId.js';
 
 interface SessionStart {
   timestamp: Date;
@@ -73,9 +74,10 @@ export class SessionMapper extends BaseTransactionMapper {
     const [locationMap, tokenMap, tariffMap] =
       await this.getLocationsTokensAndTariffsMapsForTransactions([transaction]);
 
-    const location = locationMap.get(transaction.transactionId!);
-    const token = tokenMap.get(transaction.transactionId!);
-    const tariff = tariffMap.get(transaction.transactionId!);
+    const sessionId = getOcpiSessionId(transaction);
+    const location = locationMap.get(sessionId);
+    const token = tokenMap.get(sessionId);
+    const tariff = tariffMap.get(sessionId);
 
     if (!location || !token || !tariff) {
       const missing = [];
@@ -102,17 +104,15 @@ export class SessionMapper extends BaseTransactionMapper {
   public async mapPartialTransactionToPartialSession(
     transaction: Partial<TransactionDto>,
   ): Promise<Partial<Session>> {
-    // If we don't have a transaction ID, we can only map basic fields
+    // The session id and every context map need Transactions.id and the tenant
+    const sessionId = getOcpiSessionId(transaction);
     const locationMap = await this.getLocationDTOsForTransactions([
       transaction as TransactionDto,
     ]);
-    const locationDto = locationMap.get(transaction.transactionId as string);
+    const locationDto = locationMap.get(sessionId);
 
     if (!locationDto) {
       throw new Error(`Location ${transaction.locationId} not found`);
-    }
-    if (!transaction.transactionId) {
-      return this.mapPartialTransactionWithoutContext(transaction, locationDto);
     }
 
     try {
@@ -122,9 +122,9 @@ export class SessionMapper extends BaseTransactionMapper {
           transaction as TransactionDto,
         ]);
 
-      const location = locationMap.get(transaction.transactionId);
-      const token = tokenMap.get(transaction.transactionId);
-      const tariff = tariffMap.get(transaction.transactionId);
+      const location = locationMap.get(sessionId);
+      const token = tokenMap.get(sessionId);
+      const tariff = tariffMap.get(sessionId);
 
       return this.mapPartialTransactionWithContext(
         transaction,
@@ -156,33 +156,28 @@ export class SessionMapper extends BaseTransactionMapper {
   public async mapTransactionsToSessions(
     transactions: TransactionDto[],
   ): Promise<Session[]> {
-    const [
-      transactionIdToLocationMap,
-      transactionIdToTokenMap,
-      transactionIdToTariffMap,
-    ] =
+    const [sessionIdToLocationMap, sessionIdToTokenMap, sessionIdToTariffMap] =
       await this.getLocationsTokensAndTariffsMapsForTransactions(transactions);
     return await this.mapTransactionsToSessionsHelper(
       transactions,
-      transactionIdToLocationMap,
-      transactionIdToTokenMap,
-      transactionIdToTariffMap,
+      sessionIdToLocationMap,
+      sessionIdToTokenMap,
+      sessionIdToTariffMap,
     );
   }
 
   public async mapTransactionsToSessionsHelper(
     transactions: TransactionDto[],
-    transactionIdToLocationMap: Map<string, LocationDTO>,
-    transactionIdToTokenMap: Map<string, TokenDTO>,
-    transactionIdToTariffMap: Map<string, TariffDto>,
+    sessionIdToLocationMap: Map<string, LocationDTO>,
+    sessionIdToTokenMap: Map<string, TokenDTO>,
+    sessionIdToTariffMap: Map<string, TariffDto>,
   ): Promise<Session[]> {
     const result: Session[] = [];
     for (const transaction of transactions) {
-      const location = transactionIdToLocationMap.get(
-        transaction.transactionId!,
-      );
-      const token = transactionIdToTokenMap.get(transaction.transactionId!);
-      const tariff = transactionIdToTariffMap.get(transaction.transactionId!);
+      const sessionId = getOcpiSessionId(transaction);
+      const location = sessionIdToLocationMap.get(sessionId);
+      const token = sessionIdToTokenMap.get(sessionId);
+      const tariff = sessionIdToTariffMap.get(sessionId);
 
       if (location && token && tariff) {
         result.push(
@@ -212,7 +207,8 @@ export class SessionMapper extends BaseTransactionMapper {
   ): Promise<Partial<Session>> {
     const [, , tariffMap] =
       await this.getLocationsTokensAndTariffsMapsForTransactions([transaction]);
-    const tariff = tariffMap.get(transaction.transactionId!);
+    const sessionId = getOcpiSessionId(transaction);
+    const tariff = tariffMap.get(sessionId);
     if (!tariff) {
       throw new Error(
         `Tariff not found for transaction ${transaction.transactionId}`,
@@ -232,7 +228,7 @@ export class SessionMapper extends BaseTransactionMapper {
     const kwh = roundOcpiNumber(transaction.totalKwh || 0);
 
     return {
-      id: transaction.transactionId,
+      id: sessionId,
       end_date_time: transaction.endTime ? new Date(transaction.endTime) : null,
       kwh,
       status: this.getTransactionStatus(transaction),
@@ -257,9 +253,7 @@ export class SessionMapper extends BaseTransactionMapper {
     const session: Partial<Session> = {};
 
     // Map basic transaction fields
-    if (transaction.transactionId !== undefined) {
-      session.id = transaction.transactionId;
-    }
+    session.id = getOcpiSessionId(transaction);
 
     if (transaction.startTime !== undefined) {
       session.start_date_time = transaction.startTime
@@ -352,9 +346,7 @@ export class SessionMapper extends BaseTransactionMapper {
   ): Partial<Session> {
     const session: Partial<Session> = {};
 
-    if (transaction.transactionId !== undefined) {
-      session.id = transaction.transactionId;
-    }
+    session.id = getOcpiSessionId(transaction);
 
     if (transaction.startTime !== undefined) {
       session.start_date_time = transaction.startTime
@@ -411,7 +403,7 @@ export class SessionMapper extends BaseTransactionMapper {
     return {
       country_code: location.country_code,
       party_id: location.party_id,
-      id: transaction.transactionId!,
+      id: getOcpiSessionId(transaction),
       start_date_time: transaction.startTime
         ? new Date(transaction.startTime)
         : (() => {

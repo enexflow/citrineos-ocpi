@@ -90,6 +90,14 @@ export { Role } from './model/Role.js';
 export { ImageCategory } from './model/ImageCategory.js';
 export { ImageType } from './model/ImageType.js';
 export { CountryCode } from './util/Util.js';
+export {
+  OcpiObjectIdType,
+  buildOcpiObjectId,
+  parseOcpiObjectId,
+  getOcpiSessionId,
+  getOcpiCdrId,
+} from './util/OcpiObjectId.js';
+export type { ParsedOcpiObjectId } from './util/OcpiObjectId.js';
 export { KoaServer } from './util/KoaServer.js';
 export { InterfaceRole } from './model/InterfaceRole.js';
 export { AlreadyRegisteredException } from './exception/AlreadyRegisteredException.js';

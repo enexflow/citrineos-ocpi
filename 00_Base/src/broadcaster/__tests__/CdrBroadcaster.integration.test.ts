@@ -60,6 +60,7 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
   let dbTariffId: number;
   let dbTransactionId: number;
   let expectedCdrId: string;
+  let expectedSessionId: string;
 
   beforeAll(async () => {
     stack = await startOcpiTestStack();
@@ -171,8 +172,10 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
       { type: 'SELECT' as any },
     );
     dbTransactionId = tx.id;
-    // {country_code}*{party_id}*F{Transactions.id}*{Locations.id}
-    expectedCdrId = `FR*CPO*F${dbTransactionId}*10`;
+    // {tenant country}*{tenant party}*F{Transactions.id on 6 digits}, same number as the session
+    const number = String(dbTransactionId).padStart(6, '0');
+    expectedCdrId = `FR*CPO*F${number}`;
+    expectedSessionId = `FR*CPO*R${number}`;
   });
 
   function buildTransactionDto(overrides: Record<string, any> = {}) {
@@ -303,7 +306,7 @@ describe('CdrBroadcaster — outbound OCPI request', () => {
     expect(scope.isDone()).toBe(true);
     expect(seen!.body).toMatchObject({
       id: expectedCdrId,
-      session_id: 'TX-1',
+      session_id: expectedSessionId,
       currency: 'EUR',
       total_energy: 5.5,
       cdr_location: expect.objectContaining({

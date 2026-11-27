@@ -25,6 +25,7 @@ import {
   isGirevePartner,
   tokenOwnerPartnerFilter,
 } from '../util/helpers.js';
+import { getOcpiSessionId } from '../util/OcpiObjectId.js';
 
 @Service()
 export class SessionBroadcaster extends BaseBroadcaster {
@@ -47,7 +48,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
       return;
     }
     const txId = transactionDto.transactionId!;
-    const path = `/${tenant.countryCode}/${tenant.partyId}/${txId}`;
+    const path = `/${tenant.countryCode}/${tenant.partyId}/${getOcpiSessionId(transactionDto)}`;
     const { ocpiToCountryCode, ocpiToPartyId } = getOcpiToFromAuthorization(
       transactionDto.authorization,
     );
@@ -122,7 +123,7 @@ export class SessionBroadcaster extends BaseBroadcaster {
     // );
     const txId = transactionDto.transactionId!;
 
-    const path = `/${tenant.countryCode}/${tenant.partyId}/${transactionDto.transactionId}`;
+    const path = `/${tenant.countryCode}/${tenant.partyId}/${getOcpiSessionId(transactionDto)}`;
 
     const ownerId = tokenOwnerTenantPartnerId;
 

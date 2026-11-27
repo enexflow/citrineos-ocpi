@@ -55,6 +55,7 @@ export class OCPP1_6_CommandHandler extends OCPPCommandHandler {
 
   public async sendStopSessionCommand(
     stopSession: StopSession,
+    transactionId: string,
     tenantPartner: TenantPartnerDto,
     chargingStation: ChargingStationDto,
     commandId: string,
@@ -74,7 +75,7 @@ export class OCPP1_6_CommandHandler extends OCPPCommandHandler {
 
     const requestStopTransactionRequest: OCPP1_6.RemoteStopTransactionRequest =
       {
-        transactionId: Number(stopSession.session_id),
+        transactionId: Number(transactionId),
       };
     await this.sendOCPPMessage(
       this.config.commands.ocpp1_6.remoteStopTransactionRequestUrl,

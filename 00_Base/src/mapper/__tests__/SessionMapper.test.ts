@@ -511,7 +511,9 @@ describe('SessionMapper.mapIncrementalSessionPatch', () => {
   );
   const transaction = (overrides: Record<string, unknown> = {}) =>
     ({
+      id: 9876,
       transactionId: 'TX-1',
+      tenant: { countryCode: 'FR', partyId: 'ZET' },
       isActive: true,
       startTime: '2026-10-29T10:00:00+00:00',
       updatedAt: '2026-10-29T10:30:00+00:00',
@@ -530,12 +532,21 @@ describe('SessionMapper.mapIncrementalSessionPatch', () => {
       .mockResolvedValue([
         new Map(),
         new Map(),
-        new Map([['TX-1', { ocpiTariffId: 'FRZETT003927' } as any]]),
+        new Map([['FR*ZET*R009876', { ocpiTariffId: 'FRZETT003927' } as any]]),
       ]);
   });
 
   // The partner already has the periods up to the 10:15 reading
   const SENT_UNTIL = new Date('2026-10-29T10:15:00.000Z');
+
+  it('identifies the session by its OCPI id, not the OCPP transactionId', async () => {
+    const patch = await mapper.mapIncrementalSessionPatch(
+      transaction(),
+      SENT_UNTIL,
+    );
+
+    expect(patch.id).toBe('FR*ZET*R009876');
+  });
 
   it('only sends the periods the partner does not have yet (PATCH appends)', async () => {
     const patch = await mapper.mapIncrementalSessionPatch(
@@ -637,7 +648,7 @@ describe('SessionMapper.mapIncrementalSessionPatch', () => {
         new Map(),
         new Map([
           [
-            'TX-1',
+            'FR*ZET*R009876',
             {
               ocpiTariffId: 'FRZETT003927',
               TariffElements: [

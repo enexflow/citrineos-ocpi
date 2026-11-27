@@ -3393,3 +3393,100 @@ export type GetTransactionByTransactionIdQueryResult = {
     }>
   }>
 };
+
+export type GetTransactionByIdQueryVariables = Exact<{
+  id: Scalars['Int']['input'];
+  tenantId: Scalars['Int']['input'];
+}>;
+
+
+export type GetTransactionByIdQueryResult = {
+  Transactions: Array<{
+    id: number,
+    stationId?: string | null,
+    transactionId?: string | null,
+    isActive?: boolean | null,
+    chargingState?: string | null,
+    timeSpentCharging?: any | null,
+    totalKwh?: any | null,
+    meterStart?: any | null,
+    stoppedReason?: string | null,
+    remoteStartId?: number | null,
+    totalCost?: any | null,
+    startTime?: any | null,
+    endTime?: any | null,
+    createdAt: any,
+    updatedAt: any,
+    evseId?: number | null,
+    connectorId?: number | null,
+    locationId?: number | null,
+    authorizationId?: number | null,
+    tariffId?: number | null,
+    tenant: {
+      countryCode?: string | null,
+      partyId?: string | null
+    },
+    authorization?: {
+      id: number,
+      idToken: any,
+      idTokenType?: string | null,
+      additionalInfo?: any | null,
+      status: any,
+      realTimeAuth: string,
+      language1?: string | null,
+      createdAt: any,
+      updatedAt: any,
+      roamingPartnerId?: number | null,
+      ocpiAuthMethod?: string | null,
+      ocpiAuthReference?: string | null,
+      groupAuthorization?: {
+        idToken: any
+      } | null,
+      tenants: Array<{
+        tenant: {
+          countryCode?: string | null,
+          partyId?: string | null
+        }
+      }>,
+      tenantPartner?: {
+        id: number,
+        countryCode: string,
+        partyId: string,
+        partnerProfileOCPI?: any | null,
+        tenant: {
+          id: number,
+          countryCode?: string | null,
+          partyId?: string | null
+        }
+      } | null,
+      roamingPartner?: {
+        id: number,
+        countryCode: string,
+        partyId: string
+      } | null
+    } | null,
+    chargingStation?: {
+      id: string,
+      isOnline?: boolean | null,
+      protocol?: string | null
+    } | null,
+    transactionEvents: Array<{
+      id: number,
+      eventType?: string | null,
+      transactionInfo?: any | null,
+      EvseType?: {
+        id?: number | null
+      } | null
+    }>,
+    startTransaction?: {
+      timestamp?: any | null
+    } | null,
+    stopTransaction?: {
+      timestamp?: any | null
+    } | null,
+    meterValues: Array<{
+      timestamp?: any | null,
+      sampledValue?: any | null
+    }>
+  }>
+};
