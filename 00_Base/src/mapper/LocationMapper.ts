@@ -48,6 +48,7 @@ import { ImageType } from '../model/ImageType.js';
 import { ImageCategory } from '../model/ImageCategory.js';
 import type { ImageDTO } from '../model/DTO/ImageDTO.js';
 import type { PublishTokenType } from '../model/PublishTokenType.js';
+import { TariffMapper } from './TariffMapper.js';
 
 import type {
   GetLocationByOcpiIdAndPartnerIdQueryResult,
@@ -623,9 +624,9 @@ export class ConnectorMapper {
       max_voltage: connector.maximumVoltage || undefined,
       max_amperage: connector.maximumAmperage || undefined,
       max_electric_power: connector.maximumPowerWatts || undefined,
-      tariff_ids: connector.tariffs?.map(
-        (t: any) =>
-          t.tariffOcpiId ?? t.Tariff?.ocpiTariffId ?? t.tariffId?.toString(),
+      // The Tariff's stored id, not the link's copy: one source for every tariff id we send.
+      tariff_ids: connector.tariffs?.map((t: any) =>
+        TariffMapper.ocpiTariffId(t.Tariff),
       ),
       terms_and_conditions: connector.termsAndConditionsUrl,
       last_updated: connector.updatedAt!,

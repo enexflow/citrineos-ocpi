@@ -139,11 +139,18 @@ export class LocationsService {
       GetOurLocationsQueryVariables
     >(GET_OUR_LOCATIONS_QUERY, variables);
 
-    // Map GraphQL DTOs to OCPI DTOs
-    const locations =
-      response.Locations.map((value) =>
-        LocationMapper.fromGraphql(value as unknown as LocationDto),
-      ) ?? [];
+    // A location that cannot be mapped (e.g. a connector on a tariff with no OCPI id) is
+    // left out and logged: sending it wrong is worse, failing the whole page is out of scale.
+    const locations = response.Locations.flatMap((value) => {
+      try {
+        return [LocationMapper.fromGraphql(value as unknown as LocationDto)];
+      } catch (error) {
+        this.logger.error(
+          `Location ${value.id} not sent in GET /locations: ${(error as Error).message}`,
+        );
+        return [];
+      }
+    });
     const locationsTotal = locations.length;
 
     const total = response.Locations_aggregate?.aggregate?.count ?? 0;

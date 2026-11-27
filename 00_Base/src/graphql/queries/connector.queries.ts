@@ -248,7 +248,11 @@ export const GET_OWN_CONNECTOR_FOR_TARIFF_BROADCAST_QUERY = gql`
       tariffs: ConnectorTariffs(
         where: { tenantPartnerId: { _is_null: true } }
       ) {
-        tariffOcpiId
+        tariffId
+        Tariff {
+          id
+          ocpiTariffId
+        }
       }
       ChargingStation {
         locationId
@@ -278,7 +282,11 @@ export const GET_OWN_CONNECTOR_FOR_TARIFF_BROADCAST_QUERY = gql`
           tariffs: ConnectorTariffs(
             where: { tenantPartnerId: { _is_null: true } }
           ) {
-            tariffOcpiId
+            tariffId
+            Tariff {
+              id
+              ocpiTariffId
+            }
           }
         }
       }

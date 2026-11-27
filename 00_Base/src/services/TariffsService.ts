@@ -187,6 +187,8 @@ export class TariffsService {
         partyId: { _eq: ocpiHeaders.toPartyId },
       },
       tenantPartnerId: { _is_null: true },
+      // Between its insert and ts-api writing its id, a tariff is not published yet.
+      ocpiTariffId: { _is_null: false },
     } as unknown as Tariffs_Bool_Exp;
     const dateFilters: any = {};
     if (paginationParams?.dateFrom)

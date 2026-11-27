@@ -37,9 +37,10 @@ describe('TariffMapper', () => {
       expect(result.party_id).toBe('HYX');
     });
 
-    it('should fall back to id.toString() when ocpiTariffId is absent (own tariff)', () => {
+    it('should use the stored id of an own tariff', () => {
       const coreTariff: TariffMapInput = {
         id: 1,
+        ocpiTariffId: 'FR*HYX*T000001',
         currency: 'EUR',
         tariffType: TariffType.AD_HOC_PAYMENT,
         updatedAt: new Date('2024-01-01T00:00:00Z'),
@@ -60,7 +61,7 @@ describe('TariffMapper', () => {
 
       const result = TariffMapper.mapForReceiver(coreTariff);
 
-      expect(result.id).toBe('1');
+      expect(result.id).toBe('FR*HYX*T000001');
       expect(result.country_code).toBe('FR');
       expect(result.party_id).toBe('HYX');
       expect(result.currency).toBe('EUR');
@@ -80,6 +81,7 @@ describe('TariffMapper', () => {
     it('should map price_components and restrictions straight through from TariffElements', () => {
       const coreTariff: TariffMapInput = {
         id: 2,
+        ocpiTariffId: 'FR*HYX*T000002',
         currency: 'EUR',
         updatedAt: new Date('2024-06-15T12:00:00Z'),
         tenant: { countryCode: 'DE', partyId: 'ABC' },
@@ -151,6 +153,7 @@ describe('TariffMapper', () => {
     it('should prefer roamingPartner, then tenantPartner, then tenant for country/party', () => {
       const base: TariffMapInput = {
         id: 5,
+        ocpiTariffId: 'FR*HYX*T000005',
         currency: 'EUR',
         TariffElements: [
           {
@@ -178,6 +181,7 @@ describe('TariffMapper', () => {
     it('should parse tariff_alt_text from a JSON string', () => {
       const coreTariff: TariffMapInput = {
         id: 6,
+        ocpiTariffId: 'FR*HYX*T000006',
         currency: 'EUR',
         tariffAltText: JSON.stringify([
           { language: 'en', text: 'Standard tariff' },
@@ -202,6 +206,7 @@ describe('TariffMapper', () => {
     it('should pass tariff_alt_text through as-is when already an array', () => {
       const coreTariff: TariffMapInput = {
         id: 7,
+        ocpiTariffId: 'FR*HYX*T000007',
         currency: 'EUR',
         tariffAltText: [{ language: 'en', text: 'Standard tariff' }],
         tenant: { countryCode: 'FR', partyId: 'HYX' },
@@ -222,24 +227,25 @@ describe('TariffMapper', () => {
     });
   });
 
-  describe('formatOwnTariffId', () => {
-    it('should format a zero-padded id with tenant country/party', () => {
-      const coreTariff: TariffMapInput = {
-        id: 7,
-        tenant: { countryCode: 'FR', partyId: 'HYX' },
-      };
-
-      expect(TariffMapper.formatOwnTariffId(coreTariff)).toBe('FRHYXT000007');
+  describe('ocpiTariffId', () => {
+    it('should return the stored id, legacy or current format', () => {
+      expect(
+        TariffMapper.ocpiTariffId({ id: 7, ocpiTariffId: 'FR*ZET*T000007' }),
+      ).toBe('FR*ZET*T000007');
+      expect(
+        TariffMapper.ocpiTariffId({ id: 12, ocpiTariffId: 'FRZETT000012' }),
+      ).toBe('FRZETT000012');
     });
 
-    it('should throw when tenant country/party identifiers are missing', () => {
+    it('should never build an id from the tenant and the numeric id', () => {
       const coreTariff: TariffMapInput = {
         id: 8,
-        tenant: { countryCode: 'FR' },
+        ocpiTariffId: null,
+        tenant: { countryCode: 'FR', partyId: 'ZET' },
       };
 
-      expect(() => TariffMapper.formatOwnTariffId(coreTariff)).toThrow(
-        /Tenant country\/party identifiers are required/,
+      expect(() => TariffMapper.ocpiTariffId(coreTariff)).toThrow(
+        /Tariff 8 has no ocpiTariffId/,
       );
     });
   });
@@ -422,6 +428,7 @@ describe('TariffMapper', () => {
     it('should keep the tariff start date and omit it when unset', () => {
       const base: TariffMapInput = {
         id: 42,
+        ocpiTariffId: 'FR*HYX*T000042',
         currency: 'EUR',
         updatedAt: new Date('2024-01-01T00:00:00Z'),
         tenant: { countryCode: 'FR', partyId: 'HYX' },
@@ -447,7 +454,7 @@ describe('TariffMapper', () => {
       ).toBeUndefined();
     });
 
-    it('should use formatOwnTariffId when ocpiTariffId is absent (own tariff)', () => {
+    it('should throw rather than build an id when ocpiTariffId is absent', () => {
       const coreTariff: TariffMapInput = {
         id: 7,
         currency: 'EUR',
@@ -462,9 +469,9 @@ describe('TariffMapper', () => {
         ],
       };
 
-      const result = TariffMapper.mapForSender(coreTariff);
-
-      expect(result.id).toBe('FRHYXT000007');
+      expect(() => TariffMapper.mapForSender(coreTariff)).toThrow(
+        /Tariff 7 has no ocpiTariffId/,
+      );
     });
 
     it('should throw when TariffElements is an empty array', () => {
@@ -553,6 +560,7 @@ describe('TariffMapper', () => {
     it('should preserve price_components through mapForReceiver -> mapFromOcpi round trip', () => {
       const coreTariff: TariffMapInput = {
         id: 10,
+        ocpiTariffId: 'FR*HYX*T000010',
         currency: 'EUR',
         updatedAt: new Date('2024-01-01T00:00:00Z'),
         tenant: { countryCode: 'FR', partyId: 'HYX' },
