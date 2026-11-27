@@ -43,7 +43,6 @@ const OUR_LOCATIONS_QUERY = `
         ownerTenantPartnerId: { _is_null: true }
         roamingPartnerId: { _is_null: true }
         deletedAt: { _is_null: true }
-        _or: [{ disableOCPI: { _is_null: true } }, { disableOCPI: { _eq: false } }]
       }
       order_by: { id: asc }
     ) {
@@ -55,6 +54,7 @@ const OUR_LOCATIONS_QUERY = `
       country
       coordinates
       updatedAt
+      disableOCPI
       ChargingStations_aggregate {
         aggregate {
           count
@@ -148,6 +148,7 @@ interface OurLocationsQueryResult {
     country: string
     coordinates: { type: string, coordinates: [number, number] } | null
     updatedAt: string | null
+    disableOCPI: boolean | null
     ChargingStations_aggregate: AggregateCount
     ChargingStations: Array<{
       Connectors: Array<{
@@ -229,8 +230,8 @@ function tariffsOfLocation (
 
 /**
  * Our data view: locations we operate ourselves (not received from a CPO
- * partner, not roaming) and exposed over OCPI (disableOCPI is null/false) —
- * mirrors the LocationsService.getLocations sender-GET filter. Each location
+ * partner, not roaming), OCPI-disabled ones included so they can be checked
+ * before roaming is opened; disableOCPI tells which ones the sender GET hides. Each location
  * carries the tariffs on its connectors (our own ConnectorTariffs only,
  * tenantPartnerId null — the same rows the OCPI location GET publishes).
  */
@@ -250,6 +251,7 @@ export async function fetchOurLocations (): Promise<OurLocation[]> {
     latitude: num(loc.coordinates?.coordinates?.[1]),
     longitude: num(loc.coordinates?.coordinates?.[0]),
     lastUpdated: iso(loc.updatedAt),
+    disableOCPI: loc.disableOCPI === true,
     ...tariffsOfLocation(loc.ChargingStations),
   }))
 }

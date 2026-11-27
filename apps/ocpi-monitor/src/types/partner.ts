@@ -119,6 +119,8 @@ export interface LocationTariff {
 }
 
 export interface OurLocation extends OcpiLocationReceived {
+  /** True when roaming is off: the OCPI GET hides this location from partners */
+  disableOCPI: boolean
   tariffs: LocationTariff[]
   /** All connectors at the location, to show partial tariff coverage */
   connectorCount: number

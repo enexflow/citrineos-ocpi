@@ -1139,6 +1139,7 @@ export type GetOurLocationsQueryResult = {
     parkingType?: string | null,
     postalCode?: string | null,
     publishUpstream?: boolean | null,
+    disableOCPI?: boolean | null,
     state?: string | null,
     timeZone?: string | null,
     updatedAt: any,

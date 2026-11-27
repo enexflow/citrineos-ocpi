@@ -615,7 +615,15 @@ export class EvseMapper {
 export class ConnectorMapper {
   static fromGraphql(connector: ConnectorDto): ConnectorDTO | undefined {
     const logger = Container.get(Logger);
-    const partialConnector: Partial<ConnectorDTO> = {
+    const partialConnector = ConnectorMapper.toPartial(connector);
+    if (ConnectorMapper.validatePartialConnector(partialConnector)) {
+      return partialConnector as ConnectorDTO;
+    }
+    logger.warn(`Invalid connector: ${JSON.stringify(partialConnector)}`);
+  }
+
+  static toPartial(connector: ConnectorDto): Partial<ConnectorDTO> {
+    return {
       id: connector.id?.toString(),
       standard: ConnectorMapper.mapConnectorType(connector.type),
       format: ConnectorMapper.mapConnectorFormat(connector.format),
@@ -630,10 +638,6 @@ export class ConnectorMapper {
       terms_and_conditions: connector.termsAndConditionsUrl,
       last_updated: connector.updatedAt!,
     };
-    if (ConnectorMapper.validatePartialConnector(partialConnector)) {
-      return partialConnector as ConnectorDTO;
-    }
-    logger.warn(`Invalid connector: ${JSON.stringify(partialConnector)}`);
   }
 
   static fromGraphqlReceiver(connector: any): ConnectorDTO | undefined {
@@ -923,16 +927,26 @@ export class ConnectorMapper {
     }
   }
 
+  static readonly REQUIRED_CONNECTOR_FIELDS = [
+    'id',
+    'standard',
+    'format',
+    'power_type',
+    'max_voltage',
+    'max_amperage',
+    'last_updated',
+  ] as const satisfies ReadonlyArray<keyof ConnectorDTO>;
+
+  static missingRequiredFields(
+    partialConnector: Partial<ConnectorDTO>,
+  ): Array<(typeof ConnectorMapper.REQUIRED_CONNECTOR_FIELDS)[number]> {
+    return ConnectorMapper.REQUIRED_CONNECTOR_FIELDS.filter(
+      (field) => !partialConnector[field],
+    );
+  }
+
   static validatePartialConnector(partialConnector: Partial<ConnectorDTO>) {
-    if (
-      !partialConnector.id ||
-      !partialConnector.standard ||
-      !partialConnector.format ||
-      !partialConnector.power_type ||
-      !partialConnector.max_voltage ||
-      !partialConnector.max_amperage ||
-      !partialConnector.last_updated
-    ) {
+    if (ConnectorMapper.missingRequiredFields(partialConnector).length > 0) {
       const logger = Container.get(Logger);
       logger.warn('Connector is missing required fields, skipping', {
         connector: partialConnector,
