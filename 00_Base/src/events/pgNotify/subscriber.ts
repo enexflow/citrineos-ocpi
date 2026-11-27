@@ -75,7 +75,10 @@ export class PgNotifyEventSubscriber implements IDtoEventSubscriber {
   private readonly _lockKey: string;
   private readonly _retryIntervalMs: number;
   private readonly _leadershipListeners: EventLeadershipListener[] = [];
+  /** Holds the lock (or election disabled): notifications are handled. */
   private _isLeader = false;
+  /** Consumers bound and LISTEN active, i.e. a change made now will be processed. */
+  private _processing = false;
   private _campaigning = false;
   private _stopped = false;
   private _campaignTimer?: NodeJS.Timeout;
@@ -107,9 +110,13 @@ export class PgNotifyEventSubscriber implements IDtoEventSubscriber {
       (election?.retryIntervalSeconds ?? DEFAULT_RETRY_INTERVAL_SECONDS) * 1000;
   }
 
-  /** True while this instance holds the lock (always true when election is disabled). */
+  /**
+   * True once this instance processes events: it holds the lock (always, when election is
+   * disabled), its consumers are bound and it LISTENs. Stays false while taking over, so a
+   * readiness probe never reports a leader that would still miss a NOTIFY.
+   */
   get isLeader(): boolean {
-    return this._isLeader;
+    return this._isLeader && this._processing;
   }
 
   get leaderElectionEnabled(): boolean {
@@ -228,7 +235,9 @@ export class PgNotifyEventSubscriber implements IDtoEventSubscriber {
 
     if (!this._electionEnabled) {
       this._isLeader = true;
+      this._processing = false;
       await this._listenAll(client);
+      this._processing = true;
     }
   }
 
@@ -318,6 +327,7 @@ export class PgNotifyEventSubscriber implements IDtoEventSubscriber {
       return;
     }
     this._isLeader = true;
+    this._processing = false;
     this._logger.info('Acquired event-processing leadership');
     try {
       for (const listener of this._leadershipListeners) {
@@ -325,6 +335,7 @@ export class PgNotifyEventSubscriber implements IDtoEventSubscriber {
       }
       // Consumers are bound: start publishing.
       await this._listenAll(client);
+      this._processing = client === this._pgClient && this._isLeader;
     } catch (err) {
       if (client !== this._pgClient) {
         // Lost meanwhile: _onConnectionLost queued the step-down.

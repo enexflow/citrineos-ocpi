@@ -131,6 +131,33 @@ describe('PgNotifyEventSubscriber leader election', () => {
     await a.subscriber.shutdown();
   });
 
+  it('reports leadership only once consumers are bound and LISTEN is active', async () => {
+    const subscriber = new PgNotifyEventSubscriber(config(), logger);
+    await subscriber.init();
+    await subscriber.subscribe('TransactionNotification', jest.fn(), jest.fn());
+    let release!: () => void;
+    const seenDuringTakeover: boolean[] = [];
+    subscriber.addLeadershipListener({
+      onAcquired: () =>
+        new Promise<void>((resolve) => {
+          seenDuringTakeover.push(subscriber.isLeader);
+          release = resolve;
+        }),
+      onLost: async () => undefined,
+    });
+    subscriber.startLeaderElection();
+    await jest.advanceTimersByTimeAsync(0);
+
+    // Lock held, consumers still binding: a NOTIFY now would be missed.
+    expect(seenDuringTakeover).toEqual([false]);
+    expect(subscriber.isLeader).toBe(false);
+
+    release();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(subscriber.isLeader).toBe(true);
+    await subscriber.shutdown();
+  });
+
   it('takes the lock, starts consumers, then LISTENs', async () => {
     const log: string[] = [];
     const a = await startInstance(log, 'a');
