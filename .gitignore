@@ -315,3 +315,5 @@ Server/scripts/files
 
 # vitest e2e: OCPI server output (Tests/helpers/e2eGlobalSetup.ts)
 e2e-server.log
+# vitest HA scenario: results table (Tests/ha)
+e2e-ha-results*

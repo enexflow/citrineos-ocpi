@@ -115,6 +115,7 @@ jobs:
 
       # Tests/helpers/e2eGlobalSetup.ts runs the server from Server/dist.
       - name: Build
+        id: build
         run: npm run build
 
       # Same stack as the integration job (pretest:e2e pulls Tests/helpers/testImages.json),
@@ -125,6 +126,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run test:e2e
 
+      # Tests/ha: two instances of the same build on their own stack (Postgres, Hasura,
+      # RabbitMQ, Redis): same API on both, one push per change, cross-instance command
+      # callbacks, failover on SIGTERM and SIGKILL. Runs even if the E2E suites failed.
+      - name: HA scenario (2 OCPI instances)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run test:e2e:ha
+
+      - name: HA results
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: cat e2e-ha-results.md >> "$GITHUB_STEP_SUMMARY" || true
+
       - name: OCPI server log on failure
         if: ${{ failure() }}
-        run: tail -n 300 e2e-server.log || true
+        run: |
+          tail -n 300 e2e-server.log || true
+          for f in e2e-ha-*.log; do echo "=== $f ==="; tail -n 150 "$f"; done 2>/dev/null || true
