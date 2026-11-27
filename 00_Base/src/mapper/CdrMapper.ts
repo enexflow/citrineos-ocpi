@@ -19,6 +19,7 @@ import type { TariffDto, TransactionDto } from '@zetra/citrineos-base';
 import type { CdrDTO, CdrEntity } from '../model/DTO/CdrDTO.js';
 import type { ChargingPeriod } from '../model/ChargingPeriod.js';
 import { roundOcpiNumber, toRoundedHours } from '../util/Util.js';
+import { getOcpiCdrId, getOcpiSessionId } from '../util/OcpiObjectId.js';
 
 @Service()
 export class CdrMapper extends BaseTransactionMapper {
@@ -38,25 +39,24 @@ export class CdrMapper extends BaseTransactionMapper {
       const validTransactions = this.getCompletedTransactions(transactions);
       const sessions = await this.mapTransactionsToSessions(validTransactions);
 
-      const [transactionIdToTariffMap, transactionIdToLocationMap] =
-        await Promise.all([
-          this.getTariffsForTransactions(validTransactions),
-          this.getLocationDTOsForTransactions(transactions),
-        ]);
-      const transactionIdToOcpiTariffMap: Map<string, OcpiTariff> =
+      const [sessionIdToTariffMap, sessionIdToLocationMap] = await Promise.all([
+        this.getTariffsForTransactions(validTransactions),
+        this.getLocationDTOsForTransactions(transactions),
+      ]);
+      const sessionIdToOcpiTariffMap: Map<string, OcpiTariff> =
         await this.getOcpiTariffsForTransactions(
           sessions,
-          transactionIdToTariffMap,
+          sessionIdToTariffMap,
         );
-      const transactionIdToDbIdMap = new Map<string, number | undefined>(
-        validTransactions.map((t) => [t.transactionId, t.id]),
+      const sessionIdToCdrIdMap = new Map<string, string>(
+        validTransactions.map((t) => [getOcpiSessionId(t), getOcpiCdrId(t)]),
       );
       return await this.mapSessionsToCDRs(
         sessions,
-        transactionIdToLocationMap,
-        transactionIdToTariffMap,
-        transactionIdToOcpiTariffMap,
-        transactionIdToDbIdMap,
+        sessionIdToLocationMap,
+        sessionIdToTariffMap,
+        sessionIdToOcpiTariffMap,
+        sessionIdToCdrIdMap,
       );
     } catch (error) {
       // Log the original error for debugging
@@ -77,21 +77,21 @@ export class CdrMapper extends BaseTransactionMapper {
 
   private async mapSessionsToCDRs(
     sessions: Session[],
-    transactionIdToLocationMap: Map<string, LocationDTO>,
-    transactionIdToTariffMap: Map<string, TariffDto>,
-    transactionIdToOcpiTariffMap: Map<string, OcpiTariff>,
-    transactionIdToDbIdMap: Map<string, number | undefined>,
+    sessionIdToLocationMap: Map<string, LocationDTO>,
+    sessionIdToTariffMap: Map<string, TariffDto>,
+    sessionIdToOcpiTariffMap: Map<string, OcpiTariff>,
+    sessionIdToCdrIdMap: Map<string, string>,
   ): Promise<CdrDTO[]> {
     return Promise.all(
       sessions
-        .filter((session) => transactionIdToTariffMap.has(session.id))
+        .filter((session) => sessionIdToTariffMap.has(session.id))
         .map((session) =>
           this.mapSessionToCDR(
             session,
-            transactionIdToLocationMap.get(session.id)!,
-            transactionIdToTariffMap.get(session.id)!,
-            transactionIdToOcpiTariffMap.get(session.id)!,
-            transactionIdToDbIdMap.get(session.id),
+            sessionIdToLocationMap.get(session.id)!,
+            sessionIdToTariffMap.get(session.id)!,
+            sessionIdToOcpiTariffMap.get(session.id)!,
+            sessionIdToCdrIdMap.get(session.id)!,
           ),
         ),
     );
@@ -102,12 +102,12 @@ export class CdrMapper extends BaseTransactionMapper {
     location: LocationDTO,
     tariff: TariffDto,
     ocpiTariff: OcpiTariff,
-    transactionDbId: number | undefined,
+    cdrId: string,
   ): Promise<CdrDTO> {
     return {
       country_code: session.country_code,
       party_id: session.party_id,
-      id: this.generateCdrId(session, transactionDbId, location),
+      id: cdrId,
       start_date_time: session.start_date_time,
       end_date_time: session.end_date_time!,
       session_id: session.id,
@@ -163,20 +163,6 @@ export class CdrMapper extends BaseTransactionMapper {
         ),
       }))
       .filter((cp) => cp.dimensions.length > 0);
-  }
-
-  // Format: {country_code}*{party_id}*F{Transactions.id}*{Locations.id}, "F" = facture
-  private generateCdrId(
-    session: Session,
-    transactionDbId: number | undefined,
-    location: LocationDTO,
-  ): string {
-    if (transactionDbId === undefined) {
-      throw new Error(
-        `CDR ${session.id}: missing Transactions.id, cannot build CDR id`,
-      );
-    }
-    return `${session.country_code}*${session.party_id}*F${transactionDbId}*${location.id}`;
   }
 
   private async createCdrLocation(

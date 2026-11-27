@@ -139,6 +139,9 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
   // Everything SessionMapper.mapTransactionToSession needs, supplied inline so the mapper's
   // own internal GraphQL lookups (location/token/tariff) are all skipped (their guard is
   // `if (!transaction.X && transaction.XId)`).
+  // OCPI Session.id: {tenant country}*{tenant party}*R{Transactions.id on 6 digits}
+  const SESSION_ID = 'FR*CPO*R000501';
+
   function buildTransactionDto(overrides: Record<string, any> = {}) {
     return {
       id: 501,
@@ -218,7 +221,7 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     } as any;
   }
 
-  it('PUTs the mapped session, translating the DB id to the OCPI (transaction) id in the path', async () => {
+  it('PUTs the mapped session under its OCPI id (tenant prefix + R + Transactions.id)', async () => {
     let seen: { path: string; body: any; headers: any } | undefined;
 
     const scope = nock(PARTNER_ORIGIN)
@@ -234,11 +237,11 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     await broadcaster.broadcastPutSession(tenant, transactionDto, partnerId);
 
     expect(scope.isDone()).toBe(true);
-    expect(seen!.path).toContain('/sessions/FR/CPO/TX-1');
+    expect(seen!.path).toContain(`/sessions/FR/CPO/${SESSION_ID}`);
 
     // Real SessionMapper.mapTransactionToSession over hand-built context objects.
     expect(seen!.body).toMatchObject({
-      id: 'TX-1',
+      id: SESSION_ID,
       currency: 'EUR',
       kwh: 5.5,
       status: 'ACTIVE',
@@ -289,7 +292,7 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
 
   it('PATCH sends the incremental patch to the partner and does not PUT it (partner is not Gireve)', async () => {
     const openingPutScope = nock(PARTNER_ORIGIN)
-      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .put(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' });
 
     // The session opening PUT sets the charging period cursor the PATCHes append from
@@ -300,13 +303,13 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
 
     let seenPatchBody: any;
     const patchScope = nock(PARTNER_ORIGIN)
-      .patch(/\/sessions\/FR\/CPO\/TX-1/)
+      .patch(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, function (_uri, body) {
         seenPatchBody = body;
         return { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' };
       });
     const putScope = nock(PARTNER_ORIGIN)
-      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .put(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' });
 
     const transactionDto = buildTransactionDto({
@@ -317,7 +320,7 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     await broadcaster.broadcastPatchSession(tenant, transactionDto, partnerId);
 
     expect(patchScope.isDone()).toBe(true);
-    expect(seenPatchBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
+    expect(seenPatchBody).toMatchObject({ id: SESSION_ID, kwh: 8.2 });
     // A standard partner only gets the full PUT at session start or to resync an unknown
     // cursor; this update must be a PATCH.
     expect(putScope.isDone()).toBe(false);
@@ -326,13 +329,13 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
   it('resyncs with a full PUT instead of a PATCH when the charging period cursor is unknown', async () => {
     let seenPutBody: any;
     const putScope = nock(PARTNER_ORIGIN)
-      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .put(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, function (_uri, body) {
         seenPutBody = body;
         return { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' };
       });
     const patchScope = nock(PARTNER_ORIGIN)
-      .patch(/\/sessions\/FR\/CPO\/TX-1/)
+      .patch(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' });
 
     // No opening PUT went through this process (e.g. it restarted): the partner's periods
@@ -346,14 +349,14 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     await broadcaster.broadcastPatchSession(tenant, transactionDto, partnerId);
 
     expect(putScope.isDone()).toBe(true);
-    expect(seenPutBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
+    expect(seenPutBody).toMatchObject({ id: SESSION_ID, kwh: 8.2 });
     expect(patchScope.isDone()).toBe(false);
   });
 
   it('resyncs with a PUT after the partner answers a PATCH with an OCPI error status_code', async () => {
     const ok = { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' };
     nock(PARTNER_ORIGIN)
-      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .put(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, ok);
     const opening = buildTransactionDto();
     broadcaster.clearSessionBroadcastDedupe(opening.transactionId);
@@ -361,7 +364,7 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
 
     // HTTP 200 but OCPI 2003: the partner does not have the session
     const rejectedPatch = nock(PARTNER_ORIGIN)
-      .patch(/\/sessions\/FR\/CPO\/TX-1/)
+      .patch(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, {
         status_code: 2003,
         status_message: 'Unknown session',
@@ -377,13 +380,13 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     // A PATCH cannot fix a session the partner lacks: the next update is a full PUT
     let seenPutBody: any;
     const resyncPut = nock(PARTNER_ORIGIN)
-      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .put(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, function (_uri, body) {
         seenPutBody = body;
         return ok;
       });
     const patchScope = nock(PARTNER_ORIGIN)
-      .patch(/\/sessions\/FR\/CPO\/TX-1/)
+      .patch(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .reply(200, ok);
     await broadcaster.broadcastPatchSession(
       tenant,
@@ -392,14 +395,14 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     );
 
     expect(resyncPut.isDone()).toBe(true);
-    expect(seenPutBody).toMatchObject({ id: 'TX-1', kwh: 8.2 });
+    expect(seenPutBody).toMatchObject({ id: SESSION_ID, kwh: 8.2 });
     expect(patchScope.isDone()).toBe(false);
   });
 
   it('does not send a late opening PUT over the resync PUT of an update handled first', async () => {
     const putBodies: any[] = [];
     nock(PARTNER_ORIGIN)
-      .put(/\/sessions\/FR\/CPO\/TX-1/)
+      .put(/\/sessions\/FR\/CPO\/FR\*CPO\*R000501/)
       .times(2)
       .reply(200, function (_uri, body) {
         putBodies.push(body);
@@ -422,6 +425,6 @@ describe('SessionBroadcaster — outbound OCPI request', () => {
     );
 
     expect(putBodies).toHaveLength(1);
-    expect(putBodies[0]).toMatchObject({ id: 'TX-1', kwh: 8.2 });
+    expect(putBodies[0]).toMatchObject({ id: SESSION_ID, kwh: 8.2 });
   });
 });

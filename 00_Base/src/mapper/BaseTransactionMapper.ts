@@ -34,6 +34,7 @@ import { LocationMapper } from './LocationMapper.js';
 import { TokensMapper } from './TokensMapper.js';
 import { TariffMapper } from './TariffMapper.js';
 import { TariffDimensionType } from '../model/TariffDimensionType.js';
+import { getOcpiSessionId } from '../util/OcpiObjectId.js';
 
 export abstract class BaseTransactionMapper {
   protected constructor(
@@ -45,7 +46,7 @@ export abstract class BaseTransactionMapper {
   public async getLocationDTOsForTransactions(
     transactions: TransactionDto[],
   ): Promise<Map<string, LocationDTO>> {
-    const transactionIdToLocationMap: Map<string, LocationDTO> = new Map();
+    const sessionIdToLocationMap: Map<string, LocationDTO> = new Map();
     for (const transaction of transactions) {
       if (!transaction.location && transaction.locationId) {
         const result = await this.ocpiGraphqlClient.request<
@@ -64,15 +65,15 @@ export abstract class BaseTransactionMapper {
 
       const locationDto = LocationMapper.fromGraphql(location);
 
-      transactionIdToLocationMap.set(transaction.transactionId!, locationDto);
+      sessionIdToLocationMap.set(getOcpiSessionId(transaction), locationDto);
     }
-    return transactionIdToLocationMap;
+    return sessionIdToLocationMap;
   }
 
   protected async getTokensForTransactions(
     transactions: TransactionDto[],
   ): Promise<Map<string, TokenDTO>> {
-    const transactionIdToTokenMap: Map<string, TokenDTO> = new Map();
+    const sessionIdToTokenMap: Map<string, TokenDTO> = new Map();
 
     for (const transaction of transactions) {
       if (!transaction.authorization && transaction.authorizationId) {
@@ -88,7 +89,7 @@ export abstract class BaseTransactionMapper {
       if (transaction.authorization) {
         const tokenDto = TokensMapper.toDto(transaction.authorization);
         if (tokenDto) {
-          transactionIdToTokenMap.set(transaction.transactionId!, tokenDto);
+          sessionIdToTokenMap.set(getOcpiSessionId(transaction), tokenDto);
         } else {
           this.logger.debug(`Unmapped token for transaction ${transaction.id}`);
         }
@@ -97,13 +98,13 @@ export abstract class BaseTransactionMapper {
       }
     }
 
-    return transactionIdToTokenMap;
+    return sessionIdToTokenMap;
   }
 
   protected async getTariffsForTransactions(
     transactions: TransactionDto[],
   ): Promise<Map<string, TariffDto>> {
-    const transactionIdToTariffMap = new Map<string, TariffDto>();
+    const sessionIdToTariffMap = new Map<string, TariffDto>();
     for (const transaction of transactions) {
       if (!transaction.tariff && transaction.tariffId) {
         const result = await this.ocpiGraphqlClient.request<
@@ -121,25 +122,25 @@ export abstract class BaseTransactionMapper {
       }
       const tariff = transaction.tariff;
       if (tariff) {
-        transactionIdToTariffMap.set(transaction.transactionId!, tariff);
+        sessionIdToTariffMap.set(getOcpiSessionId(transaction), tariff);
       } else {
         this.logger.debug(`No tariff for ${transaction.id}`);
       }
     }
-    return transactionIdToTariffMap;
+    return sessionIdToTariffMap;
   }
 
   protected async getOcpiTariffsForTransactions(
     sessions: Session[],
-    transactionIdToTariffMap: Map<string, TariffDto>,
+    sessionIdToTariffMap: Map<string, TariffDto>,
   ): Promise<Map<string, OcpiTariff>> {
-    const transactionIdToOcpiTariffMap = new Map<string, OcpiTariff>();
+    const sessionIdToOcpiTariffMap = new Map<string, OcpiTariff>();
     await Promise.all(
       sessions
-        .filter((session) => transactionIdToTariffMap.get(session.id))
+        .filter((session) => sessionIdToTariffMap.get(session.id))
         .map(async (session) => {
           const tariffVariables = {
-            id: transactionIdToTariffMap.get(session.id)!.id!,
+            id: sessionIdToTariffMap.get(session.id)!.id!,
             // TODO: Ensure CPO Country Code, Party ID exists for the tariff in question
             countryCode: session.country_code,
             partyId: session.party_id,
@@ -152,14 +153,14 @@ export abstract class BaseTransactionMapper {
           const tariff = result.Tariffs[0] as unknown as TariffDto;
 
           if (tariff) {
-            transactionIdToOcpiTariffMap.set(
+            sessionIdToOcpiTariffMap.set(
               session.id,
               TariffMapper.mapForSender(tariff),
             );
           }
         }),
     );
-    return transactionIdToOcpiTariffMap;
+    return sessionIdToOcpiTariffMap;
   }
 
   protected calculateTotalCost(totalKwh: number, tariff: TariffDto): Price {

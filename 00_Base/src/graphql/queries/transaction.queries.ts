@@ -154,3 +154,98 @@ export const GET_TRANSACTION_BY_TRANSACTION_ID_QUERY = gql`
     }
   }
 `;
+
+// OCPI Session ids carry Transactions.id (see util/OcpiObjectId.ts): look the transaction
+// up by primary key, within the tenant the session id belongs to.
+export const GET_TRANSACTION_BY_ID_QUERY = gql`
+  query GetTransactionById($id: Int!, $tenantId: Int!) {
+    Transactions(where: { id: { _eq: $id }, tenantId: { _eq: $tenantId } }) {
+      tenant: Tenant {
+        countryCode
+        partyId
+      }
+      id
+      stationId
+      transactionId
+      isActive
+      chargingState
+      timeSpentCharging
+      totalKwh
+      meterStart
+      stoppedReason
+      remoteStartId
+      totalCost
+      startTime
+      endTime
+      createdAt
+      updatedAt
+      evseId
+      connectorId
+      locationId
+      authorizationId
+      tariffId
+      authorization: Authorization {
+        id
+        idToken
+        idTokenType
+        additionalInfo
+        status
+        realTimeAuth
+        language1
+        createdAt
+        updatedAt
+        groupAuthorization: GroupAuthorization {
+          idToken
+        }
+        tenants {
+          tenant {
+            countryCode
+            partyId
+          }
+        }
+        tenantPartner: TenantPartner {
+          id
+          countryCode
+          partyId
+          partnerProfileOCPI
+          tenant: Tenant {
+            id
+            countryCode
+            partyId
+          }
+        }
+        roamingPartnerId
+        ocpiAuthMethod
+        ocpiAuthReference
+        roamingPartner: RoamingPartner {
+          id
+          countryCode
+          partyId
+        }
+      }
+      chargingStation: ChargingStation {
+        id
+        isOnline
+        protocol
+      }
+      transactionEvents: TransactionEvents {
+        id
+        eventType
+        EvseType {
+          id
+        }
+        transactionInfo
+      }
+      startTransaction: StartTransaction {
+        timestamp
+      }
+      stopTransaction: StopTransaction {
+        timestamp
+      }
+      meterValues: MeterValues {
+        timestamp
+        sampledValue
+      }
+    }
+  }
+`;

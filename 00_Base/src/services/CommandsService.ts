@@ -18,12 +18,12 @@ import { CommandExecutor } from '../util/CommandExecutor.js';
 import type {
   GetChargingStationByIdQueryResult,
   GetChargingStationByIdQueryVariables,
-  GetTransactionByTransactionIdQueryResult,
-  GetTransactionByTransactionIdQueryVariables,
+  GetTransactionByIdQueryResult,
+  GetTransactionByIdQueryVariables,
 } from '../graphql/index.js';
 import {
   GET_CHARGING_STATION_BY_ID_QUERY,
-  GET_TRANSACTION_BY_TRANSACTION_ID_QUERY,
+  GET_TRANSACTION_BY_ID_QUERY,
   OcpiGraphqlClient,
 } from '../graphql/index.js';
 import type { ILogObj } from 'tslog';
@@ -44,6 +44,7 @@ import type { OcpiHeaders } from '../model/OcpiHeaders.js';
 import { TokensService } from './TokensService.js';
 import { WhitelistType } from '../model/WhitelistType.js';
 import { getTokenOwnerFromAuthorization } from '../util/helpers.js';
+import { OcpiObjectIdType, parseOcpiObjectId } from '../util/OcpiObjectId.js';
 
 @Service()
 export class CommandsService {
@@ -282,15 +283,13 @@ export class CommandsService {
     roamingPartner: RoamingPartnerDto | null | undefined,
     ocpiHeaders: OcpiHeaders,
   ): Promise<OcpiCommandResponse> {
-    const transactionResponse = await this.ocpiGraphqlClient.request<
-      GetTransactionByTransactionIdQueryResult,
-      GetTransactionByTransactionIdQueryVariables
-    >(GET_TRANSACTION_BY_TRANSACTION_ID_QUERY, {
-      transactionId: stopSession.session_id,
-    });
-    if (!transactionResponse.Transactions[0]) {
-      this.logger.error('Unknown transaction', {
-        transactionId: stopSession.session_id,
+    const transaction = await this.findTransactionForSessionId(
+      stopSession.session_id,
+      tenantPartner,
+    );
+    if (!transaction?.transactionId) {
+      this.logger.error('Unknown session', {
+        sessionId: stopSession.session_id,
       });
       return ResponseGenerator.buildGenericSuccessResponse(
         {
@@ -300,7 +299,6 @@ export class CommandsService {
         'Session not found',
       );
     }
-    const transaction = transactionResponse.Transactions[0];
     const sessionTokenOwner = getTokenOwnerFromAuthorization(
       transaction.authorization ?? {},
     );
@@ -362,6 +360,7 @@ export class CommandsService {
     this.commandExecutor
       .executeStopSession(
         stopSession,
+        transaction.transactionId,
         tenantPartner,
         chargingStation,
         ocpiHeaders,
@@ -373,6 +372,36 @@ export class CommandsService {
       result: CommandResponseType.ACCEPTED,
       timeout: this.config.commands.timeout,
     });
+  }
+
+  /**
+   * Our session ids are {tenant country}*{tenant party}*R{Transactions.id} (see
+   * util/OcpiObjectId.ts). An id of another format or of another tenant is unknown.
+   */
+  private async findTransactionForSessionId(
+    sessionId: string,
+    tenantPartner: TenantPartnerDto,
+  ): Promise<
+    GetTransactionByIdQueryResult['Transactions'][number] | undefined
+  > {
+    const parsed = parseOcpiObjectId(sessionId, OcpiObjectIdType.SESSION);
+    const tenant = tenantPartner.tenant;
+    if (
+      !parsed ||
+      tenant?.id == null ||
+      parsed.countryCode !== tenant.countryCode ||
+      parsed.partyId !== tenant.partyId
+    ) {
+      return undefined;
+    }
+    const response = await this.ocpiGraphqlClient.request<
+      GetTransactionByIdQueryResult,
+      GetTransactionByIdQueryVariables
+    >(GET_TRANSACTION_BY_ID_QUERY, {
+      id: parsed.number,
+      tenantId: tenant.id,
+    });
+    return response.Transactions[0];
   }
 
   private async handleUnlockConnector(

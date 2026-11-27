@@ -104,8 +104,13 @@ export class CommandExecutor {
     return;
   }
 
+  /**
+   * @param transactionId OCPP transactionId of the session's transaction, which the station
+   * knows (the OCPI session_id is ours, see util/OcpiObjectId.ts)
+   */
   public async executeStopSession(
     stopSession: StopSession,
+    transactionId: string,
     tenantPartner: TenantPartnerDto,
     chargingStation: ChargingStationDto,
     ocpiHeaders: OcpiHeaders,
@@ -127,6 +132,7 @@ export class CommandExecutor {
     if (commandHandler) {
       await commandHandler.sendStopSessionCommand(
         stopSession,
+        transactionId,
         tenantPartner,
         chargingStation,
         commandId,

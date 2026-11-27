@@ -62,10 +62,15 @@ describe('SessionBroadcaster', () => {
   const PERIODS_END = new Date('2026-10-29T10:30:00.000Z');
 
   const tenant = { countryCode: 'FR', partyId: 'ZET' } as any;
+  // OCPI session id = tenant prefix + R + Transactions.id; the OCPP transactionId
+  // ('tx-1') stays the internal dedupe key
   const transactionDto = {
+    id: 9876,
     transactionId: 'tx-1',
+    tenant: { countryCode: 'FR', partyId: 'ZET' },
     authorization: { tenantPartner: { id: 42 } },
   } as any;
+  const SESSION_PATH = '/FR/ZET/FR*ZET*R009876';
 
   beforeEach(() => {
     mockLogger = {
@@ -81,7 +86,7 @@ describe('SessionBroadcaster', () => {
     mockSessionMapper = {
       mapTransactionToSession: jest
         .fn()
-        .mockResolvedValue({ id: 'tx-1', status: 'ACTIVE' }),
+        .mockResolvedValue({ id: 'FR*ZET*R009876', status: 'ACTIVE' }),
       mapIncrementalSessionPatch: jest
         .fn()
         .mockResolvedValue({ status: 'ACTIVE' }),
@@ -140,8 +145,8 @@ describe('SessionBroadcaster', () => {
           moduleId: ModuleId.Sessions,
           interfaceRole: InterfaceRole.RECEIVER,
           httpMethod: HttpMethod.Put,
-          body: { id: 'tx-1', status: 'ACTIVE' },
-          path: '/FR/ZET/tx-1',
+          body: { id: 'FR*ZET*R009876', status: 'ACTIVE' },
+          path: SESSION_PATH,
         }),
       );
       expect(mockDedupeService.markSent).toHaveBeenCalled();
@@ -186,6 +191,9 @@ describe('SessionBroadcaster', () => {
       await broadcaster.broadcastPatchSession(tenant, transactionDto, 42);
 
       expect(sentMethods()).toEqual([HttpMethod.Patch]);
+      expect(
+        mockSessionsClientApi.broadcastToClients.mock.calls[0][0].path,
+      ).toBe(SESSION_PATH);
       expect(mockSessionMapper.mapIncrementalSessionPatch).toHaveBeenCalledWith(
         transactionDto,
         SENT_UNTIL,
