@@ -3,7 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ICommandsModuleApi } from './ICommandsModuleApi.js';
-import { Body, Ctx, JsonController, Param, Post } from 'routing-controllers';
+import {
+  Body,
+  Ctx,
+  JsonController,
+  OnUndefined,
+  Param,
+  Post,
+} from 'routing-controllers';
 import type {
   RoamingPartnerDto,
   TenantPartnerDto,
@@ -147,7 +154,10 @@ export class CommandsModuleApi
     );
   }
 
+  // Nothing to return: without this routing-controllers answers 404 to core even though the
+  // response was processed.
   @Post('/callback/:tenantPartnerId/:ocppVersion/:command/:commandId')
+  @OnUndefined(HttpStatus.NO_CONTENT)
   @AsAdminEndpoint()
   async postAsynchronousResponse(
     @Param('tenantPartnerId') tenantPartnerId: number,
