@@ -360,12 +360,33 @@ export type {
   GireveRetryQueueItem,
   UpsertGireveRetryInput,
 } from './services/GireveBroadcastRetryOutbox.js';
+export { GireveComplianceService } from './services/GireveComplianceService.js';
+export {
+  GIREVE_RULES,
+  GIREVE_RULES_VERSION,
+  checkLocation,
+  countIssues,
+  findDuplicateEvseIds,
+  sortIssues,
+} from './services/gireveStaticDataRules.js';
+export type {
+  GireveRuleCode,
+  LocationComplianceInput,
+  RejectedConnector,
+} from './services/gireveStaticDataRules.js';
+export type {
+  ComplianceIssue,
+  ComplianceLevel,
+  GireveComplianceReport,
+  LocationCompliance,
+} from './model/DTO/GireveComplianceDTO.js';
 
 export { CommandsService } from './services/CommandsService.js';
 export { CredentialsService } from './services/CredentialsService.js';
 export { TokensService } from './services/TokensService.js';
 // export { TokensAdminService } from './services/TokensAdminService.js';
 export { LocationsService } from './services/LocationsService.js';
+export { buildOurLocationsWhere } from './services/ourLocationsWhere.js';
 export { LocationReceiverService } from './services/LocationReceiverService.js';
 export { LocationsPullService } from './services/LocationsPullService.js';
 export { VersionService } from './services/VersionService.js';

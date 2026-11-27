@@ -11,8 +11,37 @@ jest.mock('@zetra/citrineos-base', () => ({}));
 import type { LocationHours } from '@zetra/citrineos-base';
 import { Logger } from 'tslog';
 import { Container } from 'typedi';
-import { LocationMapper } from '../LocationMapper';
+import { ConnectorMapper, LocationMapper } from '../LocationMapper';
 import { HoursSchema } from '../../model/Hours';
+import { ConnectorFormat } from '../../model/ConnectorFormat';
+import { ConnectorType } from '../../model/ConnectorType';
+import { PowerType } from '../../model/PowerType';
+
+describe('ConnectorMapper.missingRequiredFields', () => {
+  const complete = {
+    id: '1',
+    standard: ConnectorType.IEC_62196_T2_COMBO,
+    format: ConnectorFormat.CABLE,
+    power_type: PowerType.DC,
+    max_voltage: 1000,
+    max_amperage: 600,
+    last_updated: new Date('2026-11-27T00:00:00Z'),
+  };
+
+  it('returns nothing for a publishable connector', () => {
+    expect(ConnectorMapper.missingRequiredFields(complete)).toEqual([]);
+  });
+
+  it('lists every field that would drop the connector, 0 counting as missing', () => {
+    expect(
+      ConnectorMapper.missingRequiredFields({
+        ...complete,
+        standard: undefined,
+        max_voltage: 0,
+      }),
+    ).toEqual(['standard', 'max_voltage']);
+  });
+});
 
 const hours = (value: Partial<LocationHours>): LocationHours =>
   value as LocationHours;

@@ -68,6 +68,7 @@ jest.mock('@citrineos/ocpi-base', () => {
     TariffsService: stubClass(),
     LocationsPullService: stubClass(),
     LocationsService: stubClass(),
+    GireveComplianceService: stubClass(),
     SessionsService: stubClass(),
     CdrsService: stubClass(),
     DeleteLocationBodySchema: {},
@@ -191,6 +192,7 @@ describe('AdminModuleApi roaming partner routes', () => {
   let createCompanyCustomer: jest.Mock;
   let graphqlRequest: jest.Mock;
   let getTokenFromPartner: jest.Mock;
+  let getGireveComplianceReport: jest.Mock;
 
   const givenOutcome = (outcome: Outcome) =>
     upsertRoamingPartner.mockResolvedValue({
@@ -210,6 +212,7 @@ describe('AdminModuleApi roaming partner routes', () => {
     });
     graphqlRequest = jest.fn();
     getTokenFromPartner = jest.fn();
+    getGireveComplianceReport = jest.fn();
     api = new AdminModuleApi(
       logger as any,
       { upsertRoamingPartner } as any,
@@ -221,7 +224,23 @@ describe('AdminModuleApi roaming partner routes', () => {
       {} as any, // locationsService
       { createCompanyCustomer } as any,
       { getTokenFromPartner } as any, // tokensClientApi
+      { getReport: getGireveComplianceReport } as any,
     );
+  });
+
+  describe('GET /our-locations/gireve-compliance', () => {
+    it('wraps the compliance report in data', async () => {
+      const report = {
+        generatedAt: '2026-11-27T00:00:00.000Z',
+        rulesVersion: 'gireve-static-data-error-report-1.1',
+        locations: [],
+      };
+      getGireveComplianceReport.mockResolvedValue(report);
+
+      await expect(api.getOurLocationsGireveCompliance()).resolves.toEqual({
+        data: report,
+      });
+    });
   });
 
   describe('POST /create-roaming-partner-cpo', () => {

@@ -106,6 +106,10 @@ export const lightTheme = {
     'on-emsp': '#ffffff',
     'hub': palette.wisteriaBlue[500],
     'on-hub': '#ffffff',
+    // Gireve compliance: the theme 'warning' is blue, so it cannot carry amber
+    'compliance-error': '#b3261e',
+    'compliance-warning': '#c77700',
+    'compliance-ok': palette.teal[700],
   },
   variables: {
     'border-color': palette.brightSnow[800],
@@ -153,6 +157,9 @@ export const darkTheme = {
     'on-emsp': palette.spaceIndigo[950],
     'hub': palette.wisteriaBlue[300],
     'on-hub': palette.wisteriaBlue[950],
+    'compliance-error': '#f2b8b5',
+    'compliance-warning': '#ffb74d',
+    'compliance-ok': palette.teal[400],
   },
   variables: {
     'border-color': palette.brightSnow[100],

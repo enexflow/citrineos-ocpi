@@ -13,7 +13,8 @@ SPDX-License-Identifier: Apache-2.0
         </h1>
         <p class="text-body-medium mb-0" style="color: #587474">
           Our own network — locations we operate directly (not received from a
-          partner, not roaming) and published over OCPI.
+          partner, not roaming), with their roaming state and Gireve static
+          data checks.
         </p>
       </div>
 
@@ -38,26 +39,79 @@ SPDX-License-Identifier: Apache-2.0
       {{ error }}
     </v-alert>
 
+    <v-alert
+      v-if="complianceError"
+      class="mb-4"
+      density="comfortable"
+      title="Gireve compliance unavailable"
+      type="warning"
+      variant="tonal"
+    >
+      {{ complianceError }}
+    </v-alert>
+
     <v-tabs v-model="tab" class="mb-6" color="#3687c9">
-      <v-tab value="locations"> Locations ({{ locations.length }}) </v-tab>
+      <v-tab value="locations"> Locations ({{ filteredLocations.length }}) </v-tab>
     </v-tabs>
 
     <v-tabs-window v-model="tab">
       <v-tabs-window-item value="locations">
-        <p class="text-body-medium mb-3" style="color: #587474">
-          Locations with <code>ownerTenantPartnerId</code> and
-          <code>roamingPartnerId</code> null, not deleted, and
-          <code>disableOCPI</code> not true.
-        </p>
-        <LocationsMap class="mb-4" :locations="locations" />
+        <div class="d-flex flex-wrap align-center justify-space-between ga-4 mb-3">
+          <p class="text-body-medium mb-0" style="color: #587474">
+            Locations with <code>ownerTenantPartnerId</code> and
+            <code>roamingPartnerId</code> null and not deleted. Roaming off
+            means <code>disableOCPI</code> is true: partners do not see it.
+          </p>
+          <v-btn-toggle
+            v-model="roamingFilter"
+            color="#3687c9"
+            density="compact"
+            mandatory
+            variant="outlined"
+          >
+            <v-btn value="enabled">Roaming on</v-btn>
+            <v-btn value="disabled">Roaming off</v-btn>
+            <v-btn value="all">All</v-btn>
+          </v-btn-toggle>
+        </div>
+        <LocationsMap class="mb-4" :locations="filteredLocations" />
         <v-data-table
           class="partners-table rounded-lg"
           :headers="locationHeaders"
           hover
           item-value="id"
-          :items="locations"
+          :items="filteredLocations"
           :loading="loading"
+          show-expand
         >
+          <template #item.disableOCPI="{ item }">
+            <v-chip
+              :color="item.disableOCPI ? 'grey' : 'cpo'"
+              size="small"
+              variant="tonal"
+            >
+              {{ item.disableOCPI ? 'Off' : 'On' }}
+            </v-chip>
+          </template>
+          <template #item.compliance="{ item }">
+            <v-chip
+              :color="complianceChip(complianceById.get(item.id)).color"
+              :prepend-icon="complianceChip(complianceById.get(item.id)).icon"
+              size="small"
+              variant="tonal"
+            >
+              {{ complianceChip(complianceById.get(item.id)).label }}
+            </v-chip>
+          </template>
+          <template #expanded-row="{ columns, item }">
+            <tr>
+              <td class="compliance-row" :colspan="columns.length">
+                <GireveComplianceDetail
+                  :compliance="complianceById.get(item.id)"
+                />
+              </td>
+            </tr>
+          </template>
           <template #item.ocpiId="{ item }">
             <code class="id-code">{{ item.ocpiId }}</code>
           </template>
@@ -185,7 +239,7 @@ SPDX-License-Identifier: Apache-2.0
           </template>
           <template #no-data>
             <div class="py-8 text-center text-medium-emphasis">
-              No OCPI-enabled locations found.
+              No location matches this roaming filter.
             </div>
           </template>
         </v-data-table>
@@ -195,23 +249,50 @@ SPDX-License-Identifier: Apache-2.0
 </template>
 
 <script lang="ts" setup>
+  import type { LocationCompliance } from '@/types/gireveCompliance'
   import type { LocationTariff, OurLocation } from '@/types/partner'
-  import { onMounted, ref } from 'vue'
+  import { computed, onMounted, ref } from 'vue'
+  import {
+    complianceChip,
+    complianceSortValue,
+    fetchGireveCompliance,
+    filterByRoaming,
+    type RoamingFilter,
+  } from '@/api/gireveCompliance'
   import { fetchOurLocations } from '@/api/ourData'
+  import GireveComplianceDetail from '@/components/GireveComplianceDetail.vue'
   import LocationsMap from '@/components/LocationsMap.vue'
 
   const locations = ref<OurLocation[]>([])
+  const complianceById = ref(new Map<number, LocationCompliance>())
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const complianceError = ref<string | null>(null)
   const tab = ref('locations')
+  const roamingFilter = ref<RoamingFilter>('enabled')
+
+  const filteredLocations = computed(() =>
+    filterByRoaming(locations.value, roamingFilter.value),
+  )
+
+  function byCompliance (a: OurLocation, b: OurLocation) {
+    return (
+      complianceSortValue(complianceById.value.get(a.id))
+      - complianceSortValue(complianceById.value.get(b.id))
+    )
+  }
 
   const locationHeaders = [
     { title: 'OCPI location id', key: 'ocpiId' },
     { title: 'Name', key: 'name' },
     { title: 'Address', key: 'address', sortable: false },
-    { title: 'EVSEs', key: 'evseCount' },
+    // Counts ChargingStations, not EVSEs
+    { title: 'Stations', key: 'evseCount' },
+    { title: 'Roaming', key: 'disableOCPI' },
+    { title: 'Gireve compliance', key: 'compliance', sortRaw: byCompliance },
     { title: 'Tariffs', key: 'tariffs', sortable: false },
     { title: 'Last updated', key: 'lastUpdated' },
+    { title: '', key: 'data-table-expand' },
   ]
 
   // OCPI PriceComponent units: ENERGY per kWh, TIME/PARKING_TIME per hour, FLAT per session
@@ -260,17 +341,34 @@ SPDX-License-Identifier: Apache-2.0
     }
   }
 
+  function messageOf (reason: unknown) {
+    return reason instanceof Error ? reason.message : String(reason)
+  }
+
+  // The compliance report is optional: the table stays usable if it fails.
   async function load () {
     loading.value = true
     error.value = null
-    try {
-      locations.value = await fetchOurLocations()
-    } catch (error_) {
+    complianceError.value = null
+    const [locationsResult, complianceResult] = await Promise.allSettled([
+      fetchOurLocations(),
+      fetchGireveCompliance(),
+    ])
+    if (locationsResult.status === 'fulfilled') {
+      locations.value = locationsResult.value
+    } else {
       locations.value = []
-      error.value = error_ instanceof Error ? error_.message : String(error_)
-    } finally {
-      loading.value = false
+      error.value = messageOf(locationsResult.reason)
     }
+    if (complianceResult.status === 'fulfilled') {
+      complianceById.value = new Map(
+        complianceResult.value.locations.map(c => [c.locationId, c]),
+      )
+    } else {
+      complianceById.value = new Map()
+      complianceError.value = messageOf(complianceResult.reason)
+    }
+    loading.value = false
   }
 
   onMounted(load)
@@ -323,6 +421,10 @@ SPDX-License-Identifier: Apache-2.0
 .tariff-tip__restrictions {
   margin-top: 0.15rem;
   opacity: 0.8;
+}
+
+.compliance-row {
+  background: #f7fafa;
 }
 
 .tariff-chip__coverage {

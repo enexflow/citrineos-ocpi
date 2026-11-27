@@ -45,6 +45,7 @@ import {
   DeleteLocationBodySchemaName,
   TariffsService,
   LocationsService,
+  GireveComplianceService,
   TokensClientApi,
   TokenType,
   type OnboardRoamingPartnerBody,
@@ -181,6 +182,7 @@ export class AdminModuleApi extends BaseController {
     readonly locationsService: LocationsService,
     readonly pennylaneService: PennylaneService,
     readonly tokensClientApi: TokensClientApi,
+    readonly gireveComplianceService: GireveComplianceService,
   ) {
     super();
   }
@@ -424,6 +426,16 @@ export class AdminModuleApi extends BaseController {
     >(GET_ALL_TENANT_PARTNERS, {});
 
     return { data: result.TenantPartners.map((row) => this.toIdentity(row)) };
+  }
+
+  /**
+   * Admin UI (Our data): for each of our locations, OCPI-disabled ones
+   * included, the issues the Gireve hub would block or warn about.
+   */
+  @Get('/our-locations/gireve-compliance')
+  @AsAdminEndpoint()
+  async getOurLocationsGireveCompliance() {
+    return { data: await this.gireveComplianceService.getReport() };
   }
 
   /**

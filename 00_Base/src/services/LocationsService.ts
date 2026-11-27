@@ -77,6 +77,7 @@ import type {
   DeleteLocationSummary,
 } from '../index.js';
 import { EndpointIdentifier } from '../model/EndpointIdentifier.js';
+import { buildOurLocationsWhere } from './ourLocationsWhere.js';
 
 export type KnownLocationRef = {
   id: number;
@@ -105,20 +106,13 @@ export class LocationsService {
     );
     const limit = paginatedParams?.limit ?? DEFAULT_LIMIT;
     const offset = paginatedParams?.offset ?? DEFAULT_OFFSET;
-    const where: Locations_Bool_Exp = {
-      Tenant: {
-        countryCode: { _eq: ocpiHeaders.toCountryCode },
-        partyId: { _eq: ocpiHeaders.toPartyId },
+    const where: Locations_Bool_Exp = buildOurLocationsWhere({
+      tenant: {
+        countryCode: ocpiHeaders.toCountryCode,
+        partyId: ocpiHeaders.toPartyId,
       },
-      ownerTenantPartnerId: { _is_null: true },
-      roamingPartnerId: { _is_null: true },
-      deletedAt: { _is_null: true },
-      // don't expose OCPI-disabled locations (null = not disabled)
-      _or: [
-        { disableOCPI: { _is_null: true } },
-        { disableOCPI: { _eq: false } },
-      ],
-    };
+      includeOcpiDisabled: false,
+    });
     const dateFilters: any = {};
     if (paginatedParams?.dateFrom)
       dateFilters._gte = paginatedParams.dateFrom.toISOString();
@@ -169,18 +163,13 @@ export class LocationsService {
   ): Locations_Bool_Exp {
     return {
       id: { _eq: locationId },
-      Tenant: {
-        countryCode: { _eq: ocpiHeaders.toCountryCode },
-        partyId: { _eq: ocpiHeaders.toPartyId },
-      },
-      ownerTenantPartnerId: { _is_null: true },
-      roamingPartnerId: { _is_null: true },
-      deletedAt: { _is_null: true },
-      // don't expose OCPI-disabled locations (null = not disabled)
-      _or: [
-        { disableOCPI: { _is_null: true } },
-        { disableOCPI: { _eq: false } },
-      ],
+      ...buildOurLocationsWhere({
+        tenant: {
+          countryCode: ocpiHeaders.toCountryCode,
+          partyId: ocpiHeaders.toPartyId,
+        },
+        includeOcpiDisabled: false,
+      }),
     };
   }
 

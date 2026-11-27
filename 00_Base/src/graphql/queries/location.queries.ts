@@ -33,6 +33,7 @@ export const GET_OUR_LOCATIONS_QUERY = gql`
       parkingType
       postalCode
       publishUpstream
+      disableOCPI
       state
       timeZone
       updatedAt
