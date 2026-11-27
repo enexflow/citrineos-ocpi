@@ -115,7 +115,7 @@ export class TariffMapper {
     }
 
     return {
-      id: (coreTariff as any).ocpiTariffId ?? coreTariff.id!.toString(),
+      id: TariffMapper.ocpiTariffId(coreTariff),
       country_code: countryCode,
       party_id: partyId,
       currency: coreTariff.currency!,
@@ -132,16 +132,17 @@ export class TariffMapper {
     };
   }
 
-  public static formatOwnTariffId(coreTariff: TariffMapInput): string {
-    if (!coreTariff.tenant?.countryCode || !coreTariff.tenant?.partyId) {
-      throw new Error(
-        'Tenant country/party identifiers are required to format own tariff ID',
-      );
+  /**
+   * OCPI id of a tariff, as stored: ts-api builds ours once at creation (FR*ZET*T000012), and
+   * a published id never changes. Building one here would fork the format.
+   */
+  public static ocpiTariffId(
+    tariff: Pick<TariffMapInput, 'id' | 'ocpiTariffId'>,
+  ): string {
+    if (!tariff.ocpiTariffId) {
+      throw new Error(`Tariff ${tariff.id} has no ocpiTariffId`);
     }
-    const countryCode = coreTariff.tenant?.countryCode;
-    const partyId = coreTariff.tenant?.partyId;
-    const paddedId = String(coreTariff.id).padStart(6, '0');
-    return `${countryCode}${partyId}T${paddedId}`;
+    return tariff.ocpiTariffId;
   }
 
   /**
@@ -243,9 +244,7 @@ export class TariffMapper {
     }
 
     return {
-      id: (coreTariff as any).ocpiTariffId
-        ? (coreTariff as any).ocpiTariffId
-        : TariffMapper.formatOwnTariffId(coreTariff),
+      id: TariffMapper.ocpiTariffId(coreTariff),
       country_code: countryCode,
       party_id: partyId,
       currency: coreTariff.currency!,

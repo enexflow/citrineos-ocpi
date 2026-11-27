@@ -21,6 +21,7 @@ import { Logger } from 'tslog';
 import type { CdrDimension } from '../model/CdrDimension.js';
 import type { TokenDTO } from '../model/DTO/TokenDTO.js';
 import { BaseTransactionMapper } from './BaseTransactionMapper.js';
+import { TariffMapper, type TariffMapInput } from './TariffMapper.js';
 import { LocationsService } from '../services/LocationsService.js';
 import type { LocationDTO } from '../model/DTO/LocationDTO.js';
 import { UID_FORMAT } from '../model/DTO/EvseDTO.js';
@@ -220,7 +221,7 @@ export class SessionMapper extends BaseTransactionMapper {
     }
     const periods = this.getTimedChargingPeriods(
       transaction.meterValues ?? [],
-      String(tariff.ocpiTariffId),
+      TariffMapper.ocpiTariffId(tariff as TariffMapInput),
       this.getSessionStart(transaction),
       this.getSessionEnd(transaction),
     )
@@ -321,7 +322,7 @@ export class SessionMapper extends BaseTransactionMapper {
     if (transaction.meterValues && tariff) {
       session.charging_periods = this.getChargingPeriods(
         transaction.meterValues,
-        String(tariff.ocpiTariffId),
+        TariffMapper.ocpiTariffId(tariff as TariffMapInput),
         this.getSessionStart(transaction),
         this.getSessionEnd(transaction),
       );

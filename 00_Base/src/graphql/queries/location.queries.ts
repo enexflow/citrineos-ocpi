@@ -283,6 +283,10 @@ export const GET_OWN_LOCATION_QUERY = gql`
               connectorOcpiId
               tariffId
               connectorId
+              Tariff {
+                id
+                ocpiTariffId
+              }
             }
           }
         }

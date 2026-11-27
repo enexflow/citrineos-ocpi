@@ -178,6 +178,19 @@ describe('TariffsBroadcaster — outbound OCPI request', () => {
     });
   });
 
+  // ts-api inserts the tariff, then writes its id: the INSERT event must not publish an id
+  // made up here, the UPDATE event that carries the stored one does.
+  it('does not PUT a tariff whose OCPI id is not written yet', async () => {
+    await stack.sequelize.query(
+      `UPDATE "Tariffs" SET "ocpiTariffId" = NULL WHERE id = ${dbTariffId}`,
+    );
+    const scope = nock(PARTNER_ORIGIN).put(/.*/).reply(200, {});
+
+    await broadcaster.broadcastPutTariff(tenant, { id: dbTariffId } as any);
+
+    expect(scope.isDone()).toBe(false);
+  });
+
   it('does not broadcast to a partner whose roles lack EMSP', async () => {
     await stack.sequelize.query(
       `UPDATE "TenantPartners" SET "partnerProfileOCPI" = jsonb_set(
@@ -203,8 +216,7 @@ describe('TariffsBroadcaster — outbound OCPI request', () => {
         return { status_code: 1000, timestamp: '2026-01-01T10:00:01Z' };
       });
 
-    // Mirrors what handleTariffDelete actually forwards: a row carrying ocpiTariffId,
-    // which broadcastTariffDeletion prefers over recomputing the id from `tenant`.
+    // Mirrors what handleTariffDelete actually forwards: a row carrying ocpiTariffId.
     await broadcaster.broadcastTariffDeletion(tenant, {
       id: OCPI_TARIFF_ID,
       ocpiTariffId: OCPI_TARIFF_ID,
@@ -212,6 +224,18 @@ describe('TariffsBroadcaster — outbound OCPI request', () => {
 
     expect(scope.isDone()).toBe(true);
     expect(seenBody).toBeFalsy();
+  });
+
+  it('does not DELETE a tariff that never had an OCPI id', async () => {
+    const scope = nock(PARTNER_ORIGIN).delete(/.*/).reply(200, {});
+
+    await broadcaster.broadcastTariffDeletion(tenant, {
+      id: dbTariffId,
+      ocpiTariffId: null,
+      tenant: { countryCode: 'FR', partyId: 'CPO' },
+    } as any);
+
+    expect(scope.isDone()).toBe(false);
   });
 
   it('DELETEs using the OCPI id, not the internal DB id', async () => {

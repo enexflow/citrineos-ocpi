@@ -22,6 +22,7 @@ import {
   OcpiGraphqlClient,
   OcpiModule,
   RabbitMqDtoReceiver,
+  TariffMapper,
 } from '@citrineos/ocpi-base';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -421,7 +422,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
     const tenant = payload.tenant;
     const locationId = row.ChargingStation!.locationId!;
     const tariffIds =
-      row.tariffs?.map((t) => t.tariffOcpiId).filter(Boolean) ??
+      row.tariffs?.map((t) => TariffMapper.ocpiTariffId(t.Tariff)) ??
       payload.tariff_ids ??
       [];
 

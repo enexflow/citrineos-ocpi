@@ -11,7 +11,7 @@ jest.mock('@zetra/citrineos-base', () => ({}));
 import type { LocationHours } from '@zetra/citrineos-base';
 import { Logger } from 'tslog';
 import { Container } from 'typedi';
-import { LocationMapper } from '../LocationMapper';
+import { ConnectorMapper, LocationMapper } from '../LocationMapper';
 import { HoursSchema } from '../../model/Hours';
 
 const hours = (value: Partial<LocationHours>): LocationHours =>
@@ -124,5 +124,65 @@ describe('LocationMapper.mapLocationHours', () => {
     expect(result?.exceptional_closings).toEqual([
       { period_begin: begin, period_end: end },
     ]);
+  });
+});
+
+describe('ConnectorMapper.fromGraphql tariff_ids', () => {
+  beforeEach(() => {
+    Container.set(Logger, new Logger({ type: 'hidden' }));
+    // Their enums come from the stubbed citrineos-base; only tariff_ids is under test here.
+    jest.spyOn(ConnectorMapper, 'mapConnectorType').mockReturnValue(undefined);
+    jest
+      .spyOn(ConnectorMapper, 'mapConnectorFormat')
+      .mockReturnValue(undefined);
+    jest
+      .spyOn(ConnectorMapper, 'mapConnectorPowerType')
+      .mockReturnValue(undefined);
+    jest
+      .spyOn(ConnectorMapper, 'validatePartialConnector' as any)
+      .mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const connector = (tariffs: unknown[]) =>
+    ({
+      id: 57,
+      type: 'IEC_62196_T2_COMBO',
+      format: 'CABLE',
+      powerType: 'DC',
+      maximumVoltage: 400,
+      maximumAmperage: 200,
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      tariffs,
+    }) as any;
+
+  it("sends the Tariff's stored id, never the link copy or the numeric id", () => {
+    const mapped = ConnectorMapper.fromGraphql(
+      connector([
+        {
+          tariffOcpiId: 'stale-copy',
+          tariffId: 12,
+          Tariff: { id: 12, ocpiTariffId: 'FR*ZET*T000012' },
+        },
+        {
+          tariffOcpiId: 'FRZETT000005',
+          tariffId: 5,
+          Tariff: { id: 5, ocpiTariffId: 'FRZETT000005' },
+        },
+      ]),
+    );
+
+    expect(mapped?.tariff_ids).toEqual(['FR*ZET*T000012', 'FRZETT000005']);
+  });
+
+  it('fails loudly on a linked tariff with no OCPI id instead of sending its numeric id', () => {
+    expect(() =>
+      ConnectorMapper.fromGraphql(
+        connector([{ tariffId: 12, Tariff: { id: 12, ocpiTariffId: null } }]),
+      ),
+    ).toThrow(/Tariff 12 has no ocpiTariffId/);
   });
 });

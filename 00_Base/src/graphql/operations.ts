@@ -746,7 +746,11 @@ export type GetOwnConnectorForTariffBroadcastQueryResult = {
     stationId: string,
     updatedAt: any,
     tariffs: Array<{
-      tariffOcpiId: string
+      tariffId: number,
+      Tariff: {
+        id: number,
+        ocpiTariffId?: string | null
+      }
     }>,
     ChargingStation: {
       locationId: number,
@@ -773,7 +777,11 @@ export type GetOwnConnectorForTariffBroadcastQueryResult = {
         status?: string | null,
         updatedAt: any,
         tariffs: Array<{
-          tariffOcpiId: string
+          tariffId: number,
+          Tariff: {
+            id: number,
+            ocpiTariffId?: string | null
+          }
         }>
       }>
     } | null
@@ -1390,7 +1398,11 @@ export type GetLocationByOcpiIdQueryResult = {
             tariffOcpiId: string,
             connectorOcpiId: string,
             tariffId: number,
-            connectorId: number
+            connectorId: number,
+            Tariff: {
+              id: number,
+              ocpiTariffId?: string | null
+            }
           }>
         }>
       }>

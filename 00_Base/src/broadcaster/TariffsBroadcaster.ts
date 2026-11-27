@@ -12,7 +12,7 @@ import { InterfaceRole } from '../model/InterfaceRole.js';
 import type { TariffDto, TenantDto } from '@zetra/citrineos-base';
 import { HttpMethod } from '@zetra/citrineos-base';
 import type { Tariff } from '../model/Tariff.js';
-import { TariffMapper } from '../mapper/index.js';
+import { TariffMapper, type TariffMapInput } from '../mapper/index.js';
 import { OcpiEmptyResponseSchema } from '../model/OcpiEmptyResponse.js';
 import type {
   GetTariffForBroadcastQueryResult,
@@ -78,6 +78,13 @@ export class TariffsBroadcaster extends BaseBroadcaster {
       return;
     }
 
+    // ts-api writes the id right after the insert: its UPDATE event publishes the tariff.
+    if (!tariffResponse.Tariffs[0].ocpiTariffId) {
+      this.logger.debug(
+        `Tariff ${tariffDto.id} has no ocpiTariffId yet, skipping broadcast PUT`,
+      );
+      return;
+    }
     const tariff = TariffMapper.mapForSender(tariffResponse.Tariffs[0]);
     const path = `/${tenant.countryCode}/${tenant.partyId}/${tariff.id}`;
     await this.broadcast(tenant, HttpMethod.Put, path, tariff);
@@ -87,9 +94,14 @@ export class TariffsBroadcaster extends BaseBroadcaster {
     tenant: TenantDto,
     tariffDto: TariffDto,
   ): Promise<void> {
-    const ocpiId =
-      (tariffDto as any).ocpiTariffId ??
-      TariffMapper.formatOwnTariffId(tariffDto as any);
+    // Without an id it was never published (ts-api deletes it when writing the id fails).
+    if (!(tariffDto as TariffMapInput).ocpiTariffId) {
+      this.logger.debug(
+        `Tariff ${tariffDto.id} has no ocpiTariffId, never published, skipping broadcast DELETE`,
+      );
+      return;
+    }
+    const ocpiId = TariffMapper.ocpiTariffId(tariffDto as TariffMapInput);
     const path = `/${tenant.countryCode}/${tenant.partyId}/${ocpiId}`;
     await this.broadcast(tenant, HttpMethod.Delete, path);
   }
